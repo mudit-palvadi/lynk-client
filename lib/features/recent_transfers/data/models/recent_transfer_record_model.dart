@@ -8,7 +8,6 @@ class RecentTransferRecordModel extends RecentTransferRecord {
     required super.totalSize,
     required super.timestamp,
     required super.status,
-    super.aesKey,
     super.filePaths,
   });
 
@@ -28,7 +27,6 @@ class RecentTransferRecordModel extends RecentTransferRecord {
           DateTime.tryParse(json['timestamp'] as String? ?? '') ??
           DateTime.now(),
       status: json['status'] as String? ?? 'completed',
-      aesKey: json['aes_key'] as String?,
       filePaths: (json['file_paths'] as List<dynamic>?)
           ?.map((e) => e.toString())
           .toList(),
@@ -43,7 +41,6 @@ class RecentTransferRecordModel extends RecentTransferRecord {
       'total_size': totalSize,
       'timestamp': timestamp.toIso8601String(),
       'status': status,
-      if (aesKey != null) 'aes_key': aesKey,
       if (filePaths != null) 'file_paths': filePaths,
     };
   }
@@ -56,7 +53,6 @@ class RecentTransferRecordModel extends RecentTransferRecord {
       totalSize: entity.totalSize,
       timestamp: entity.timestamp,
       status: entity.status,
-      aesKey: entity.aesKey,
       filePaths: entity.filePaths,
     );
   }

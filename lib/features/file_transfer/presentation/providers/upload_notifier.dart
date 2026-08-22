@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:client/core/providers/transfer_providers.dart';
 import 'package:client/core/services/upload_service.dart';
 import 'package:client/core/providers/receiver_providers.dart';
+import 'package:client/core/services/key_wrap_service.dart';
 import 'package:client/core/utils/entropy_generator.dart';
 import 'package:client/features/file_transfer/domain/entities/file_item.dart';
 import 'package:client/features/file_transfer/domain/usecases/encrypt_file_use_case.dart';
@@ -42,32 +43,43 @@ class UploadNotifier extends _$UploadNotifier {
       return;
     }
 
-    final totalSize = files.fold(0, (sum, f) => sum + f.size);
-    final maxLimit = state.isSizeLimitUnlocked ? 524288000 : 157286400;
-
-    if (totalSize > maxLimit) {
-      final msg = state.isSizeLimitUnlocked
-          ? 'Total transfer limit is 500 MB'
-          : 'Free limit is 150 MB. Watch an ad to unlock up to 500 MB!';
-      state = state.copyWith(phase: UploadPhase.failed, errorMessage: msg);
-      return;
-    }
-
-    for (var f in files) {
-      if (f.size > 52428800) {
-        state = state.copyWith(
-          phase: UploadPhase.failed,
-          errorMessage: 'File "${f.name}" exceeds 50 MB limit',
-        );
-        return;
-      }
-    }
+    if (!_validateSizes(files)) return;
 
     state = state.copyWith(selectedFiles: files, phase: UploadPhase.selecting);
   }
 
   void unlockExtendedSizeLimit() {
     state = state.copyWith(isSizeLimitUnlocked: true);
+  }
+
+  /// Enforces the per-mode size tiers against the current unlocked state:
+  /// - Cloud/R2: free 20 MB -> unlocked 50 MB
+  /// - P2P: free 50 MB -> unlocked 100 MB
+  bool _validateSizes(List<PlatformFile> files) {
+    final totalSize = files.fold(0, (sum, f) => sum + f.size);
+    final maxLimit = state.maxTotalSize;
+    final maxMb = state.maxTotalSizeUnlockedMb;
+    final freeMb = state.transferMode == TransferMode.p2p ? 50 : 20;
+
+    if (totalSize > maxLimit) {
+      final msg = state.isSizeLimitUnlocked
+          ? 'Total transfer limit is $maxMb MB'
+          : 'Free limit is $freeMb MB. Watch an ad to unlock up to $maxMb MB!';
+      state = state.copyWith(phase: UploadPhase.failed, errorMessage: msg);
+      return false;
+    }
+
+    for (var f in files) {
+      if (f.size > maxLimit) {
+        final msg = state.isSizeLimitUnlocked
+            ? 'File "${f.name}" exceeds $maxMb MB limit'
+            : 'File "${f.name}" exceeds the $freeMb MB free limit. Watch an ad to unlock up to $maxMb MB!';
+        state = state.copyWith(phase: UploadPhase.failed, errorMessage: msg);
+        return false;
+      }
+    }
+
+    return true;
   }
 
   Future<void> pickMedia() async {
@@ -84,26 +96,10 @@ class UploadNotifier extends _$UploadNotifier {
       return;
     }
 
-    final totalSize = files.fold(0, (sum, f) => sum + f.size);
-    if (totalSize > 524288000) {
-      state = state.copyWith(
-        phase: UploadPhase.failed,
-        errorMessage: 'Total transfer limit is 500 MB',
-      );
-      return;
-    }
+    if (!_validateSizes(files)) return;
 
-    for (var f in files) {
-      if (f.size > 52428800) {
-        state = state.copyWith(
-          phase: UploadPhase.failed,
-          errorMessage: 'File "${f.name}" exceeds 50 MB limit',
-        );
-        return;
-      }
-    }
-
-    state = UploadState(selectedFiles: files, phase: UploadPhase.selecting);
+    // Preserve tier unlock state and mode when committing the selection.
+    state = state.copyWith(selectedFiles: files, phase: UploadPhase.selecting);
   }
 
   void setTransferMode(TransferMode mode) {
@@ -123,7 +119,10 @@ class UploadNotifier extends _$UploadNotifier {
     );
   }
 
-  Future<void> startUpload({String? attachToSessionId}) async {
+  Future<void> startUpload({
+    String? attachToSessionId,
+    String? receiverPk,
+  }) async {
     if (state.selectedFiles.isEmpty) return;
 
     state = state.copyWith(
@@ -239,10 +238,26 @@ class UploadNotifier extends _$UploadNotifier {
 
         if (attachToSessionId != null) {
           final receiverRepo = ref.read(receiverRepositoryProvider);
+
+          // Zero-knowledge: wrap the AES key to the receiver's ephemeral
+          // public key. Only opaque ciphertext is transmitted.
+          String? wrappedKey;
+          if (receiverPk != null && receiverPk.isNotEmpty) {
+            try {
+              wrappedKey = await KeyWrapService().wrapKey(
+                aesKey: aesKey,
+                receiverPublicKeyB64: receiverPk,
+                sessionId: attachToSessionId,
+              );
+            } catch (_) {
+              wrappedKey = null;
+            }
+          }
+
           await receiverRepo.attachTransfer(
             sessionId: attachToSessionId,
             transferId: transfer.id,
-            aesKey: aesKey,
+            wrappedKey: wrappedKey,
           );
         }
 
@@ -261,7 +276,6 @@ class UploadNotifier extends _$UploadNotifier {
                 totalSize: state.totalSize,
                 timestamp: DateTime.now(),
                 status: 'completed',
-                aesKey: aesKey,
                 filePaths: state.selectedFiles
                     .where((f) => f.path != null)
                     .map((f) => f.path!)

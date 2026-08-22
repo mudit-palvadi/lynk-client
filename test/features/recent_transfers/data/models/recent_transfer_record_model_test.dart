@@ -12,7 +12,6 @@ void main() {
     totalSize: 1048576,
     timestamp: testTimestamp,
     status: 'completed',
-    aesKey: 'aesKey123',
     filePaths: ['/path/to/file1.png', '/path/to/file2.pdf'],
   );
 
@@ -23,7 +22,6 @@ void main() {
     'total_size': 1048576,
     'timestamp': testTimestamp.toIso8601String(),
     'status': 'completed',
-    'aes_key': 'aesKey123',
     'file_paths': ['/path/to/file1.png', '/path/to/file2.pdf'],
   };
 
@@ -36,7 +34,6 @@ void main() {
       expect(model.totalSize, equals(1048576));
       expect(model.timestamp, equals(testTimestamp));
       expect(model.status, equals('completed'));
-      expect(model.aesKey, equals('aesKey123'));
       expect(
         model.filePaths,
         equals(['/path/to/file1.png', '/path/to/file2.pdf']),
@@ -46,6 +43,21 @@ void main() {
     test('toJson serializes RecentTransferRecordModel correctly', () {
       final json = testRecord.toJson();
       expect(json, equals(testJson));
+    });
+
+    test('toJson never serializes an aes_key field', () {
+      final json = testRecord.toJson();
+      expect(json.containsKey('aes_key'), isFalse);
+    });
+
+    test('legacy persisted aes_key field is ignored on parse', () {
+      final legacyJson = Map<String, dynamic>.from(testJson)
+        ..['aes_key'] = 'plaintext_key_from_old_version';
+
+      final model = RecentTransferRecordModel.fromJson(legacyJson);
+      final json = model.toJson();
+
+      expect(json.containsKey('aes_key'), isFalse);
     });
   });
 }

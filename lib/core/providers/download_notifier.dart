@@ -6,11 +6,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../services/download_service.dart';
 import 'download_state.dart';
-import 'receiver_notifier.dart';
 import 'transfer_providers.dart';
 import '../../features/file_receive/domain/usecases/decrypt_file_use_case.dart';
 import '../../features/file_transfer/domain/entities/file_item.dart';
-import '../../features/file_transfer/presentation/providers/upload_notifier.dart';
 import '../../features/recent_transfers/data/models/recent_transfer_record_model.dart';
 import '../../features/recent_transfers/domain/entities/recent_transfer_record.dart';
 import '../../features/recent_transfers/presentation/providers/recent_transfers_notifier.dart';
@@ -57,9 +55,22 @@ class DownloadNotifier extends _$DownloadNotifier {
   Future<void> startDownload({String? aesKey}) async {
     if (state.transfer == null) return;
 
+    // Strict key resolution: only the explicitly provided key (from the QR
+    // #fragment or the in-memory unwrapped wrapped_key) may be used. No
+    // cross-provider stale-key fallbacks.
+    String? key = (aesKey != null && aesKey.isNotEmpty) ? aesKey : state.aesKey;
+    if (key == null || key.isEmpty) {
+      state = state.copyWith(
+        phase: DownloadPhase.failed,
+        errorMessage:
+            'Decryption key missing. Please scan the sender QR code again.',
+      );
+      return;
+    }
+
     state = state.copyWith(
       phase: DownloadPhase.downloading,
-      aesKey: aesKey,
+      aesKey: key,
       currentFileIndex: 0,
       overallProgress: 0.0,
     );
@@ -110,16 +121,6 @@ class DownloadNotifier extends _$DownloadNotifier {
       state = state.copyWith(currentFileIndex: i, currentFileProgress: 0.0);
 
       try {
-        String? key = (aesKey != null && aesKey.isNotEmpty)
-            ? aesKey
-            : state.aesKey;
-        if (key == null || key.isEmpty) {
-          key = ref.read(receiverProvider).attachedAesKey;
-        }
-        if (key == null || key.isEmpty) {
-          key = ref.read(uploadProvider).aesKey;
-        }
-
         if (kIsWeb) {
           final encBytes = await downloadService.downloadBytesFromR2(
             downloadUrl: item.downloadUrl!,
@@ -137,7 +138,7 @@ class DownloadNotifier extends _$DownloadNotifier {
           );
 
           Uint8List finalBytes = encBytes;
-          if (key != null && key.isNotEmpty) {
+          if (key.isNotEmpty) {
             finalBytes = decryptUseCase.executeBytes(
               encryptedBytes: encBytes,
               aesKey32Bytes: key,
@@ -165,7 +166,7 @@ class DownloadNotifier extends _$DownloadNotifier {
           );
 
           // Decrypt the downloaded file using resolved key
-          if (key != null && key.isNotEmpty) {
+          if (key.isNotEmpty) {
             await decryptUseCase.execute(
               encryptedFile: File(tempSavePath),
               aesKey32Bytes: key,
@@ -211,7 +212,6 @@ class DownloadNotifier extends _$DownloadNotifier {
             totalSize: totalSize,
             timestamp: DateTime.now(),
             status: 'completed',
-            aesKey: aesKey ?? state.aesKey,
             filePaths: downloadedPaths,
           ),
         );

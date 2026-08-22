@@ -36,6 +36,18 @@ class UploadState extends Equatable {
   int get totalSize =>
       selectedFiles.fold(0, (sum, f) => sum + ((f.size ~/ 16) + 1) * 16 + 16);
 
+  /// Size tiers (bytes):
+  /// - Cloud/R2: free = 20 MB, rewarded-ad unlocked = 50 MB
+  /// - P2P:      free = 50 MB, rewarded-ad unlocked = 100 MB
+  int get maxTotalSize {
+    if (transferMode == TransferMode.p2p) {
+      return isSizeLimitUnlocked ? 100 * 1024 * 1024 : 50 * 1024 * 1024;
+    }
+    return isSizeLimitUnlocked ? 50 * 1024 * 1024 : 20 * 1024 * 1024;
+  }
+
+  int get maxTotalSizeUnlockedMb => maxTotalSize ~/ (1024 * 1024);
+
   UploadState copyWith({
     List<PlatformFile>? selectedFiles,
     Transfer? transfer,

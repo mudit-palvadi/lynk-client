@@ -9,7 +9,7 @@ abstract class ReceiverRepository {
   Future<Result<void>> attachTransfer({
     required String sessionId,
     required String transferId,
-    String? aesKey,
+    String? wrappedKey,
   });
 
   Future<Result<void>> cancelReceiverSession(String sessionId);

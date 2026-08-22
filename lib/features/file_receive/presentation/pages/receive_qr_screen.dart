@@ -72,7 +72,8 @@ class _ReceiveQrScreenState extends ConsumerState<ReceiveQrScreen> {
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: QrImageView(
-                    data: 'https://lynk.app/receive/${state.session!.id}',
+                    data:
+                        'https://lynk.app/receive/${state.session!.id}#pk=${state.receiverPublicKeyB64 ?? ''}',
                     version: QrVersions.auto,
                     size: 220.0,
                     backgroundColor: Colors.white,

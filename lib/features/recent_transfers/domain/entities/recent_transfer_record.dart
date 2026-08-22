@@ -9,7 +9,6 @@ class RecentTransferRecord extends Equatable {
   final int totalSize;
   final DateTime timestamp;
   final String status;
-  final String? aesKey;
   final List<String>? filePaths;
 
   const RecentTransferRecord({
@@ -19,7 +18,6 @@ class RecentTransferRecord extends Equatable {
     required this.totalSize,
     required this.timestamp,
     required this.status,
-    this.aesKey,
     this.filePaths,
   });
 
@@ -31,7 +29,6 @@ class RecentTransferRecord extends Equatable {
     totalSize,
     timestamp,
     status,
-    aesKey,
     filePaths,
   ];
 }

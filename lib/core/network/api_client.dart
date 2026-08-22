@@ -22,13 +22,18 @@ class ApiClient {
       ),
     );
 
-    _dio.interceptors.add(
-      LogInterceptor(
-        requestBody: true,
-        responseBody: true,
-        logPrint: (obj) => debugPrint('DioLog: $obj'),
-      ),
-    );
+    // Debug-only request-line logging. Request/response bodies must never be
+    // logged — they can carry key material (e.g. wrapped_key attach calls).
+    if (kDebugMode) {
+      _dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            debugPrint('DioRequest: ${options.method} ${options.uri.path}');
+            return handler.next(options);
+          },
+        ),
+      );
+    }
   }
 
   static String _getBaseUrl() {

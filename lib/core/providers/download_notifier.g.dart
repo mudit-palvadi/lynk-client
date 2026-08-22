@@ -83,7 +83,7 @@ final class DownloadNotifierProvider
   }
 }
 
-String _$downloadNotifierHash() => r'44a0f77ac329b5eb7c0763144e0f4f045a3218b8';
+String _$downloadNotifierHash() => r'cc4de647016605899323824dcc2d8df216dad649';
 
 abstract class _$DownloadNotifier extends $Notifier<DownloadState> {
   DownloadState build();

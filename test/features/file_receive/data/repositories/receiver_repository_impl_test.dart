@@ -7,6 +7,7 @@ import 'package:client/features/file_receive/domain/entities/receiver_session.da
 
 class MockReceiverRemoteDataSource implements ReceiverRemoteDataSource {
   bool shouldThrowDioException = false;
+  String? capturedWrappedKey;
 
   @override
   Future<ReceiverSessionModel> createReceiverSession() async {
@@ -29,10 +30,11 @@ class MockReceiverRemoteDataSource implements ReceiverRemoteDataSource {
         requestOptions: RequestOptions(path: '/receiver-sessions/$sessionId'),
       );
     }
-    return ReceiverSessionModel(
-      id: sessionId,
+    return const ReceiverSessionModel(
+      id: 'sess_123',
       status: ReceiverSessionStatus.attached,
       transferId: 'tx_555',
+      wrappedKey: 'x25519-sealed-blob-base64==',
     );
   }
 
@@ -40,11 +42,12 @@ class MockReceiverRemoteDataSource implements ReceiverRemoteDataSource {
   Future<void> attachTransfer({
     required String sessionId,
     required String transferId,
-    String? aesKey,
+    String? wrappedKey,
   }) async {
     if (shouldThrowDioException) {
       throw DioException(requestOptions: RequestOptions(path: '/attach'));
     }
+    capturedWrappedKey = wrappedKey;
   }
 
   @override
@@ -72,11 +75,25 @@ void main() {
       expect(result.value?.status, ReceiverSessionStatus.waiting);
     });
 
-    test('getReceiverSession returns attached status', () async {
-      final result = await repository.getReceiverSession('sess_123');
+    test(
+      'getReceiverSession returns attached status with wrapped_key',
+      () async {
+        final result = await repository.getReceiverSession('sess_123');
+        expect(result.isSuccess, isTrue);
+        expect(result.value?.status, ReceiverSessionStatus.attached);
+        expect(result.value?.transferId, 'tx_555');
+        expect(result.value?.wrappedKey, 'x25519-sealed-blob-base64==');
+      },
+    );
+
+    test('attachTransfer passes wrappedKey to data source', () async {
+      final result = await repository.attachTransfer(
+        sessionId: 'sess_123',
+        transferId: 'tx_555',
+        wrappedKey: 'sealed-blob',
+      );
       expect(result.isSuccess, isTrue);
-      expect(result.value?.status, ReceiverSessionStatus.attached);
-      expect(result.value?.transferId, 'tx_555');
+      expect(mockDataSource.capturedWrappedKey, 'sealed-blob');
     });
 
     test(

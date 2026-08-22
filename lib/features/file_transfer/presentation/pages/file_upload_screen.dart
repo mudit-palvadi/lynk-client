@@ -11,7 +11,11 @@ import '../providers/upload_state.dart';
 class FileUploadScreen extends ConsumerWidget {
   final String? attachToSessionId;
 
-  const FileUploadScreen({super.key, this.attachToSessionId});
+  /// Receiver's ephemeral public key (base64url) when pairing via a
+  /// receiver-session QR. Used to wrap the AES key client-side.
+  final String? receiverPk;
+
+  const FileUploadScreen({super.key, this.attachToSessionId, this.receiverPk});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -34,15 +38,14 @@ class FileUploadScreen extends ConsumerWidget {
         }
       } else if (next.phase == UploadPhase.failed &&
           next.errorMessage != null) {
-        if (next.errorMessage!.contains('Free limit is 150 MB')) {
+        final msg = next.errorMessage!;
+        if (msg.contains('Watch an ad to unlock')) {
           showDialog(
             context: context,
             builder: (ctx) => AlertDialog(
               backgroundColor: AppTheme.cardBg,
-              title: const Text('Unlock 500 MB Transfer'),
-              content: const Text(
-                'Free transfer limit is 150 MB. Watch a short ad to unlock up to 500 MB for this session!',
-              ),
+              title: const Text('Unlock Larger Transfers'),
+              content: Text('$msg This applies for this session.'),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(ctx),
@@ -59,7 +62,7 @@ class FileUploadScreen extends ConsumerWidget {
                     );
                   },
                   icon: const Icon(Icons.card_giftcard),
-                  label: const Text('Watch Ad & Unlock 500 MB'),
+                  label: const Text('Watch Ad & Unlock'),
                 ),
               ],
             ),
@@ -123,7 +126,7 @@ class FileUploadScreen extends ConsumerWidget {
                         '${uploadState.selectedFiles.length} files selected',
                       ),
                       Text(
-                        '${FileSizeFormatter.format(uploadState.totalSize)} / 500 MB',
+                        '${FileSizeFormatter.format(uploadState.totalSize)} / ${uploadState.maxTotalSizeUnlockedMb} MB',
                         style: const TextStyle(
                           color: AppTheme.primary,
                           fontWeight: FontWeight.bold,
@@ -176,6 +179,7 @@ class FileUploadScreen extends ConsumerWidget {
                               notifier.setTransferMode(TransferMode.cloud);
                               notifier.startUpload(
                                 attachToSessionId: attachToSessionId,
+                                receiverPk: receiverPk,
                               );
                             },
                           );
@@ -197,6 +201,7 @@ class FileUploadScreen extends ConsumerWidget {
                               notifier.setTransferMode(TransferMode.p2p);
                               notifier.startUpload(
                                 attachToSessionId: attachToSessionId,
+                                receiverPk: receiverPk,
                               );
                             },
                           );

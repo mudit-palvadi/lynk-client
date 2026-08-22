@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/widgets.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../features/file_receive/domain/entities/receiver_session.dart';
+import '../services/key_wrap_service.dart';
 import 'receiver_providers.dart';
 
 part 'receiver_notifier.g.dart';
@@ -10,9 +12,16 @@ class ReceiverState {
   final ReceiverSession? session;
   final bool isPolling;
   final String? attachedTransferId;
+
+  /// Plaintext AES key recovered in memory after unwrapping the delivered
+  /// `wrapped_key`. Never persisted, never sent over the network.
   final String? attachedAesKey;
   final String? errorMessage;
   final bool isPausedForBackground;
+
+  /// Ephemeral X25519 key material for this session (memory-only).
+  final String? receiverPublicKeyB64;
+  final Uint8List? receiverPrivateKeySeed;
 
   const ReceiverState({
     this.session,
@@ -21,6 +30,8 @@ class ReceiverState {
     this.attachedAesKey,
     this.errorMessage,
     this.isPausedForBackground = false,
+    this.receiverPublicKeyB64,
+    this.receiverPrivateKeySeed,
   });
 
   ReceiverState copyWith({
@@ -30,6 +41,8 @@ class ReceiverState {
     String? attachedAesKey,
     String? errorMessage,
     bool? isPausedForBackground,
+    String? receiverPublicKeyB64,
+    Uint8List? receiverPrivateKeySeed,
   }) {
     return ReceiverState(
       session: session ?? this.session,
@@ -39,6 +52,9 @@ class ReceiverState {
       errorMessage: errorMessage ?? this.errorMessage,
       isPausedForBackground:
           isPausedForBackground ?? this.isPausedForBackground,
+      receiverPublicKeyB64: receiverPublicKeyB64 ?? this.receiverPublicKeyB64,
+      receiverPrivateKeySeed:
+          receiverPrivateKeySeed ?? this.receiverPrivateKeySeed,
     );
   }
 }
@@ -87,13 +103,35 @@ class ReceiverNotifier extends _$ReceiverNotifier with WidgetsBindingObserver {
   Future<void> createSession() async {
     state = const ReceiverState(isPolling: true);
     _pollCount = 0;
+
+    // Generate the ephemeral X25519 key pair for this session. The public
+    // half is embedded in the session QR (#pk fragment); the private seed
+    // stays in device memory only.
+    String? publicKeyB64;
+    Uint8List? privateKeySeed;
+    try {
+      final pair = await ref
+          .read(keyWrapServiceProvider)
+          .generateReceiverKeyPair();
+      publicKeyB64 = pair.publicKeyB64;
+      privateKeySeed = pair.privateKeySeed;
+    } catch (_) {
+      publicKeyB64 = null;
+      privateKeySeed = null;
+    }
+
     final repo = ref.read(receiverRepositoryProvider);
     final result = await repo.createReceiverSession();
 
     result.fold(
       (session) {
         _activeSessionId = session.id;
-        state = state.copyWith(session: session, isPolling: true);
+        state = state.copyWith(
+          session: session,
+          isPolling: true,
+          receiverPublicKeyB64: publicKeyB64,
+          receiverPrivateKeySeed: privateKeySeed,
+        );
         _scheduleNextPoll(session.id);
       },
       (failure) {
@@ -128,14 +166,34 @@ class ReceiverNotifier extends _$ReceiverNotifier with WidgetsBindingObserver {
       final result = await repo.getReceiverSession(sessionId);
 
       result.fold(
-        (session) {
+        (session) async {
           if (session.status == ReceiverSessionStatus.attached &&
               session.transferId != null) {
             _pollingTimer?.cancel();
+
+            // Unwrap the delivered wrapped_key locally with the ephemeral
+            // private seed. The plaintext key exists only in memory.
+            String? unwrappedKey;
+            if (session.wrappedKey != null &&
+                session.wrappedKey!.isNotEmpty &&
+                state.receiverPrivateKeySeed != null) {
+              try {
+                unwrappedKey = await ref
+                    .read(keyWrapServiceProvider)
+                    .unwrapKey(
+                      wrappedBase64: session.wrappedKey!,
+                      privateKeySeed: state.receiverPrivateKeySeed!,
+                      sessionId: sessionId,
+                    );
+              } catch (_) {
+                unwrappedKey = null;
+              }
+            }
+
             state = state.copyWith(
               isPolling: false,
               attachedTransferId: session.transferId,
-              attachedAesKey: session.aesKey,
+              attachedAesKey: unwrappedKey,
             );
           } else {
             _scheduleNextPoll(sessionId);

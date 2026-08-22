@@ -1,8 +1,26 @@
+import 'package:client/core/services/file_picker_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:client/features/file_transfer/presentation/providers/upload_notifier.dart';
 import 'package:client/features/file_transfer/presentation/providers/upload_state.dart';
+
+class FakeFilePickerService implements FilePickerService {
+  FilePickerResult? nextResult;
+
+  @override
+  Future<FilePickerResult?> pickFiles({bool allowMultiple = true}) async =>
+      nextResult;
+
+  @override
+  Future<FilePickerResult?> pickMedia({bool allowMultiple = true}) async =>
+      nextResult;
+}
+
+const int mb = 1024 * 1024;
+
+PlatformFile fileOf(String name, int bytes) =>
+    PlatformFile(name: name, size: bytes);
 
 void main() {
   group('UploadState', () {
@@ -21,6 +39,29 @@ void main() {
         ],
       );
       expect(state.totalSize, 400);
+    });
+
+    test('cloud mode free tier max total is 20 MB', () {
+      const state = UploadState();
+      expect(state.maxTotalSize, 20 * mb);
+    });
+
+    test('cloud mode unlocked tier max total is 50 MB', () {
+      const state = UploadState(isSizeLimitUnlocked: true);
+      expect(state.maxTotalSize, 50 * mb);
+    });
+
+    test('p2p mode free tier max total is 50 MB', () {
+      const state = UploadState(transferMode: TransferMode.p2p);
+      expect(state.maxTotalSize, 50 * mb);
+    });
+
+    test('p2p mode unlocked tier max total is 100 MB', () {
+      const state = UploadState(
+        transferMode: TransferMode.p2p,
+        isSizeLimitUnlocked: true,
+      );
+      expect(state.maxTotalSize, 100 * mb);
     });
   });
 
@@ -70,4 +111,103 @@ void main() {
       expect(state.phase, UploadPhase.cancelled);
     });
   });
+
+  group(
+    'UploadNotifier size tier enforcement (cloud 20->50MB, p2p 50->100MB)',
+    () {
+      late FakeFilePickerService fakePicker;
+
+      ProviderContainer makeContainer() {
+        fakePicker = FakeFilePickerService();
+        return ProviderContainer(
+          overrides: [filePickerServiceProvider.overrideWithValue(fakePicker)],
+        );
+      }
+
+      test(
+        'cloud free tier: total over 20 MB is rejected with unlock hint',
+        () async {
+          final container = makeContainer();
+          addTearDown(container.dispose);
+
+          fakePicker.nextResult = FilePickerResult([
+            fileOf('a.bin', 15 * mb),
+            fileOf('b.bin', 10 * mb),
+          ]);
+
+          final notifier = container.read(uploadProvider.notifier);
+          await notifier.pickFiles();
+
+          final state = container.read(uploadProvider);
+          expect(state.phase, UploadPhase.failed);
+          expect(state.errorMessage, contains('20 MB'));
+        },
+      );
+
+      test('cloud unlocked tier: up to 50 MB total is accepted', () async {
+        final container = makeContainer();
+        addTearDown(container.dispose);
+
+        final notifier = container.read(uploadProvider.notifier);
+        notifier.unlockExtendedSizeLimit();
+        fakePicker.nextResult = FilePickerResult([fileOf('big.bin', 45 * mb)]);
+        await notifier.pickFiles();
+
+        expect(container.read(uploadProvider).phase, UploadPhase.selecting);
+      });
+
+      test(
+        'p2p free tier: 30 MB total accepted (above cloud free limit)',
+        () async {
+          final container = makeContainer();
+          addTearDown(container.dispose);
+
+          final notifier = container.read(uploadProvider.notifier);
+          notifier.setTransferMode(TransferMode.p2p);
+          fakePicker.nextResult = FilePickerResult([fileOf('v.mp4', 30 * mb)]);
+          await notifier.pickFiles();
+
+          expect(container.read(uploadProvider).phase, UploadPhase.selecting);
+        },
+      );
+
+      test(
+        'pickMedia respects the free-tier gate (no ad-unlock bypass)',
+        () async {
+          final container = makeContainer();
+          addTearDown(container.dispose);
+
+          fakePicker.nextResult = FilePickerResult([
+            fileOf('movie.mp4', 30 * mb),
+          ]);
+
+          final notifier = container.read(uploadProvider.notifier);
+          await notifier.pickMedia(); // locked state -> cloud free tier 20 MB
+
+          final state = container.read(uploadProvider);
+          expect(state.phase, UploadPhase.failed);
+          expect(state.errorMessage, contains('20 MB'));
+        },
+      );
+
+      test(
+        'pickMedia preserves size-limit unlocked state after picking',
+        () async {
+          final container = makeContainer();
+          addTearDown(container.dispose);
+
+          final notifier = container.read(uploadProvider.notifier);
+          notifier.unlockExtendedSizeLimit();
+          fakePicker.nextResult = FilePickerResult([
+            fileOf('clip.mp4', 5 * mb),
+          ]);
+          await notifier.pickMedia();
+
+          final state = container.read(uploadProvider);
+          expect(state.isSizeLimitUnlocked, isTrue);
+          expect(state.phase, UploadPhase.selecting);
+        },
+      );
+    },
+  );
 }

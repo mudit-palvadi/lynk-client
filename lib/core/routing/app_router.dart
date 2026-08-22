@@ -43,7 +43,11 @@ GoRouter appRouter(Ref ref) {
         builder: (context, state) {
           final attachToSessionId =
               state.uri.queryParameters['attachToSessionId'];
-          return FileUploadScreen(attachToSessionId: attachToSessionId);
+          final receiverPk = state.uri.queryParameters['pk'];
+          return FileUploadScreen(
+            attachToSessionId: attachToSessionId,
+            receiverPk: receiverPk,
+          );
         },
       ),
       GoRoute(

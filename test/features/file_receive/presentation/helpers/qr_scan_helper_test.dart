@@ -21,4 +21,34 @@ void main() {
       expect(result['aesKey'], equals('anotherKey'));
     },
   );
+
+  test(
+    'extractReceiveSessionIdAndPublicKey parses https receive URL with pk fragment',
+    () {
+      const rawUrl = 'https://lynk.app/receive/sess_abc123#pk=AbCdEf123456';
+      final result = QrScanHelper.extractReceiveSessionIdAndPublicKey(rawUrl);
+      expect(result['sessionId'], equals('sess_abc123'));
+      expect(result['receiverPk'], equals('AbCdEf123456'));
+    },
+  );
+
+  test(
+    'extractReceiveSessionIdAndPublicKey parses custom scheme receive URL',
+    () {
+      const rawUrl = 'lynk://receive/sess_xyz789#pk=XyZ987';
+      final result = QrScanHelper.extractReceiveSessionIdAndPublicKey(rawUrl);
+      expect(result['sessionId'], equals('sess_xyz789'));
+      expect(result['receiverPk'], equals('XyZ987'));
+    },
+  );
+
+  test(
+    'extractReceiveSessionIdAndPublicKey returns null pk when no fragment present (legacy)',
+    () {
+      const rawUrl = 'https://lynk.app/receive/sess_legacy';
+      final result = QrScanHelper.extractReceiveSessionIdAndPublicKey(rawUrl);
+      expect(result['sessionId'], equals('sess_legacy'));
+      expect(result['receiverPk'], isNull);
+    },
+  );
 }

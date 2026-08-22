@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../../core/providers/receiver_providers.dart';
+import '../../../../core/services/key_wrap_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../providers/upload_notifier.dart';
 
@@ -28,6 +29,43 @@ class QrScanHelper {
       }
     }
     return {'transferId': null, 'aesKey': null};
+  }
+
+  /// Extracts receiver session id and ephemeral public key from a receiver
+  /// QR URL: https://lynk.app/receive/{sessionId}#pk={base64url}
+  static Map<String, String?> extractReceiveSessionIdAndPublicKey(
+    String rawValue,
+  ) {
+    final uri = Uri.tryParse(rawValue);
+    if (uri == null) return {'sessionId': null, 'receiverPk': null};
+
+    final bool isReceiveUrl;
+    if (uri.scheme == 'lynk') {
+      isReceiveUrl =
+          uri.pathSegments.isNotEmpty &&
+          (uri.pathSegments.first == 'receive' || uri.host == 'receive');
+    } else if (uri.scheme == 'https' || uri.scheme == 'http') {
+      isReceiveUrl =
+          uri.pathSegments.isNotEmpty && uri.pathSegments.first == 'receive';
+    } else {
+      isReceiveUrl = false;
+    }
+
+    if (!isReceiveUrl) return {'sessionId': null, 'receiverPk': null};
+
+    String? sessionId;
+    if (uri.pathSegments.length >= 2) {
+      sessionId = uri.pathSegments[1];
+    } else {
+      sessionId = uri.host == 'receive' ? uri.pathSegments.first : null;
+    }
+
+    final fragment = uri.fragment;
+    final receiverPk = fragment.startsWith('pk=')
+        ? fragment.substring(3)
+        : null;
+
+    return {'sessionId': sessionId, 'receiverPk': receiverPk};
   }
 
   /// Pick an image from gallery and scan for QR codes.
@@ -103,14 +141,15 @@ class QrScanHelper {
         (uri.scheme == 'https' ||
             uri.scheme == 'http' ||
             uri.scheme == 'lynk')) {
-      final segments = uri.pathSegments;
-      if (segments.isNotEmpty && segments[0] == 'receive') {
-        final id = segments.length > 1 ? segments[1] : uri.host;
+      final extractedReceive = extractReceiveSessionIdAndPublicKey(rawValue);
+      final id = extractedReceive['sessionId'];
+      if (id != null) {
         return await handleReceiveSession(
           context: context,
           ref: ref,
           sessionId: id,
           attachTransferId: attachTransferId,
+          receiverPk: extractedReceive['receiverPk'],
         );
       }
     }
@@ -146,14 +185,30 @@ class QrScanHelper {
     required WidgetRef ref,
     required String sessionId,
     required String? attachTransferId,
+    String? receiverPk,
   }) async {
     if (attachTransferId != null && attachTransferId.isNotEmpty) {
       final repo = ref.read(receiverRepositoryProvider);
       final currentAesKey = ref.read(uploadProvider).aesKey;
+
+      // Zero-knowledge: wrap the AES key to the receiver's ephemeral public
+      // key client-side. Only opaque ciphertext reaches the backend.
+      String? wrappedKey;
+      if (receiverPk != null &&
+          receiverPk.isNotEmpty &&
+          currentAesKey != null &&
+          currentAesKey.isNotEmpty) {
+        wrappedKey = await KeyWrapService().wrapKey(
+          aesKey: currentAesKey,
+          receiverPublicKeyB64: receiverPk,
+          sessionId: sessionId,
+        );
+      }
+
       final result = await repo.attachTransfer(
         sessionId: sessionId,
         transferId: attachTransferId,
-        aesKey: currentAesKey,
+        wrappedKey: wrappedKey,
       );
 
       if (context.mounted) {
@@ -178,7 +233,10 @@ class QrScanHelper {
       }
       return false;
     } else {
-      context.go('/upload?attachToSessionId=$sessionId');
+      final pkParam = receiverPk != null && receiverPk.isNotEmpty
+          ? '&pk=${Uri.encodeComponent(receiverPk)}'
+          : '';
+      context.go('/upload?attachToSessionId=$sessionId$pkParam');
       return true;
     }
   }

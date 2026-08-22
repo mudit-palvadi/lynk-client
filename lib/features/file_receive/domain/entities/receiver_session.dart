@@ -6,14 +6,17 @@ class ReceiverSession extends Equatable {
   final String id;
   final ReceiverSessionStatus status;
   final String? transferId;
-  final String? aesKey;
+
+  /// Opaque ECDH-sealed ciphertext of the AES key (never plaintext).
+  /// Unwrapped locally with the ephemeral private key held in memory.
+  final String? wrappedKey;
   final int? expiresMultiplier;
 
   const ReceiverSession({
     required this.id,
     required this.status,
     this.transferId,
-    this.aesKey,
+    this.wrappedKey,
     this.expiresMultiplier,
   });
 
@@ -21,14 +24,14 @@ class ReceiverSession extends Equatable {
     String? id,
     ReceiverSessionStatus? status,
     String? transferId,
-    String? aesKey,
+    String? wrappedKey,
     int? expiresMultiplier,
   }) {
     return ReceiverSession(
       id: id ?? this.id,
       status: status ?? this.status,
       transferId: transferId ?? this.transferId,
-      aesKey: aesKey ?? this.aesKey,
+      wrappedKey: wrappedKey ?? this.wrappedKey,
       expiresMultiplier: expiresMultiplier ?? this.expiresMultiplier,
     );
   }
@@ -38,7 +41,7 @@ class ReceiverSession extends Equatable {
     id,
     status,
     transferId,
-    aesKey,
+    wrappedKey,
     expiresMultiplier,
   ];
 }

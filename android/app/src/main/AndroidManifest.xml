@@ -9,7 +9,7 @@
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
         <activity
-            android:name="app.lynk.client.MainActivity"
+            android:name="app.xynix.lynk.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""

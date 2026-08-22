@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "app.lynk.client"
+    namespace = "app.xynix.lynk"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -16,7 +16,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "app.lynk.client"
+        applicationId = "app.xynix.lynk"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

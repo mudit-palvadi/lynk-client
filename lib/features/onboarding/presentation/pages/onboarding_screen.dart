@@ -1,8 +1,10 @@
+import 'package:client/core/theme/app_theme.dart';
+import 'package:client/core/utils/app_links.dart';
 import 'package:client/features/onboarding/presentation/providers/onboarding_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
-import '../../../../core/theme/app_theme.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -38,6 +40,20 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   void _finish() {
     ref.read(onboardingProvider.notifier).completeOnboarding();
+  }
+
+  Future<void> _openPrivacyPolicy() async {
+    final uri = Uri.parse(AppLinks.privacyPolicyUrl);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not open the privacy policy page.'),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -99,7 +115,20 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 dotWidth: 8,
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 16),
+            TextButton.icon(
+              onPressed: _openPrivacyPolicy,
+              icon: const Icon(
+                Icons.privacy_tip_outlined,
+                size: 16,
+                color: AppTheme.textSecondary,
+              ),
+              label: const Text(
+                'Privacy Policy',
+                style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+              ),
+            ),
+            const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.symmetric(
                 horizontal: 24.0,

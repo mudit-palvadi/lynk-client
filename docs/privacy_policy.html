@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy | Lynk by Xynix</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; line-height: 1.65; color: #222; max-width: 820px; margin: 0 auto; padding: 24px; }
+  h1 { font-size: 1.7em; } h2 { font-size: 1.2em; margin-top: 2em; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+  ul { padding-left: 22px; } .meta { color: #555; }
+</style>
+</head>
+<body>
+
+<h1>Privacy Policy</h1>
+<p class="meta"><strong>Effective date:</strong> August 22, 2026<br>
+<strong>Data controller:</strong> Xynix<br>
+<strong>Contact:</strong> dev.muditp@gmail.com</p>
+
+<p>This Privacy Policy describes how Xynix ("we", "us", or "our") handles information in connection with the mobile application <strong>Lynk</strong> (package name <code>app.xynix.lynk</code>, the "App"). By using the App you agree to the practices described below. If you do not agree, please do not use the App.</p>
+
+<h2>1. Summary</h2>
+<ul>
+<li>The App does not require an account and we do not ask for your name, email address, phone number, or any other personal identity information.</li>
+<li>Files you send are encrypted on your device before they ever leave it. We never see the content of your files.</li>
+<li>Decryption keys are never sent to our servers.</li>
+<li>We store limited transfer metadata for a short period (approximately 10 to 30 minutes), after which it is automatically deleted.</li>
+<li>Some data is stored only on your device, such as your local transfer history. You can clear it at any time.</li>
+<li>The App displays advertisements served by Google AdMob, which processes certain device and usage data as described in Section 6.</li>
+</ul>
+
+<h2>2. Information We Do Not Collect</h2>
+<p>We do not collect, and the App is designed so that we never receive:</p>
+<ul>
+<li>Account registrations, usernames, passwords, email addresses, or phone numbers</li>
+<li>Contacts, photos, or files except those you explicitly choose to send through the App</li>
+<li>Precise location data</li>
+<li>Crash reports, analytics events, or telemetry beyond what is described in this policy</li>
+<li>The contents or decryption keys of any file you transfer</li>
+</ul>
+
+<h2>3. Files You Transfer</h2>
+<p>Lynk is an encrypted file transfer service with the following safeguards:</p>
+<ul>
+<li><strong>Client-side encryption:</strong> Before a file leaves your device, it is encrypted using AES-256 with a randomly generated key and a unique initialization vector. Encryption happens entirely on your device.</li>
+<li><strong>Zero-knowledge design:</strong> The encryption key exists only in the QR code link you share or in the temporary memory of the sending and receiving devices. Our servers never receive it.</li>
+<li><strong>Ciphertext-only storage:</strong> When cloud relay is used, files are stored on Cloudflare R2 object storage in encrypted form only. Neither we nor Cloudflare can read them.</li>
+<li><strong>Automatic expiry:</strong> Encrypted transfers are automatically removed when their session expires, typically within 10 to 30 minutes of creation, depending on the session type.</li>
+</ul>
+
+<h2>4. Transfer Metadata (Processed on Our Servers)</h2>
+<p>To operate transfers, our backend processes a minimal set of technical metadata:</p>
+<ul>
+<li>A random, non-guessable transfer or session identifier</li>
+<li>File names, file sizes, and file types for the files you choose to send</li>
+<li>Timestamps and session status needed to manage expiry</li>
+<li>Your IP address, which is processed transiently by our hosting and network providers as part of any internet communication</li>
+</ul>
+<p>This metadata is stored in a Redis datastore with a time-to-live setting and is <strong>automatically and permanently deleted within approximately 10 to 30 minutes</strong>. We do not use this metadata to build profiles or to identify individual users, and we cannot associate it with any account because accounts do not exist.</p>
+
+<h2>5. Information Stored Only on Your Device</h2>
+<p>The following information is stored locally on your device and is never transmitted to us:</p>
+<ul>
+<li><strong>Recent transfer history:</strong> names, sizes, timestamps, and local paths of your recent transfers, used to power features such as re-sending a file. You can clear this history from within the App, and it is removed if you uninstall the App.</li>
+<li><strong>Onboarding status:</strong> whether you have completed the introduction screens.</li>
+</ul>
+<p>Note that during the alpha testing phase, history entries created by older pre-release versions may have contained technical identifiers. Updating to the current version and clearing your history removes them.</p>
+
+<h2>6. Third-Party Advertising (Google AdMob)</h2>
+<p>The App displays advertisements provided by Google AdMob ("Google"). Google acts as an independent controller of the data it processes to serve ads. This may include:</p>
+<ul>
+<li>Your Google advertising identifier (Advertising ID) and device identifiers</li>
+<li>Approximate location derived from IP address (country, region, or city level)</li>
+<li>Device characteristics such as model, operating system version, and screen size</li>
+<li>Ad interaction data such as views, clicks, and completed rewarded ad views</li>
+</ul>
+<p>This data is used by Google to serve and measure advertising, including the rewarded video and interstitial ads that unlock optional features in the App. During closed testing, test advertisements may be shown instead of live ads.</p>
+<p>You can learn more about how Google uses data at <a href="https://policies.google.com/technologies/partner-sites">policies.google.com/technologies/partner-sites</a>, and you can opt out of advertising personalization in your Android device settings under Settings, then Google, then Ads (or via <a href="https://adssettings.google.com">adssettings.google.com</a>). Opting out does not remove ads but limits personalization.</p>
+
+<h2>7. Permissions the App Requests</h2>
+<ul>
+<li><strong>Camera:</strong> Used exclusively to scan QR codes that initiate transfers. The App does not take photos or record video, and nothing captured by the camera is stored or transmitted.</li>
+<li><strong>Internet and network state:</strong> Required to perform transfers and fetch transfer metadata.</li>
+<li><strong>File access:</strong> Used when you pick files to send and when received files are saved to your device's Download folder.</li>
+</ul>
+<p>All permissions are requested only when the related feature is used. You can revoke permissions at any time in your device settings, though doing so will disable the corresponding features.</p>
+
+<h2>8. Children's Privacy</h2>
+<p>The App is not directed at children under the age of 13, and we do not knowingly collect personal information from children. Since the App collects no personal information by design, no such collection takes place from any user. If you believe a child has provided personal information through the App, please contact us and we will address it promptly.</p>
+
+<h2>9. Alpha Testing Notice and Changes to This Policy</h2>
+<p>The App is currently offered as a limited alpha release for closed testing. Features and data practices may evolve during this period. If we make material changes to this policy, for example by adding crash reporting or analytics services, we will update this page, revise the effective date above, and provide notice within the App before those changes take effect in any public release channel.</p>
+
+<h2>10. Your Rights and Choices</h2>
+<ul>
+<li><strong>Access and deletion:</strong> Because the App stores no personal identity data and server-side records auto-delete within minutes, deleting the App and clearing in-app history effectively deletes all data associated with your use. For anything else, contact us at the email below.</li>
+<li><strong>Ad personalization:</strong> Control via your Android advertising settings as described in Section 6.</li>
+<li><strong>Objections and questions:</strong> Contact us and we will respond as soon as reasonably possible.</li>
+</ul>
+
+<h2>11. International Transfers</h2>
+<p>Our backend infrastructure and storage providers may process data in countries other than your own. Transfer metadata is minimal, non-identifying, and short-lived, and transferred files remain encrypted throughout, as described in Sections 3 and 4.</p>
+
+<h2>12. Disclaimer for Alpha Releases</h2>
+<p>The App is provided "as is" during the alpha testing phase without warranties of any kind. While we apply strong technical safeguards, alpha software may contain defects. Do not use the App as your sole means of transferring critical or irreplaceable files.</p>
+
+<h2>13. Contact Us</h2>
+<p>For questions, requests, or concerns about this policy or the App, contact:</p>
+<p><strong>Xynix</strong><br>Email: <a href="mailto:dev.muditp@gmail.com">dev.muditp@gmail.com</a></p>
+
+</body>
+</html>

@@ -11,7 +11,7 @@ class AppLinks {
   /// Default falls back to the published Google Sites page. Override via
   /// PRIVACY_POLICY_URL in the bundled .env asset if the location changes.
   static const String defaultPrivacyPolicyUrl =
-      'https://sites.google.com/view/xynix-lynk-privacy/home';
+      'https://sites.google.com/view/lynk-privacy-policy/';
 
   static String get deepLinkBase {
     try {

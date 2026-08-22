@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const expectedUrl = 'https://sites.google.com/view/xynix-lynk-privacy/home';
+  const expectedUrl = 'https://sites.google.com/view/lynk-privacy-policy/';
 
   Future<void> pumpScreen(WidgetTester tester) async {
     SharedPreferences.setMockInitialValues({});

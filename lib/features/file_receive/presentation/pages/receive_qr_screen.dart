@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../../../core/providers/receiver_notifier.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/app_links.dart';
 import '../../../../core/widgets/ad_banner_widget.dart';
 import '../helpers/receive_qr_helper.dart';
 
@@ -73,7 +74,7 @@ class _ReceiveQrScreenState extends ConsumerState<ReceiveQrScreen> {
                   ),
                   child: QrImageView(
                     data:
-                        'https://lynk.app/receive/${state.session!.id}#pk=${state.receiverPublicKeyB64 ?? ''}',
+                        '${AppLinks.deepLinkBase}/receive/${state.session!.id}#pk=${state.receiverPublicKeyB64 ?? ''}',
                     version: QrVersions.auto,
                     size: 220.0,
                     backgroundColor: Colors.white,

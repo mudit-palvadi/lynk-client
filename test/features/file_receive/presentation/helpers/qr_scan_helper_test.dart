@@ -5,7 +5,7 @@ void main() {
   test(
     'QrScanHelper processBarcodeDetection extracts transferId from deep link URL',
     () {
-      const rawUrl = 'https://lynk.app/send/test_transfer_123#myAesKey';
+      const rawUrl = 'https://lynkshare.app/send/test_transfer_123#myAesKey';
       final result = QrScanHelper.extractTransferIdAndKey(rawUrl);
       expect(result['transferId'], equals('test_transfer_123'));
       expect(result['aesKey'], equals('myAesKey'));
@@ -25,7 +25,8 @@ void main() {
   test(
     'extractReceiveSessionIdAndPublicKey parses https receive URL with pk fragment',
     () {
-      const rawUrl = 'https://lynk.app/receive/sess_abc123#pk=AbCdEf123456';
+      const rawUrl =
+          'https://lynkshare.app/receive/sess_abc123#pk=AbCdEf123456';
       final result = QrScanHelper.extractReceiveSessionIdAndPublicKey(rawUrl);
       expect(result['sessionId'], equals('sess_abc123'));
       expect(result['receiverPk'], equals('AbCdEf123456'));
@@ -45,7 +46,7 @@ void main() {
   test(
     'extractReceiveSessionIdAndPublicKey returns null pk when no fragment present (legacy)',
     () {
-      const rawUrl = 'https://lynk.app/receive/sess_legacy';
+      const rawUrl = 'https://lynkshare.app/receive/sess_legacy';
       final result = QrScanHelper.extractReceiveSessionIdAndPublicKey(rawUrl);
       expect(result['sessionId'], equals('sess_legacy'));
       expect(result['receiverPk'], isNull);

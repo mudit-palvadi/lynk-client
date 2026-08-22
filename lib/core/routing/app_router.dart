@@ -78,7 +78,7 @@ GoRouter appRouter(Ref ref) {
           return DownloadProgressScreen(transferId: transferId, aesKey: aesKey);
         },
       ),
-      // Deep Link handler for Sender QR codes (e.g. https://lynk.app/send/:transferId#aesKey)
+      // Deep Link handler for Sender QR codes (e.g. https://lynkshare.app/send/:transferId#aesKey)
       GoRoute(
         path: '/send/:transferId',
         builder: (context, state) {

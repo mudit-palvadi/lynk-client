@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/providers/transfer_providers.dart';
 import '../../../../core/services/ad_service.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/app_links.dart';
 import '../providers/upload_notifier.dart';
 
 class SendQrHelper {
@@ -16,7 +17,7 @@ class SendQrHelper {
     final key = aesKey.isNotEmpty
         ? aesKey
         : (ref.read(uploadProvider).aesKey ?? '');
-    return 'https://lynk.app/send/$transferId#$key';
+    return '${AppLinks.deepLinkBase}/send/$transferId#$key';
   }
 
   /// Calculates the exact remaining seconds for an active transfer session (default 600s).

@@ -1,15 +1,18 @@
+import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:client/core/providers/transfer_providers.dart';
 import 'package:client/core/services/upload_service.dart';
 import 'package:client/core/providers/receiver_providers.dart';
 import 'package:client/core/services/key_wrap_service.dart';
+import 'package:client/core/services/flutter_webrtc_p2p_session.dart';
+import 'package:client/core/services/webrtc_peer.dart';
 import 'package:client/core/utils/entropy_generator.dart';
 import 'package:client/features/file_transfer/domain/entities/file_item.dart';
 import 'package:client/features/file_transfer/domain/usecases/encrypt_file_use_case.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../../core/services/file_picker_service.dart';
 import '../../../recent_transfers/data/models/recent_transfer_record_model.dart';
@@ -166,6 +169,18 @@ class UploadNotifier extends _$UploadNotifier {
               : state.selectedFiles.length,
         );
         state = state.copyWith(transfer: updatedTransfer);
+
+        // ⚡ P2P mode: attempt a direct WebRTC transfer first. If it cannot
+        // connect within the 8s window (or dies mid-transfer), fall through
+        // to the R2 cloud pipeline below — the receiver does the same.
+        if (state.transferMode == TransferMode.p2p) {
+          final p2pCompleted = await _runP2PSend(
+            transferId: transfer.id,
+            aesKey: aesKey,
+          );
+          if (p2pCompleted) return;
+        }
+
         int cumulativeBytes = 0;
 
         for (int i = 0; i < state.selectedFiles.length; i++) {
@@ -295,6 +310,100 @@ class UploadNotifier extends _$UploadNotifier {
   void reset() {
     _cancelToken?.cancel();
     state = const UploadState();
+  }
+
+  /// Derives the signaling WebSocket URI for a session from `API_BASE_URL`.
+  static Uri _signalingUri(String sessionId) {
+    final base =
+        dotenv.env['API_BASE_URL'] ?? 'http://140.245.220.117:8000/api/v1/';
+    final parsed = Uri.parse(base);
+    final scheme = parsed.scheme == 'https' ? 'wss' : 'ws';
+    return Uri(
+      scheme: scheme,
+      host: parsed.host,
+      port: parsed.port,
+      path: '/ws/signaling/$sessionId',
+    );
+  }
+
+  /// Attempts the direct WebRTC P2P transfer for the selected files.
+  ///
+  /// Returns `true` when every file reached the receiver over the
+  /// DataChannel; `false` on connect-timeout / channel failure so the caller
+  /// falls back to the R2 pipeline (Phases.md acceptance criteria).
+  Future<bool> _runP2PSend({
+    required String transferId,
+    required String aesKey,
+  }) async {
+    if (kIsWeb) return false;
+
+    P2PFileSession? session;
+    final tempEncrypted = <File>[];
+    try {
+      // Encrypt everything up-front so channel-open time is spent sending.
+      final encryptUseCase = ref.read(encryptFileUseCaseProvider);
+      for (final pFile in state.selectedFiles) {
+        if (pFile.path == null) return false; // bytes-only pickers: use R2
+        final encrypted = await encryptUseCase.execute(
+          inputFile: File(pFile.path!),
+          aesKey32Bytes: aesKey,
+        );
+        tempEncrypted.add(encrypted);
+      }
+
+      session = await P2PFileSession.connect(
+        signalingUrl: _signalingUri(transferId),
+        role: PeerRole.sender,
+      );
+
+      final outcome = Completer<bool>();
+      session.onFallbackToCloud = () {
+        if (!outcome.isCompleted) outcome.complete(false);
+      };
+      unawaited(
+        session
+            .sendFiles(tempEncrypted)
+            .then((_) {
+              if (!outcome.isCompleted) outcome.complete(true);
+            })
+            .catchError((Object _) {
+              if (!outcome.isCompleted) outcome.complete(false);
+            }),
+      );
+
+      final delivered = await outcome.future;
+      if (!delivered) return false;
+
+      // Zero-knowledge guarantee still holds over P2P — nothing was uploaded.
+      state = state.copyWith(
+        phase: UploadPhase.completed,
+        overallProgress: 1.0,
+      );
+      ref
+          .read(recentTransfersProvider.notifier)
+          .addRecord(
+            RecentTransferRecordModel(
+              id: transferId,
+              type: RecentTransferType.sent,
+              fileNames: state.selectedFiles.map((f) => f.name).toList(),
+              totalSize: state.totalSize,
+              timestamp: DateTime.now(),
+              status: 'completed (p2p)',
+              filePaths: state.selectedFiles
+                  .where((f) => f.path != null)
+                  .map((f) => f.path!)
+                  .toList(),
+            ),
+          );
+      return true;
+    } catch (_) {
+      return false;
+    } finally {
+      await session?.dispose();
+      for (final f in tempEncrypted) {
+        if (await f.exists()) await f.delete();
+      }
+    }
   }
 
   void cancelUpload() {

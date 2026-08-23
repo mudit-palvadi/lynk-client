@@ -1,10 +1,14 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../services/download_service.dart';
+import '../services/flutter_webrtc_p2p_session.dart';
+import '../services/webrtc_peer.dart';
 import 'download_state.dart';
 import 'transfer_providers.dart';
 import '../../features/file_receive/domain/usecases/decrypt_file_use_case.dart';
@@ -220,6 +224,152 @@ class DownloadNotifier extends _$DownloadNotifier {
   Future<void> openFile(String path) async {
     if (!kIsWeb) {
       await OpenFilex.open(path);
+    }
+  }
+
+  /// Receiver entry point: try a direct WebRTC P2P reception first; if the
+  /// sender fell back to R2 (or the channel never opens), fall back to the
+  /// normal R2 download pipeline automatically.
+  Future<void> startReception({String? aesKey}) async {
+    if (state.transfer == null) return;
+    if (kIsWeb) {
+      await startDownload(aesKey: aesKey);
+      return;
+    }
+
+    final received = await _tryP2PReceive(aesKey: aesKey);
+    if (!received) {
+      await startDownload(aesKey: aesKey);
+    }
+  }
+
+  static Uri _signalingUri(String sessionId) {
+    final base =
+        dotenv.env['API_BASE_URL'] ?? 'http://140.245.220.117:8000/api/v1/';
+    final parsed = Uri.parse(base);
+    final scheme = parsed.scheme == 'https' ? 'wss' : 'ws';
+    return Uri(
+      scheme: scheme,
+      host: parsed.host,
+      port: parsed.port,
+      path: '/ws/signaling/$sessionId',
+    );
+  }
+
+  /// Listens on the signaling room as the WebRTC receiver, decrypts each
+  /// inbound encrypted file and returns `true` when the whole transfer
+  /// arrived over the DataChannel.
+  Future<bool> _tryP2PReceive({String? aesKey}) async {
+    String? key = (aesKey != null && aesKey.isNotEmpty) ? aesKey : state.aesKey;
+    if (key == null || key.isEmpty || state.transfer == null) return false;
+
+    P2PFileSession? session;
+    final decryptedPaths = <String>[];
+    Directory? saveDir;
+    try {
+      if (Platform.isAndroid) {
+        final lynkPublicDir = Directory('/storage/emulated/0/Download/Lynk');
+        if (!await lynkPublicDir.exists()) {
+          await lynkPublicDir.create(recursive: true);
+        }
+        saveDir = lynkPublicDir;
+      } else {
+        saveDir = await getApplicationDocumentsDirectory();
+      }
+
+      session = await P2PFileSession.connect(
+        signalingUrl: _signalingUri(state.transfer!.id),
+        role: PeerRole.receiver,
+      );
+
+      state = state.copyWith(
+        phase: DownloadPhase.downloading,
+        aesKey: key,
+        overallProgress: 0.0,
+      );
+
+      final outcome = Completer<bool>();
+      session.onFallbackToCloud = () {
+        if (!outcome.isCompleted) outcome.complete(false);
+      };
+
+      int filesDone = 0;
+      final expectedFiles = state.transfer!.totalFiles > 0
+          ? state.transfer!.totalFiles
+          : 1;
+      final sub = session.onFileReceived.listen((encTempFile) async {
+        try {
+          final originalName = encTempFile.path
+              .split('/')
+              .last
+              .split(Platform.pathSeparator)
+              .last
+              .replaceFirst(RegExp(r'^\d+_'), '');
+          final savePath = '${saveDir!.path}/$originalName';
+          await ref
+              .read(decryptFileUseCaseProvider)
+              .execute(
+                encryptedFile: encTempFile,
+                aesKey32Bytes: key,
+                outputPath: savePath,
+              );
+          await encTempFile.delete();
+          decryptedPaths.add(savePath);
+          filesDone++;
+          state = state.copyWith(
+            currentFileIndex: filesDone - 1,
+            currentFileProgress: 1.0,
+            overallProgress: (filesDone / expectedFiles).clamp(0.0, 1.0),
+          );
+          if (filesDone >= expectedFiles && !outcome.isCompleted) {
+            // Wait for the sender's `done` frame; complete via transferDone.
+          }
+        } catch (_) {
+          if (!outcome.isCompleted) outcome.complete(false);
+        }
+      });
+
+      unawaited(
+        session.transferDone
+            .then((_) {
+              if (!outcome.isCompleted && decryptedPaths.isNotEmpty) {
+                outcome.complete(true);
+              }
+            })
+            .catchError((Object _) {
+              if (!outcome.isCompleted) outcome.complete(false);
+            }),
+      );
+
+      final ok = await outcome.future;
+      await sub.cancel();
+      if (!ok || decryptedPaths.isEmpty) return false;
+
+      state = state.copyWith(
+        phase: DownloadPhase.completed,
+        overallProgress: 1.0,
+        downloadedPaths: decryptedPaths,
+      );
+      ref
+          .read(recentTransfersProvider.notifier)
+          .addRecord(
+            RecentTransferRecordModel(
+              id: state.transfer?.id ?? '',
+              type: RecentTransferType.received,
+              fileNames: decryptedPaths
+                  .map((p) => p.split(Platform.pathSeparator).last)
+                  .toList(),
+              totalSize: state.transfer!.totalSize,
+              timestamp: DateTime.now(),
+              status: 'completed (p2p)',
+              filePaths: decryptedPaths,
+            ),
+          );
+      return true;
+    } catch (_) {
+      return false;
+    } finally {
+      await session?.dispose();
     }
   }
 

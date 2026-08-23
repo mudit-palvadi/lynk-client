@@ -39,9 +39,10 @@ class _DownloadProgressScreenState
     if (_autoStartTriggered) return;
     _autoStartTriggered = true;
 
-    // Ad-free receiver experience: start the download immediately and
-    // confirm with a lightweight snackbar. No countdown, no interstitial.
-    ref.read(downloadProvider.notifier).startDownload(aesKey: widget.aesKey);
+    // Ad-free receiver experience: start reception immediately and confirm
+    // with a lightweight snackbar. P2P is attempted first; the notifier
+    // falls back to R2 automatically when direct transfer isn't possible.
+    ref.read(downloadProvider.notifier).startReception(aesKey: widget.aesKey);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Download started'),
@@ -215,7 +216,7 @@ class _DownloadProgressScreenState
                           ElevatedButton(
                             onPressed: () {
                               _autoStartTriggered = false;
-                              notifier.startDownload(aesKey: widget.aesKey);
+                              notifier.startReception(aesKey: widget.aesKey);
                             },
                             child: const Text('Retry Download'),
                           ),

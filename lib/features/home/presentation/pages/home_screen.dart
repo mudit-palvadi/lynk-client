@@ -6,7 +6,6 @@ import '../../../../core/providers/download_state.dart';
 import '../../../../core/services/config_service.dart';
 import '../../../../core/utils/permission_helper.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../../../../core/widgets/ad_banner_widget.dart';
 import '../../../../features/file_transfer/presentation/providers/upload_notifier.dart';
 import '../../../../features/file_transfer/presentation/providers/upload_state.dart';
 import 'package:client/features/recent_transfers/presentation/widgets/recent_transfers_widget.dart';
@@ -239,7 +238,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              const AdBannerWidget(),
             ],
           ),
         ),

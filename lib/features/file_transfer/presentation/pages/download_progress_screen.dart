@@ -4,10 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/providers/download_notifier.dart';
 import '../../../../core/providers/download_state.dart';
 import '../../../../core/providers/transfer_providers.dart';
-import '../../../../core/services/ad_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/ad_banner_widget.dart';
-import '../helpers/download_ad_helper.dart';
 
 class DownloadProgressScreen extends ConsumerStatefulWidget {
   final String transferId;
@@ -25,15 +23,31 @@ class DownloadProgressScreen extends ConsumerStatefulWidget {
 
 class _DownloadProgressScreenState
     extends ConsumerState<DownloadProgressScreen> {
+  bool _autoStartTriggered = false;
+
   @override
   void initState() {
     super.initState();
-    DownloadAdHelper.resetState();
-    AdService.preloadInterstitialAd();
     Future.microtask(
       () => ref
           .read(downloadProvider.notifier)
           .loadTransferPreview(widget.transferId),
+    );
+  }
+
+  void _autoStartDownload(DownloadState next) {
+    if (_autoStartTriggered) return;
+    _autoStartTriggered = true;
+
+    // Ad-free receiver experience: start the download immediately and
+    // confirm with a lightweight snackbar. No countdown, no interstitial.
+    ref.read(downloadProvider.notifier).startDownload(aesKey: widget.aesKey);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Download started'),
+        backgroundColor: AppTheme.secondary,
+        duration: Duration(seconds: 2),
+      ),
     );
   }
 
@@ -44,11 +58,7 @@ class _DownloadProgressScreenState
 
     ref.listen<DownloadState>(downloadProvider, (previous, next) {
       if (next.phase == DownloadPhase.preview && next.transfer != null) {
-        DownloadAdHelper.triggerAutomaticDownloadAndAd(
-          context: context,
-          ref: ref,
-          aesKey: widget.aesKey,
-        );
+        _autoStartDownload(next);
       }
     });
 
@@ -204,7 +214,7 @@ class _DownloadProgressScreenState
                           const SizedBox(height: 24),
                           ElevatedButton(
                             onPressed: () {
-                              DownloadAdHelper.resetState();
+                              _autoStartTriggered = false;
                               notifier.startDownload(aesKey: widget.aesKey);
                             },
                             child: const Text('Retry Download'),

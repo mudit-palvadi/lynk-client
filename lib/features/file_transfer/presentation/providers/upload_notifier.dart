@@ -354,6 +354,7 @@ class UploadNotifier extends _$UploadNotifier {
       session = await P2PFileSession.connect(
         signalingUrl: _signalingUri(transferId),
         role: PeerRole.sender,
+        sessionId: transferId,
       );
 
       final outcome = Completer<bool>();

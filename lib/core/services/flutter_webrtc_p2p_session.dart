@@ -2,21 +2,48 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:dio/dio.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'chunk_sender.dart';
+import 'ice_ladder.dart';
 import 'signaling_channel.dart';
 import 'transfer_framer.dart';
 import 'webrtc_peer.dart';
 import 'webrtc_service.dart';
 
-/// STUN configuration per Phases.md "Key Technical Decisions".
-const List<Map<String, String>> kLynkIceServers = [
-  {'urls': 'stun:stun.l.google.com:19302'},
-  {'urls': 'stun:stun1.l.google.com:19302'},
-  {'urls': 'stun:stun2.l.google.com:19302'},
-];
+/// Legacy alias kept for callers that only need STUN.
+const List<Map<String, String>> kLynkIceServers = kStunServers;
+
+/// Fetches short-lived TURN credentials from the backend. Returns null when
+/// TURN is disabled, unreachable, or the response is malformed — the caller
+/// then degrades to STUN-only (transfer still succeeds via R2 fallback).
+Future<({List<String> urls, String username, String credential})?>
+fetchTurnCredentials(String sessionId, {Dio? dio}) async {
+  try {
+    final base =
+        dotenv.env['API_BASE_URL'] ?? 'http://140.245.220.117:8000/api/v1/';
+    final client = dio ?? Dio();
+    final resp = await client.getUri(
+      Uri.parse(base).resolve('transfers/$sessionId/turn-credentials'),
+      options: Options(
+        sendTimeout: const Duration(seconds: 5),
+        receiveTimeout: const Duration(seconds: 5),
+      ),
+    );
+    final body = resp.data;
+    if (body is! Map || body['enabled'] != true) return null;
+    final urls = (body['urls'] as List?)?.cast<String>() ?? const [];
+    final username = body['username'] as String? ?? '';
+    final credential = body['credential'] as String? ?? '';
+    if (urls.isEmpty || username.isEmpty || credential.isEmpty) return null;
+    return (urls: urls, username: username, credential: credential);
+  } catch (_) {
+    return null;
+  }
+}
 
 /// Adapts `web_socket_channel`'s channel to the testable [WebSocketLike].
 class WebSocketChannelAdapter implements WebSocketLike {
@@ -48,13 +75,14 @@ class FlutterWebrtcPeerActions implements PeerActions {
   /// The sender owns the channel; the receiver picks it up via
   /// `onDataChannel`. Returns the platform callbacks surface.
   Future<RTCPeerConnection> init({
+    required List<Map<String, Object>> iceServers,
     required void Function(RTCDataChannel channel) onDataChannelOpen,
     required void Function(Uint8List bytes) onBinaryMessage,
     required void Function(String text) onTextMessage,
     required void Function(RTCIceCandidate candidate) onLocalCandidate,
   }) async {
     final pc = await createPeerConnection({
-      'iceServers': kLynkIceServers,
+      'iceServers': iceServers,
       'sdpSemantics': 'unified-plan',
     });
 
@@ -213,6 +241,7 @@ class P2PFileSession {
   static Future<P2PFileSession> connect({
     required Uri signalingUrl,
     required PeerRole role,
+    required String sessionId,
     void Function()? onFallbackToCloud,
   }) async {
     final socket = WebSocketChannel.connect(signalingUrl);
@@ -221,7 +250,19 @@ class P2PFileSession {
     final session = P2PFileSession._(signaling, peer)
       ..onFallbackToCloud = onFallbackToCloud;
 
+    // STUN -> TURN ladder: TURN creds come from the backend at session time
+    // (short-lived HMAC), so a leaked credential self-expires. Any failure
+    // here silently degrades to STUN-only.
+    final turn = await fetchTurnCredentials(sessionId);
+    final iceServers = buildIceServers(
+      turnEnabled: turn != null,
+      urls: turn?.urls ?? const [],
+      username: turn?.username ?? '',
+      credential: turn?.credential ?? '',
+    );
+
     await peer.init(
+      iceServers: iceServers,
       onDataChannelOpen: (_) => session.coordinator.notifyConnected(),
       onBinaryMessage: session._onBinary,
       onTextMessage: session._onText,

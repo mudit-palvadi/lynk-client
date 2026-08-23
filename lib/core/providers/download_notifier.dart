@@ -280,6 +280,7 @@ class DownloadNotifier extends _$DownloadNotifier {
       session = await P2PFileSession.connect(
         signalingUrl: _signalingUri(state.transfer!.id),
         role: PeerRole.receiver,
+        sessionId: state.transfer!.id,
       );
 
       state = state.copyWith(

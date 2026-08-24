@@ -31,6 +31,14 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
+        // Real phones only: drops the ~21 MB of x86_64/x86 emulator libs that
+        // flutter_webrtc and ML Kit otherwise bundle for every ABI.
+        // Skipped under --split-per-abi (Flutter injects its own filters).
+        if (!project.hasProperty("split-per-abi")) {
+            ndk {
+                abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            }
+        }
     }
 
     signingConfigs {

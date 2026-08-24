@@ -48,7 +48,7 @@ class EncryptFileUseCase {
 
       final inputStream = inFile.openRead();
       final buffer = BytesBuilder(copy: false);
-      const chunkSize = 1024 * 1024; // 1 MB chunks (multiple of 16)
+      const chunkSize = 1024 * 1024;
       enc.IV currentIv = initialIv;
 
       await for (final chunk in inputStream) {
@@ -66,7 +66,6 @@ class EncryptFileUseCase {
           );
           sink.add(encrypted.bytes);
 
-          // In CBC mode, the IV for the next block is the last 16 bytes of ciphertext
           currentIv = enc.IV(
             encrypted.bytes.sublist(encrypted.bytes.length - 16),
           );

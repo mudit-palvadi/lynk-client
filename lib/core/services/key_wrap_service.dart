@@ -127,7 +127,6 @@ class KeyWrapService {
   Future<SecretKey> _deriveKek(SecretKey sharedSecret, String sessionId) {
     return _hkdf.deriveKey(
       secretKey: sharedSecret,
-      // `nonce` is used as the HKDF-Extract salt.
       nonce: utf8.encode(sessionId),
       info: utf8.encode(_keyInfo),
     );

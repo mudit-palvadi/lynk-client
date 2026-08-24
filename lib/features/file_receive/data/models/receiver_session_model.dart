@@ -26,7 +26,6 @@ class ReceiverSessionModel extends ReceiverSession {
       id: (json['session_id'] ?? json['id']) as String? ?? '',
       status: parseStatus(json['status'] as String?),
       transferId: json['transfer_id'] as String?,
-      // Legacy plaintext aes_key is deliberately never read.
       wrappedKey: json['wrapped_key'] as String?,
       expiresMultiplier:
           json['expires_in'] as int? ?? json['expires_at_seconds'] as int?,

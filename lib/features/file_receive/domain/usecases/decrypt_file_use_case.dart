@@ -46,7 +46,7 @@ class DecryptFileUseCase {
       Uint8List? initialIvBytes;
       enc.IV? currentIv;
       final sink = outFile.openWrite();
-      const chunkSize = 1024 * 1024; // 1 MB chunks (multiple of 16)
+      const chunkSize = 1024 * 1024;
 
       await for (final chunk in inputStream) {
         buffer.add(chunk);
@@ -64,7 +64,6 @@ class DecryptFileUseCase {
 
         while (buffer.length >= chunkSize + 16) {
           final rawChunk = buffer.takeBytes();
-          // Leave at least 16 bytes in buffer for final block PKCS7 unpadding
           final processLength = ((rawChunk.length - 16) ~/ 16) * 16;
           if (processLength <= 0) {
             buffer.add(rawChunk);

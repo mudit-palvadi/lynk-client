@@ -6,7 +6,6 @@ class FileSizeFormatter {
     const suffixes = ['B', 'KB', 'MB', 'GB', 'TB'];
     var i = (log(bytes) / log(1024)).floor();
     var num = bytes / pow(1024, i);
-    // Keep 2 decimal places if it's not bytes
     return '${num.toStringAsFixed(i == 0 ? 0 : 2)} ${suffixes[i]}';
   }
 }

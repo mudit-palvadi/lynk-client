@@ -45,7 +45,7 @@ class SendQrHelper {
   }) async {
     await AdService.showRewardedAd(
       onRewardGranted: () {
-        secondsNotifier.value = 1800; // 30 minutes
+        secondsNotifier.value = 1800;
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(

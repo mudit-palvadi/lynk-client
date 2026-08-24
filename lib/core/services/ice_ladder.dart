@@ -23,8 +23,6 @@ List<Map<String, Object>> buildIceServers({
     return servers;
   }
 
-  // Each TURN host gets a UDP and a TCP transport variant (TCP survives
-  // networks that block raw UDP).
   final turnUrls = <String>[
     for (final url in urls) ...[url, '$url?transport=tcp'],
   ];

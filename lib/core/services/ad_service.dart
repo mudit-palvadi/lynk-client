@@ -165,7 +165,6 @@ class AdService {
         onAdFailedToShowFullScreenContent: (ad, error) {
           ad.dispose();
           loadRewardedAd();
-          // Fallback: Grant reward if ad failed to show
           onRewardGranted();
         },
       );
@@ -177,7 +176,6 @@ class AdService {
       );
       return true;
     } else {
-      // Fallback: If ad couldn't load, allow feature gracefully
       onRewardGranted();
       return false;
     }

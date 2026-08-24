@@ -101,7 +101,6 @@ class UploadNotifier extends _$UploadNotifier {
 
     if (!_validateSizes(files)) return;
 
-    // Preserve tier unlock state and mode when committing the selection.
     state = state.copyWith(selectedFiles: files, phase: UploadPhase.selecting);
   }
 
@@ -139,11 +138,9 @@ class UploadNotifier extends _$UploadNotifier {
     final uploadService = ref.read(uploadServiceProvider);
     final encryptUseCase = ref.read(encryptFileUseCaseProvider);
 
-    // 1. Generate the dynamic entropy key (UUID + Temp + Timestamp)
     final aesKey = await EntropyGenerator.generateKey();
     state = state.copyWith(aesKey: aesKey);
 
-    // 2. Map file items with exact encrypted sizes
     final fileItems = state.selectedFiles.map((f) {
       final encSize = ((f.size ~/ 16) + 1) * 16 + 16;
       return FileItem(
@@ -170,9 +167,6 @@ class UploadNotifier extends _$UploadNotifier {
         );
         state = state.copyWith(transfer: updatedTransfer);
 
-        // ⚡ P2P mode: attempt a direct WebRTC transfer first. If it cannot
-        // connect within the 8s window (or dies mid-transfer), fall through
-        // to the R2 cloud pipeline below — the receiver does the same.
         if (state.transferMode == TransferMode.p2p) {
           final p2pCompleted = await _runP2PSend(
             transferId: transfer.id,
@@ -231,7 +225,6 @@ class UploadNotifier extends _$UploadNotifier {
               },
             );
 
-            // Clean up temp file on native platforms
             if (encryptedFile != null && await encryptedFile.exists()) {
               await encryptedFile.delete();
             }
@@ -254,8 +247,6 @@ class UploadNotifier extends _$UploadNotifier {
         if (attachToSessionId != null) {
           final receiverRepo = ref.read(receiverRepositoryProvider);
 
-          // Zero-knowledge: wrap the AES key to the receiver's ephemeral
-          // public key. Only opaque ciphertext is transmitted.
           String? wrappedKey;
           if (receiverPk != null && receiverPk.isNotEmpty) {
             try {
@@ -340,10 +331,9 @@ class UploadNotifier extends _$UploadNotifier {
     P2PFileSession? session;
     final tempEncrypted = <File>[];
     try {
-      // Encrypt everything up-front so channel-open time is spent sending.
       final encryptUseCase = ref.read(encryptFileUseCaseProvider);
       for (final pFile in state.selectedFiles) {
-        if (pFile.path == null) return false; // bytes-only pickers: use R2
+        if (pFile.path == null) return false;
         final encrypted = await encryptUseCase.execute(
           inputFile: File(pFile.path!),
           aesKey32Bytes: aesKey,
@@ -375,7 +365,6 @@ class UploadNotifier extends _$UploadNotifier {
       final delivered = await outcome.future;
       if (!delivered) return false;
 
-      // Zero-knowledge guarantee still holds over P2P — nothing was uploaded.
       state = state.copyWith(
         phase: UploadPhase.completed,
         overallProgress: 1.0,

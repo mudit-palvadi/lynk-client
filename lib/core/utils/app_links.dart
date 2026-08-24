@@ -23,9 +23,7 @@ class AppLinks {
               : value;
         }
       }
-    } catch (_) {
-      // dotenv not loaded (e.g. widget tests); fall back to the default.
-    }
+    } catch (_) {}
     return defaultDeepLinkBase;
   }
 
@@ -35,9 +33,7 @@ class AppLinks {
         final value = dotenv.env['PRIVACY_POLICY_URL'];
         if (value != null && value.isNotEmpty) return value;
       }
-    } catch (_) {
-      // dotenv not loaded (e.g. widget tests); fall back to the default.
-    }
+    } catch (_) {}
     return defaultPrivacyPolicyUrl;
   }
 }

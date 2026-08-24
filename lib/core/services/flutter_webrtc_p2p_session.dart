@@ -101,7 +101,6 @@ class FlutterWebrtcPeerActions implements PeerActions {
       );
     };
 
-    // Sender-side: proactively create the labeled channel.
     final init = RTCDataChannelInit()
       ..ordered = true
       ..binaryType = 'binary';
@@ -180,7 +179,6 @@ class FlutterWebrtcPeerActions implements PeerActions {
         sdp: answer.sdp,
       );
     }
-    // Answer from the remote peer.
     if (msg.sdp != null) {
       await pc.setRemoteDescription(RTCSessionDescription(msg.sdp!, 'answer'));
     }
@@ -250,9 +248,6 @@ class P2PFileSession {
     final session = P2PFileSession._(signaling, peer)
       ..onFallbackToCloud = onFallbackToCloud;
 
-    // STUN -> TURN ladder: TURN creds come from the backend at session time
-    // (short-lived HMAC), so a leaked credential self-expires. Any failure
-    // here silently degrades to STUN-only.
     final turn = await fetchTurnCredentials(sessionId);
     final iceServers = buildIceServers(
       turnEnabled: turn != null,
@@ -281,7 +276,6 @@ class P2PFileSession {
     signaling.messages.listen(session.coordinator.handleMessage);
     await session.coordinator.start(role: role);
 
-    // Safety net: close the whole stack once the fallback fires.
     session.coordinator.onP2PFailed = () {
       onFallbackToCloud?.call();
       if (!session._transferDone.isCompleted) {
@@ -362,7 +356,7 @@ class P2PFileSession {
 
   void _onBinary(Uint8List bytes) {
     final sink = _currentSink;
-    if (sink == null) return; // binary before header → drop
+    if (sink == null) return;
     sink.writeFromSync(bytes);
   }
 

@@ -11,7 +11,6 @@ import 'features/onboarding/presentation/providers/onboarding_provider.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Setup Global Production Error Handling (No Stack Trace Leaks)
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);
     debugPrint('Global Error caught: ${details.exceptionAsString()}');

@@ -32,7 +32,7 @@ class QrScanHelper {
   }
 
   /// Extracts receiver session id and ephemeral public key from a receiver
-  /// QR URL: https://lynk.app/receive/{sessionId}#pk={base64url}
+  /// QR URL: https://lynkshare.app/receive/{sessionId}#pk={base64url}
   static Map<String, String?> extractReceiveSessionIdAndPublicKey(
     String rawValue,
   ) {
@@ -127,7 +127,6 @@ class QrScanHelper {
     final rawValue = capture.barcodes.first.rawValue;
     if (rawValue == null) return false;
 
-    // Pattern 1: URL format (https://lynk.app/send/xyz#aesKey or lynk://send/xyz#aesKey)
     final extracted = extractTransferIdAndKey(rawValue);
     if (extracted['transferId'] != null) {
       final id = extracted['transferId']!;
@@ -154,7 +153,6 @@ class QrScanHelper {
       }
     }
 
-    // Pattern 2: Legacy JSON format fallback
     try {
       final json = jsonDecode(rawValue);
       if (json is Map<String, dynamic>) {
@@ -173,9 +171,7 @@ class QrScanHelper {
           );
         }
       }
-    } catch (_) {
-      // Non-JSON payload
-    }
+    } catch (_) {}
 
     return false;
   }
@@ -191,8 +187,6 @@ class QrScanHelper {
       final repo = ref.read(receiverRepositoryProvider);
       final currentAesKey = ref.read(uploadProvider).aesKey;
 
-      // Zero-knowledge: wrap the AES key to the receiver's ephemeral public
-      // key client-side. Only opaque ciphertext reaches the backend.
       String? wrappedKey;
       if (receiverPk != null &&
           receiverPk.isNotEmpty &&

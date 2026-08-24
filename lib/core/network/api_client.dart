@@ -10,7 +10,6 @@ class ApiClient {
     _dio.options.connectTimeout = const Duration(seconds: 15);
     _dio.options.receiveTimeout = const Duration(seconds: 15);
 
-    // Interceptor to strip leading slash so Dio doesn't wipe out /api/v1/ in baseUrl
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {
@@ -22,8 +21,6 @@ class ApiClient {
       ),
     );
 
-    // Debug-only request-line logging. Request/response bodies must never be
-    // logged — they can carry key material (e.g. wrapped_key attach calls).
     if (kDebugMode) {
       _dio.interceptors.add(
         InterceptorsWrapper(

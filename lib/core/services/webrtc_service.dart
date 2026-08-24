@@ -53,7 +53,6 @@ class SignalingMessage {
           candidate: raw is Map<String, dynamic> ? raw : null,
         );
       default:
-        // Unknown or missing type must never throw (receiver-side safety).
         return const SignalingMessage(type: SignalingMessageType.error);
     }
   }

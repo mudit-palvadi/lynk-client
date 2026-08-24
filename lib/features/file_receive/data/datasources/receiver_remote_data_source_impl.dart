@@ -28,8 +28,6 @@ class ReceiverRemoteDataSourceImpl implements ReceiverRemoteDataSource {
       'receiver-sessions/$sessionId/attach-transfer',
       data: {
         'transfer_id': transferId,
-        // Opaque ECDH-sealed ciphertext only. Plaintext keys must never be
-        // transmitted to the backend (zero-knowledge guarantee).
         if (wrappedKey != null && wrappedKey.isNotEmpty)
           'wrapped_key': wrappedKey,
       },

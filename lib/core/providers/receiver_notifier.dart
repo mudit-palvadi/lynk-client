@@ -83,14 +83,12 @@ class ReceiverNotifier extends _$ReceiverNotifier with WidgetsBindingObserver {
 
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
-      // Pause polling when app is minimized to preserve battery
       _pollingTimer?.cancel();
       this.state = this.state.copyWith(
         isPolling: false,
         isPausedForBackground: true,
       );
     } else if (state == AppLifecycleState.resumed) {
-      // Instantly poll and resume adaptive timer when app is reopened
       this.state = this.state.copyWith(
         isPolling: true,
         isPausedForBackground: false,
@@ -104,9 +102,6 @@ class ReceiverNotifier extends _$ReceiverNotifier with WidgetsBindingObserver {
     state = const ReceiverState(isPolling: true);
     _pollCount = 0;
 
-    // Generate the ephemeral X25519 key pair for this session. The public
-    // half is embedded in the session QR (#pk fragment); the private seed
-    // stays in device memory only.
     String? publicKeyB64;
     Uint8List? privateKeySeed;
     try {
@@ -146,10 +141,6 @@ class ReceiverNotifier extends _$ReceiverNotifier with WidgetsBindingObserver {
       return;
     }
 
-    // Adaptive Battery-Saving Polling Strategy:
-    // First 10 polls (0-20s): 2s interval for snappy pairing
-    // Next 20 polls (20s-100s): 4s interval for power reduction
-    // Beyond 100s: 6s interval for ultra-low battery consumption
     final Duration delay = _pollCount < 10
         ? const Duration(seconds: 2)
         : (_pollCount < 30
@@ -171,8 +162,6 @@ class ReceiverNotifier extends _$ReceiverNotifier with WidgetsBindingObserver {
               session.transferId != null) {
             _pollingTimer?.cancel();
 
-            // Unwrap the delivered wrapped_key locally with the ephemeral
-            // private seed. The plaintext key exists only in memory.
             String? unwrappedKey;
             if (session.wrappedKey != null &&
                 session.wrappedKey!.isNotEmpty &&

@@ -18,7 +18,6 @@ class EntropyGenerator {
   /// Obtains the current device/battery temperature (simulated to 36.5°C +/- 2°C fluctuation)
   static double getDeviceTemperature() {
     final ms = DateTime.now().millisecond;
-    // Generate a predictable but fluctuating ambient temp based on millisecond noise
     return 35.0 + (ms % 40) / 10.0;
   }
 
@@ -32,7 +31,6 @@ class EntropyGenerator {
     final bytes = utf8.encode(seed);
     final digest = sha256.convert(bytes);
 
-    // Returns 32-character hex representation of the 256-bit key
     return digest.toString().substring(0, 32);
   }
 }

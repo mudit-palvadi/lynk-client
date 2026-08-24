@@ -41,7 +41,6 @@ class DownloadNotifier extends _$DownloadNotifier {
           phase: DownloadPhase.preview,
         );
 
-        // Pre-fetch presigned download URLs so startDownload begins instantly
         final urlResult = await repo.getDownloadUrls(transferId: transfer.id);
         urlResult.fold((downloadFiles) {
           state = state.copyWith(downloadFiles: downloadFiles);
@@ -59,9 +58,6 @@ class DownloadNotifier extends _$DownloadNotifier {
   Future<void> startDownload({String? aesKey}) async {
     if (state.transfer == null) return;
 
-    // Strict key resolution: only the explicitly provided key (from the QR
-    // #fragment or the in-memory unwrapped wrapped_key) may be used. No
-    // cross-provider stale-key fallbacks.
     String? key = (aesKey != null && aesKey.isNotEmpty) ? aesKey : state.aesKey;
     if (key == null || key.isEmpty) {
       state = state.copyWith(
@@ -169,7 +165,6 @@ class DownloadNotifier extends _$DownloadNotifier {
             },
           );
 
-          // Decrypt the downloaded file using resolved key
           if (key.isNotEmpty) {
             await decryptUseCase.execute(
               encryptedFile: File(tempSavePath),
@@ -322,9 +317,7 @@ class DownloadNotifier extends _$DownloadNotifier {
             currentFileProgress: 1.0,
             overallProgress: (filesDone / expectedFiles).clamp(0.0, 1.0),
           );
-          if (filesDone >= expectedFiles && !outcome.isCompleted) {
-            // Wait for the sender's `done` frame; complete via transferDone.
-          }
+          if (filesDone >= expectedFiles && !outcome.isCompleted) {}
         } catch (_) {
           if (!outcome.isCompleted) outcome.complete(false);
         }

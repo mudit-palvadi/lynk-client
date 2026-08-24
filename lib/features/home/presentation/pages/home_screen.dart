@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../../../core/providers/download_notifier.dart';
 import '../../../../core/providers/download_state.dart';
 import '../../../../core/services/config_service.dart';
@@ -19,12 +20,20 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _tapCount = 0;
+  String _versionLabel = '';
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       PermissionHelper.requestAllPermissions();
+      PackageInfo.fromPlatform().then((info) {
+        if (mounted) {
+          setState(
+            () => _versionLabel = 'v${info.version}+${info.buildNumber}',
+          );
+        }
+      });
     });
   }
 
@@ -228,9 +237,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               Center(
                 child: GestureDetector(
                   onTap: _onVersionTap,
-                  child: const Text(
-                    'v1.0.0+1',
-                    style: TextStyle(
+                  child: Text(
+                    _versionLabel,
+                    style: const TextStyle(
                       color: AppTheme.textSecondary,
                       fontSize: 12,
                     ),

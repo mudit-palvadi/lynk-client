@@ -78,5 +78,56 @@ void main() {
 
       expect(calls, 0);
     });
+
+    group('progress callback', () {
+      test('reports cumulative sent bytes matching chunk sizes', () async {
+        final totals = <int>[];
+        final sender = ChunkSender(
+          bufferedAmount: () => 0,
+          send: (_) async {},
+          onProgress: (sent) => totals.add(sent),
+        );
+
+        await sender.sendAll(Uint8List.fromList(List.filled(200 * 1024, 5)));
+
+        expect(totals, [64 * 1024, 128 * 1024, 192 * 1024, 200 * 1024]);
+      });
+
+      test('stays monotonic across backpressure pauses', () async {
+        var buffer = 2 * 1024 * 1024;
+        final drainer = Timer.periodic(const Duration(milliseconds: 1), (_) {
+          if (buffer >= 32 * 1024) {
+            buffer -= 32 * 1024;
+          } else {
+            buffer = 0;
+          }
+        });
+        var previous = -1;
+        var monotonic = true;
+        final sender = ChunkSender(
+          bufferedAmount: () => buffer,
+          send: (_) async {},
+          pollInterval: const Duration(milliseconds: 1),
+          onProgress: (sent) {
+            if (sent <= previous) monotonic = false;
+            previous = sent;
+          },
+        );
+
+        await sender.sendAll(Uint8List.fromList(List.filled(128 * 1024, 1)));
+        drainer.cancel();
+
+        expect(monotonic, isTrue);
+        expect(previous, 128 * 1024);
+      });
+
+      test('no callback registered is fine (optional param)', () async {
+        final sender = ChunkSender(bufferedAmount: () => 0, send: (_) async {});
+
+        await sender.sendAll(Uint8List.fromList([1]));
+
+        expect(sender.pauses, 0);
+      });
+    });
   });
 }

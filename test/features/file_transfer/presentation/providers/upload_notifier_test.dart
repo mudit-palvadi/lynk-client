@@ -51,9 +51,9 @@ void main() {
       expect(state.maxTotalSize, 50 * mb);
     });
 
-    test('p2p mode free tier max total is 50 MB', () {
+    test('p2p mode free tier max total is 10 MB', () {
       const state = UploadState(transferMode: TransferMode.p2p);
-      expect(state.maxTotalSize, 50 * mb);
+      expect(state.maxTotalSize, 10 * mb);
     });
 
     test('p2p mode unlocked tier max total is 100 MB', () {
@@ -61,7 +61,7 @@ void main() {
         transferMode: TransferMode.p2p,
         isSizeLimitUnlocked: true,
       );
-      expect(state.maxTotalSize, 100 * mb);
+      expect(state.maxTotalSize, 200 * mb);
     });
   });
 
@@ -113,7 +113,7 @@ void main() {
   });
 
   group(
-    'UploadNotifier size tier enforcement (cloud 20->50MB, p2p 50->100MB)',
+    'UploadNotifier size tier enforcement (cloud 20->50MB, p2p 10->200MB)',
     () {
       late FakeFilePickerService fakePicker;
 
@@ -157,19 +157,33 @@ void main() {
       });
 
       test(
-        'p2p free tier: 30 MB total accepted (above cloud free limit)',
+        'p2p unlocked tier: 150 MB total accepted (above cloud ceiling)',
         () async {
           final container = makeContainer();
           addTearDown(container.dispose);
 
           final notifier = container.read(uploadProvider.notifier);
           notifier.setTransferMode(TransferMode.p2p);
-          fakePicker.nextResult = FilePickerResult([fileOf('v.mp4', 30 * mb)]);
+          notifier.unlockExtendedSizeLimit();
+          fakePicker.nextResult = FilePickerResult([fileOf('v.mp4', 150 * mb)]);
           await notifier.pickFiles();
 
           expect(container.read(uploadProvider).phase, UploadPhase.selecting);
         },
       );
+
+      test('p2p free tier rejects 30 MB (above the 10 MB p2p limit)', () async {
+        final container = makeContainer();
+        addTearDown(container.dispose);
+
+        final notifier = container.read(uploadProvider.notifier);
+        notifier.setTransferMode(TransferMode.p2p);
+        fakePicker.nextResult = FilePickerResult([fileOf('v.mp4', 30 * mb)]);
+        await notifier.pickFiles();
+
+        expect(container.read(uploadProvider).phase, UploadPhase.failed);
+        expect(container.read(uploadProvider).errorMessage, contains('10 MB'));
+      });
 
       test(
         'pickMedia respects the free-tier gate (no ad-unlock bypass)',

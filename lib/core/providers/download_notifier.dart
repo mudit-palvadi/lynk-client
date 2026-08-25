@@ -293,23 +293,17 @@ class DownloadNotifier extends _$DownloadNotifier {
       final expectedFiles = state.transfer!.totalFiles > 0
           ? state.transfer!.totalFiles
           : 1;
-      final sub = session.onFileReceived.listen((encTempFile) async {
+      final sub = session.onFileReceived.listen((received) async {
         try {
-          final originalName = encTempFile.path
-              .split('/')
-              .last
-              .split(Platform.pathSeparator)
-              .last
-              .replaceFirst(RegExp(r'^\d+_'), '');
-          final savePath = '${saveDir!.path}/$originalName';
+          final savePath = '${saveDir!.path}/${received.name}';
           await ref
               .read(decryptFileUseCaseProvider)
               .execute(
-                encryptedFile: encTempFile,
+                encryptedFile: received.file,
                 aesKey32Bytes: key,
                 outputPath: savePath,
               );
-          await encTempFile.delete();
+          await received.file.delete();
           decryptedPaths.add(savePath);
           filesDone++;
           state = state.copyWith(
@@ -317,7 +311,6 @@ class DownloadNotifier extends _$DownloadNotifier {
             currentFileProgress: 1.0,
             overallProgress: (filesDone / expectedFiles).clamp(0.0, 1.0),
           );
-          if (filesDone >= expectedFiles && !outcome.isCompleted) {}
         } catch (_) {
           if (!outcome.isCompleted) outcome.complete(false);
         }

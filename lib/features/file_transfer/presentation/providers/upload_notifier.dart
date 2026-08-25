@@ -2,17 +2,16 @@ import 'dart:async';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:client/core/providers/transfer_providers.dart';
+import 'package:client/core/services/config_service.dart';
 import 'package:client/core/services/upload_service.dart';
 import 'package:client/core/providers/receiver_providers.dart';
 import 'package:client/core/services/key_wrap_service.dart';
 import 'package:client/core/services/flutter_webrtc_p2p_session.dart';
-import 'package:client/core/services/webrtc_peer.dart';
 import 'package:client/core/utils/entropy_generator.dart';
 import 'package:client/features/file_transfer/domain/entities/file_item.dart';
 import 'package:client/features/file_transfer/domain/usecases/encrypt_file_use_case.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../../core/services/file_picker_service.dart';
 import '../../../recent_transfers/data/models/recent_transfer_record_model.dart';
@@ -24,6 +23,24 @@ part 'upload_notifier.g.dart';
 
 @riverpod
 UploadService uploadService(Ref ref) => UploadService();
+
+/// Creates the sender-side WebRTC session. Injectable so tests can supply a
+/// fake without touching the native plugin.
+typedef P2PSenderSessionFactory =
+    Future<P2PSenderSession> Function({
+      required Uri signalingUrl,
+      required String sessionId,
+      required void Function() onFallbackToCloud,
+    });
+
+@riverpod
+P2PSenderSessionFactory p2pSessionFactory(Ref ref) =>
+    P2PFileSession.connectAsSender;
+
+/// How long the sender waits (QR visible) for a receiver before silently
+/// switching to the R2 cloud pipeline.
+@riverpod
+Duration p2pAutoFallbackDuration(Ref ref) => const Duration(seconds: 60);
 
 @Riverpod(keepAlive: true)
 class UploadNotifier extends _$UploadNotifier {
@@ -57,12 +74,12 @@ class UploadNotifier extends _$UploadNotifier {
 
   /// Enforces the per-mode size tiers against the current unlocked state:
   /// - Cloud/R2: free 20 MB -> unlocked 50 MB
-  /// - P2P: free 50 MB -> unlocked 100 MB
+  /// - P2P: free 10 MB -> unlocked 200 MB
   bool _validateSizes(List<PlatformFile> files) {
     final totalSize = files.fold(0, (sum, f) => sum + f.size);
     final maxLimit = state.maxTotalSize;
     final maxMb = state.maxTotalSizeUnlockedMb;
-    final freeMb = state.transferMode == TransferMode.p2p ? 50 : 20;
+    final freeMb = state.transferMode == TransferMode.p2p ? 10 : 20;
 
     if (totalSize > maxLimit) {
       final msg = state.isSizeLimitUnlocked
@@ -167,9 +184,12 @@ class UploadNotifier extends _$UploadNotifier {
         );
         state = state.copyWith(transfer: updatedTransfer);
 
+        // Ã¢Å¡Â¡ P2P mode: show the QR first, wait patiently for a receiver, then
+        // stream. Falls through to the R2 pipeline when nobody connects
+        // within the window, on ICE failure after handshake, or on error.
         if (state.transferMode == TransferMode.p2p) {
-          final p2pCompleted = await _runP2PSend(
-            transferId: transfer.id,
+          final p2pCompleted = await runP2PSession(
+            sessionId: transfer.id,
             aesKey: aesKey,
           );
           if (p2pCompleted) return;
@@ -272,22 +292,26 @@ class UploadNotifier extends _$UploadNotifier {
           overallProgress: 1.0,
         );
 
-        ref
-            .read(recentTransfersProvider.notifier)
-            .addRecord(
-              RecentTransferRecordModel(
-                id: transfer.id,
-                type: RecentTransferType.sent,
-                fileNames: state.selectedFiles.map((f) => f.name).toList(),
-                totalSize: state.totalSize,
-                timestamp: DateTime.now(),
-                status: 'completed',
-                filePaths: state.selectedFiles
-                    .where((f) => f.path != null)
-                    .map((f) => f.path!)
-                    .toList(),
-              ),
-            );
+        try {
+          ref
+              .read(recentTransfersProvider.notifier)
+              .addRecord(
+                RecentTransferRecordModel(
+                  id: transfer.id,
+                  type: RecentTransferType.sent,
+                  fileNames: state.selectedFiles.map((f) => f.name).toList(),
+                  totalSize: state.totalSize,
+                  timestamp: DateTime.now(),
+                  status: 'completed',
+                  filePaths: state.selectedFiles
+                      .where((f) => f.path != null)
+                      .map((f) => f.path!)
+                      .toList(),
+                ),
+              );
+        } catch (_) {
+          // History is best-effort; never fail a finished transfer over it.
+        }
       },
       (failure) async {
         state = state.copyWith(
@@ -303,68 +327,75 @@ class UploadNotifier extends _$UploadNotifier {
     state = const UploadState();
   }
 
-  /// Derives the signaling WebSocket URI for a session from `API_BASE_URL`.
-  static Uri _signalingUri(String sessionId) {
-    final base =
-        dotenv.env['API_BASE_URL'] ?? 'http://140.245.220.117:8000/api/v1/';
-    final parsed = Uri.parse(base);
-    final scheme = parsed.scheme == 'https' ? 'wss' : 'ws';
-    return Uri(
-      scheme: scheme,
-      host: parsed.host,
-      port: parsed.port,
-      path: '/ws/signaling/$sessionId',
-    );
-  }
+  /// User tapped "Send via Cloud instead" while waiting for a receiver.
+  /// Breaks the P2P wait so the caller falls through to the R2 pipeline.
+  void forceCloudFallback() => _activeSession?.cancelWait();
 
-  /// Attempts the direct WebRTC P2P transfer for the selected files.
+  P2PSenderSession? _activeSession;
+
+  void _setStage(P2PSendStage stage) => state = state.copyWith(p2pStage: stage);
+
+  /// Runs the staged direct-WebRTC transfer:
+  ///
+  /// preparing (encrypt) -> waitingForReceiver (QR visible, patient) ->
+  /// transferring (real streamed %) -> completed
   ///
   /// Returns `true` when every file reached the receiver over the
-  /// DataChannel; `false` on connect-timeout / channel failure so the caller
-  /// falls back to the R2 pipeline (Phases.md acceptance criteria).
-  Future<bool> _runP2PSend({
-    required String transferId,
+  /// DataChannel. Returns `false` when the wait window expires with no
+  /// receiver, the user forces cloud fallback, or anything fails -- in every
+  /// such case the caller continues into the R2 pipeline.
+  @visibleForTesting
+  Future<bool> runP2PSession({
+    required String sessionId,
     required String aesKey,
   }) async {
     if (kIsWeb) return false;
 
-    P2PFileSession? session;
+    final factory = ref.read(p2pSessionFactoryProvider);
+    final window = ref.read(p2pAutoFallbackDurationProvider);
+    P2PSenderSession? session;
     final tempEncrypted = <File>[];
+    var enteredTransfer = false;
     try {
+      _setStage(P2PSendStage.preparing);
+
+      // Encrypt up-front so channel-open time is spent sending, not hashing.
+      var totalEncrypted = 0;
       final encryptUseCase = ref.read(encryptFileUseCaseProvider);
       for (final pFile in state.selectedFiles) {
-        if (pFile.path == null) return false;
+        if (pFile.path == null) return false; // bytes-only pickers: use R2
         final encrypted = await encryptUseCase.execute(
           inputFile: File(pFile.path!),
           aesKey32Bytes: aesKey,
         );
+        totalEncrypted += encrypted.lengthSync();
         tempEncrypted.add(encrypted);
       }
 
-      session = await P2PFileSession.connect(
-        signalingUrl: _signalingUri(transferId),
-        role: PeerRole.sender,
-        sessionId: transferId,
+      session = await factory(
+        signalingUrl: ConfigService.signalingUri(sessionId),
+        sessionId: sessionId,
+        onFallbackToCloud: () {},
+      );
+      _activeSession = session;
+      _setStage(P2PSendStage.waitingForReceiver);
+
+      await session.waitUntilOpen(timeout: window);
+      _setStage(P2PSendStage.transferring);
+      enteredTransfer = true;
+
+      await session.sendFiles(
+        tempEncrypted,
+        shouldAbort: () => _cancelToken?.isCancelled ?? false,
+        onProgress: (sent) {
+          final pct = totalEncrypted == 0
+              ? 0.0
+              : (sent / totalEncrypted).clamp(0.0, 1.0);
+          state = state.copyWith(overallProgress: pct);
+        },
       );
 
-      final outcome = Completer<bool>();
-      session.onFallbackToCloud = () {
-        if (!outcome.isCompleted) outcome.complete(false);
-      };
-      unawaited(
-        session
-            .sendFiles(tempEncrypted)
-            .then((_) {
-              if (!outcome.isCompleted) outcome.complete(true);
-            })
-            .catchError((Object _) {
-              if (!outcome.isCompleted) outcome.complete(false);
-            }),
-      );
-
-      final delivered = await outcome.future;
-      if (!delivered) return false;
-
+      _setStage(P2PSendStage.none);
       state = state.copyWith(
         phase: UploadPhase.completed,
         overallProgress: 1.0,
@@ -373,7 +404,7 @@ class UploadNotifier extends _$UploadNotifier {
           .read(recentTransfersProvider.notifier)
           .addRecord(
             RecentTransferRecordModel(
-              id: transferId,
+              id: sessionId,
               type: RecentTransferType.sent,
               fileNames: state.selectedFiles.map((f) => f.name).toList(),
               totalSize: state.totalSize,
@@ -386,9 +417,15 @@ class UploadNotifier extends _$UploadNotifier {
             ),
           );
       return true;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('runP2PSession failed: $e');
+      _setStage(P2PSendStage.none);
+      if (enteredTransfer) {
+        state = state.copyWith(phase: UploadPhase.failed);
+      }
       return false;
     } finally {
+      _activeSession = null;
       await session?.dispose();
       for (final f in tempEncrypted) {
         if (await f.exists()) await f.delete();
@@ -398,6 +435,7 @@ class UploadNotifier extends _$UploadNotifier {
 
   void cancelUpload() {
     _cancelToken?.cancel();
+    forceCloudFallback();
     if (state.transfer != null) {
       ref.read(transferRepositoryProvider).cancelTransfer(state.transfer!.id);
     }

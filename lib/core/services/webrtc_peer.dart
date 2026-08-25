@@ -28,7 +28,7 @@ abstract class PeerActions {
 }
 
 /// Orchestrates the WebRTC signaling dance and the 8-second
-/// connect-timeout → R2-fallback contract (Phases.md / POTENTIAL_ISSUES #6).
+/// connect-timeout  R2-fallback contract (Phases.md / POTENTIAL_ISSUES #6).
 ///
 /// Pure orchestration only — no plugin types. The platform layer reports
 /// lifecycle via [notifyConnected] and file bytes flow separately through
@@ -43,6 +43,8 @@ class WebrtcPeerCoordinator {
 
   late final P2PConnectionController _controller;
   bool _disposed = false;
+  bool armConnectionTimeoutDone = false;
+  bool _armOnCandidateDone = false;
 
   WebrtcPeerCoordinator({
     required this.actions,
@@ -55,15 +57,25 @@ class WebrtcPeerCoordinator {
 
   /// Begins the session. The **sender** immediately creates and signals its
   /// offer; the receiver waits for the remote offer.
-  Future<void> start({required PeerRole role}) async {
+  ///
+  /// [armConnectionTimeout]: when false (patient sender waiting for a QR
+  /// scan), the 8-second fuse is NOT started here — call [armTimeout] once
+  /// the remote answer arrives so the fuse only covers real negotiation.
+  Future<void> start({
+    required PeerRole role,
+    bool armConnectionTimeout = true,
+  }) async {
     if (_disposed) return;
     this.role = role;
-    _controller.beginConnecting();
+    if (armConnectionTimeout) _controller.beginConnecting();
 
     if (role == PeerRole.sender) {
       await actions.sendSignaling(await actions.createOffer());
     }
   }
+
+  /// Starts (or restarts) the connection timeout fuse.
+  void armTimeout() => _controller.beginConnecting();
 
   /// Routes one inbound signaling message to the right platform action.
   ///
@@ -75,10 +87,20 @@ class WebrtcPeerCoordinator {
       case SignalingMessageType.offer:
       case SignalingMessageType.answer:
         final answer = await actions.handleRemoteDescription(message);
+        if (!armConnectionTimeoutDone &&
+            (message.type == SignalingMessageType.answer ||
+                message.type == SignalingMessageType.offer)) {
+          armConnectionTimeoutDone = true;
+          _controller.beginConnecting();
+        }
         if (answer != null && !_disposed) {
           await actions.sendSignaling(answer);
         }
       case SignalingMessageType.candidate:
+        if (!_armOnCandidateDone) {
+          _armOnCandidateDone = true;
+          _controller.beginConnecting();
+        }
         if (message.candidate != null) {
           await actions.addIceCandidate(message.candidate!);
         }

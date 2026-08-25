@@ -1,6 +1,6 @@
 /// ICE server ladder for the P2P session: Google STUN first, optional TURN
 /// relay second. With TURN configured, WebRTC succeeds across cellular /
-/// CG-NAT / double-NAT; without it, the existing 8s-timeout → R2 fallback
+/// CG-NAT / double-NAT; without it, the existing 8s-timeout  R2 fallback
 /// still guarantees transfer success.
 const List<Map<String, String>> kStunServers = [
   {'urls': 'stun:stun.l.google.com:19302'},

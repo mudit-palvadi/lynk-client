@@ -8,7 +8,7 @@ import '../../../../core/widgets/ad_banner_widget.dart';
 import '../providers/upload_notifier.dart';
 import '../providers/upload_state.dart';
 
-class FileUploadScreen extends ConsumerWidget {
+class FileUploadScreen extends ConsumerStatefulWidget {
   final String? attachToSessionId;
 
   /// Receiver's ephemeral public key (base64url) when pairing via a
@@ -18,14 +18,36 @@ class FileUploadScreen extends ConsumerWidget {
   const FileUploadScreen({super.key, this.attachToSessionId, this.receiverPk});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FileUploadScreen> createState() => _FileUploadScreenState();
+}
+
+class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
+  bool _p2pScreenPushed = false;
+
+  @override
+  Widget build(BuildContext context) {
     final uploadState = ref.watch(uploadProvider);
     final notifier = ref.read(uploadProvider.notifier);
 
     ref.listen<UploadState>(uploadProvider, (previous, next) {
+      //  P2P: navigate to the QR screen the moment the session is live --
+      // BEFORE any connection exists -- so the receiver has something to
+      // scan. Live status (waiting / sending %) renders on SendQrScreen.
+      if (next.transferMode == TransferMode.p2p &&
+          next.phase == UploadPhase.uploading &&
+          next.p2pStage != P2PSendStage.none &&
+          next.p2pStage != P2PSendStage.preparing &&
+          next.transfer != null &&
+          !_p2pScreenPushed) {
+        _p2pScreenPushed = true;
+        final key = next.aesKey ?? '';
+        context.go('/send-qr?aesKey=$key', extra: next.transfer!);
+        return;
+      }
       if (next.phase == UploadPhase.completed && next.transfer != null) {
         final key = next.aesKey ?? '';
-        if (attachToSessionId != null && attachToSessionId!.isNotEmpty) {
+        if (widget.attachToSessionId != null &&
+            widget.attachToSessionId!.isNotEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Transfer sent to receiver successfully!'),
@@ -178,8 +200,8 @@ class FileUploadScreen extends ConsumerWidget {
                             onRewardGranted: () {
                               notifier.setTransferMode(TransferMode.cloud);
                               notifier.startUpload(
-                                attachToSessionId: attachToSessionId,
-                                receiverPk: receiverPk,
+                                attachToSessionId: widget.attachToSessionId,
+                                receiverPk: widget.receiverPk,
                               );
                             },
                           );
@@ -200,8 +222,8 @@ class FileUploadScreen extends ConsumerWidget {
                             onRewardGranted: () {
                               notifier.setTransferMode(TransferMode.p2p);
                               notifier.startUpload(
-                                attachToSessionId: attachToSessionId,
-                                receiverPk: receiverPk,
+                                attachToSessionId: widget.attachToSessionId,
+                                receiverPk: widget.receiverPk,
                               );
                             },
                           );

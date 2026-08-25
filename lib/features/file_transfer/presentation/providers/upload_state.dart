@@ -6,6 +6,10 @@ enum UploadPhase { idle, selecting, uploading, completed, failed, cancelled }
 
 enum TransferMode { p2p, cloud }
 
+/// Fine-grained sender-side P2P progress, so the UI can show the QR/waiting
+/// panel instead of a fake upload percentage.
+enum P2PSendStage { none, preparing, waitingForReceiver, transferring }
+
 class UploadState extends Equatable {
   final List<PlatformFile> selectedFiles;
   final Transfer? transfer;
@@ -18,6 +22,7 @@ class UploadState extends Equatable {
   final String? errorMessage;
   final bool isSizeLimitUnlocked;
   final TransferMode transferMode;
+  final P2PSendStage p2pStage;
 
   const UploadState({
     this.selectedFiles = const [],
@@ -31,6 +36,7 @@ class UploadState extends Equatable {
     this.errorMessage,
     this.isSizeLimitUnlocked = false,
     this.transferMode = TransferMode.cloud,
+    this.p2pStage = P2PSendStage.none,
   });
 
   int get totalSize =>
@@ -38,10 +44,10 @@ class UploadState extends Equatable {
 
   /// Size tiers (bytes):
   /// - Cloud/R2: free = 20 MB, rewarded-ad unlocked = 50 MB
-  /// - P2P:      free = 50 MB, rewarded-ad unlocked = 100 MB
+  /// - P2P:      free = 10 MB, rewarded-ad unlocked = 200 MB
   int get maxTotalSize {
     if (transferMode == TransferMode.p2p) {
-      return isSizeLimitUnlocked ? 100 * 1024 * 1024 : 50 * 1024 * 1024;
+      return isSizeLimitUnlocked ? 200 * 1024 * 1024 : 10 * 1024 * 1024;
     }
     return isSizeLimitUnlocked ? 50 * 1024 * 1024 : 20 * 1024 * 1024;
   }
@@ -60,6 +66,7 @@ class UploadState extends Equatable {
     String? errorMessage,
     bool? isSizeLimitUnlocked,
     TransferMode? transferMode,
+    P2PSendStage? p2pStage,
   }) {
     return UploadState(
       selectedFiles: selectedFiles ?? this.selectedFiles,
@@ -73,6 +80,7 @@ class UploadState extends Equatable {
       errorMessage: errorMessage ?? this.errorMessage,
       isSizeLimitUnlocked: isSizeLimitUnlocked ?? this.isSizeLimitUnlocked,
       transferMode: transferMode ?? this.transferMode,
+      p2pStage: p2pStage ?? this.p2pStage,
     );
   }
 
@@ -89,5 +97,6 @@ class UploadState extends Equatable {
     errorMessage,
     isSizeLimitUnlocked,
     transferMode,
+    p2pStage,
   ];
 }

@@ -18,7 +18,7 @@ import 'webrtc_service.dart';
 const List<Map<String, String>> kLynkIceServers = kStunServers;
 
 /// Fetches short-lived TURN credentials from the backend. Returns null when
-/// TURN is disabled, unreachable, or the response is malformed — the caller
+/// TURN is disabled, unreachable, or the response is malformed -- the caller
 /// then degrades to STUN-only (transfer still succeeds via R2 fallback).
 Future<({List<String> urls, String username, String credential})?>
 fetchTurnCredentials(String sessionId, {Dio? dio}) async {
@@ -61,6 +61,39 @@ class WebSocketChannelAdapter implements WebSocketLike {
   Future<void> close() => _channel.sink.close();
 }
 
+/// Sender-side handle used by the upload flow. Abstract so the notifier is
+/// unit-testable without the native WebRTC plugin.
+abstract class P2PSenderSession {
+  bool get isOpen;
+
+  /// Resolves once the DataChannel is open. Throws [TimeoutException] when
+  /// [timeout] elapses first, or [SocketException] on cancel/failure.
+  Future<void> waitUntilOpen({required Duration timeout});
+
+  /// Breaks a pending [waitUntilOpen] immediately (user chose cloud / cancel).
+  void cancelWait();
+
+  Future<void> sendFiles(
+    List<File> files, {
+    void Function(int totalBytesSent)? onProgress,
+    bool Function()? shouldAbort,
+  });
+
+  Future<void> dispose();
+}
+
+/// A fully received file plus its original name (no path-derived guessing).
+class ReceivedFile {
+  final File file;
+  final String name;
+  final int expectedSize;
+  const ReceivedFile({
+    required this.file,
+    required this.name,
+    required this.expectedSize,
+  });
+}
+
 /// Thin `flutter_webrtc` glue implementing [PeerActions]. All decision logic
 /// lives in [WebrtcPeerCoordinator]; this class only translates calls.
 class FlutterWebrtcPeerActions implements PeerActions {
@@ -70,11 +103,10 @@ class FlutterWebrtcPeerActions implements PeerActions {
 
   FlutterWebrtcPeerActions({required this.signaling});
 
-  /// Creates the peer connection and the `fileTransfer` DataChannel.
-  ///
-  /// The sender owns the channel; the receiver picks it up via
-  /// `onDataChannel`. Returns the platform callbacks surface.
+  /// Creates the peer connection. Only the SENDER creates the DataChannel --
+  /// the receiver receives it via `onDataChannel`.
   Future<RTCPeerConnection> init({
+    required PeerRole role,
     required List<Map<String, Object>> iceServers,
     required void Function(RTCDataChannel channel) onDataChannelOpen,
     required void Function(Uint8List bytes) onBinaryMessage,
@@ -101,19 +133,21 @@ class FlutterWebrtcPeerActions implements PeerActions {
       );
     };
 
-    final init = RTCDataChannelInit()
-      ..ordered = true
-      ..binaryType = 'binary';
-    final channel = await pc.createDataChannel(
-      WebrtcService.dataChannelLabel,
-      init,
-    );
-    _bindDataChannel(
-      channel,
-      onDataChannelOpen,
-      onBinaryMessage,
-      onTextMessage,
-    );
+    if (role == PeerRole.sender) {
+      final init = RTCDataChannelInit()
+        ..ordered = true
+        ..binaryType = 'binary';
+      final channel = await pc.createDataChannel(
+        WebrtcService.dataChannelLabel,
+        init,
+      );
+      _bindDataChannel(
+        channel,
+        onDataChannelOpen,
+        onBinaryMessage,
+        onTextMessage,
+      );
+    }
 
     _pc = pc;
     return pc;
@@ -210,30 +244,31 @@ class FlutterWebrtcPeerActions implements PeerActions {
 
 /// High-level P2P file-transfer session over WebRTC.
 ///
-/// Sender flow: [startAsSender] → wait for channel open → [sendFiles]
-/// Receiver flow: [startAsReceiver] → chunks arrive via [_incomingFile] →
-/// completed temp files surfaced by [onFileReceived] / completion future.
-class P2PFileSession {
+/// Sender flow: [connectAsSender] -> [waitUntilOpen] -> [sendFiles].
+/// Receiver flow: chunks arrive via [_onBinary]/[_onText]; completed files
+/// surface on [onFileReceived] and completion via [transferDone].
+class P2PFileSession implements P2PSenderSession {
   final SignalingChannel signaling;
   final FlutterWebrtcPeerActions peer;
   late final WebrtcPeerCoordinator coordinator;
 
-  /// Fires when the 8-second connect timeout expires without a DataChannel.
+  /// Fires when the connect timeout expires without a DataChannel.
   void Function()? onFallbackToCloud;
 
-  /// Fires for each fully received file (temp path holds encrypted bytes).
-  final StreamController<File> _fileReceived =
-      StreamController<File>.broadcast();
+  final StreamController<ReceivedFile> _fileReceived =
+      StreamController<ReceivedFile>.broadcast();
+  final Completer<void> _transferDone = Completer<void>();
+  final Completer<void> _waitCancelled = Completer<void>();
 
   File? _currentInboundFile;
   RandomAccessFile? _currentSink;
-  final Completer<void> _transferDone = Completer<void>();
+  String? _currentName;
+  int _currentExpected = 0;
+  int _currentWritten = 0;
+  Directory? _tempDir;
 
   P2PFileSession._(this.signaling, this.peer) {
-    coordinator = WebrtcPeerCoordinator(actions: peer)
-      ..onP2PFailed = () {
-        onFallbackToCloud?.call();
-      };
+    coordinator = WebrtcPeerCoordinator(actions: peer);
   }
 
   static Future<P2PFileSession> connect({
@@ -257,6 +292,7 @@ class P2PFileSession {
     );
 
     await peer.init(
+      role: role,
       iceServers: iceServers,
       onDataChannelOpen: (_) => session.coordinator.notifyConnected(),
       onBinaryMessage: session._onBinary,
@@ -274,7 +310,10 @@ class P2PFileSession {
     );
 
     signaling.messages.listen(session.coordinator.handleMessage);
-    await session.coordinator.start(role: role);
+    await session.coordinator.start(
+      role: role,
+      armConnectionTimeout: role == PeerRole.receiver,
+    );
 
     session.coordinator.onP2PFailed = () {
       onFallbackToCloud?.call();
@@ -287,22 +326,64 @@ class P2PFileSession {
     return session;
   }
 
-  bool get isReady => peer.isChannelOpen;
+  /// Sender-side factory matching [P2PSenderSessionFactory].
+  static Future<P2PFileSession> connectAsSender({
+    required Uri signalingUrl,
+    required String sessionId,
+    required void Function() onFallbackToCloud,
+  }) => connect(
+    signalingUrl: signalingUrl,
+    role: PeerRole.sender,
+    sessionId: sessionId,
+    onFallbackToCloud: onFallbackToCloud,
+  );
+
+  @override
+  bool get isOpen => peer.isChannelOpen;
+
+  bool get hasFailed => coordinator.hasFailed;
+
+  @override
+  Future<void> waitUntilOpen({required Duration timeout}) async {
+    final deadline = DateTime.now().add(timeout);
+    while (!peer.isChannelOpen) {
+      if (_waitCancelled.isCompleted) {
+        throw const SocketException('P2P wait cancelled');
+      }
+      if (hasFailed) {
+        throw TimeoutException('P2P connection failed');
+      }
+      if (DateTime.now().isAfter(deadline)) {
+        throw TimeoutException('DataChannel did not open in time');
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+  }
+
+  @override
+  void cancelWait() {
+    if (!_waitCancelled.isCompleted) _waitCancelled.complete();
+  }
 
   /// Streams already-encrypted files over the DataChannel with framing.
   ///
-  /// Returns when the receiver acknowledged everything (`done`) or the
-  /// channel died. Each file must be the *encrypted* payload (IV-prefixed).
-  Future<void> sendFiles(List<File> encryptedFiles) async {
-    while (!peer.isChannelOpen) {
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+  /// Each file must be the *encrypted* payload (IV-prefixed). Chunks are read
+  /// with `await for` so ordering is guaranteed and backpressure honored.
+  @override
+  Future<void> sendFiles(
+    List<File> encryptedFiles, {
+    void Function(int totalBytesSent)? onProgress,
+    bool Function()? shouldAbort,
+  }) async {
+    if (!peer.isChannelOpen) {
+      throw StateError('DataChannel is not open');
     }
-    final sender = ChunkSender(
-      bufferedAmount: () => peer.bufferedAmount,
-      send: peer.sendBinary,
-    );
-
+    final abort = shouldAbort;
+    var cumulative = 0;
     for (final file in encryptedFiles) {
+      if (abort != null && abort()) {
+        throw const SocketException('P2P send aborted');
+      }
       final name = file.path.split(Platform.pathSeparator).last;
       final size = await file.length();
       await peer.sendText(
@@ -310,9 +391,16 @@ class P2PFileSession {
           FramedFileMeta(name: name, size: size),
         ).text!,
       );
-      await file.openRead().forEach((chunkBytes) async {
+      final sender = ChunkSender(
+        bufferedAmount: () => peer.bufferedAmount,
+        send: peer.sendBinary,
+        onProgress: (fileSent) => onProgress?.call(cumulative + fileSent),
+        shouldAbort: shouldAbort,
+      );
+      await for (final chunkBytes in file.openRead()) {
         await sender.sendAll(Uint8List.fromList(chunkBytes));
-      });
+      }
+      cumulative += size;
       await peer.sendText(
         TransferFramer.encodeEof(FramedFileMeta(name: name, size: 0)).text!,
       );
@@ -320,12 +408,10 @@ class P2PFileSession {
     await peer.sendText(TransferFramer.encodeDone().text!);
   }
 
-  Stream<File> get onFileReceived => _fileReceived.stream;
+  Stream<ReceivedFile> get onFileReceived => _fileReceived.stream;
 
   /// Completes when the sender signals overall completion.
   Future<void> get transferDone => _transferDone.future;
-
-  Directory? _tempDir;
 
   void _ensureTempDir() {
     _tempDir ??= Directory.systemTemp.createTempSync('lynk_p2p_');
@@ -337,18 +423,43 @@ class P2PFileSession {
     switch (parsed.kind) {
       case FrameKind.header:
         _ensureTempDir();
+        _currentName = parsed.meta!.name;
+        _currentExpected = parsed.meta!.size;
+        _currentWritten = 0;
         _currentInboundFile = File(
-          '${_tempDir!.path}/${DateTime.now().microsecondsSinceEpoch}_${parsed.meta!.name}',
+          '${_tempDir!.path}/'
+          '${DateTime.now().microsecondsSinceEpoch}_${parsed.meta!.name}',
         );
         _currentSink = _currentInboundFile!.openSync(mode: FileMode.write);
       case FrameKind.eof:
         _currentSink?.closeSync();
         final file = _currentInboundFile;
-        if (file != null && !_fileReceived.isClosed) {
-          _fileReceived.add(file);
+        final name = _currentName ?? '';
+        if (file != null && _currentWritten == _currentExpected) {
+          if (!_fileReceived.isClosed) {
+            _fileReceived.add(
+              ReceivedFile(
+                file: file,
+                name: name,
+                expectedSize: _currentExpected,
+              ),
+            );
+          }
+        } else {
+          // Size mismatch means a corrupt transfer: drop temp and fail fast.
+          try {
+            file?.deleteSync();
+          } catch (_) {}
+          if (!_transferDone.isCompleted) {
+            _transferDone.completeError(
+              SocketException('size mismatch for "$name"'),
+            );
+          }
         }
         _currentInboundFile = null;
         _currentSink = null;
+        _currentName = null;
+        _currentWritten = 0;
       case FrameKind.done:
         if (!_transferDone.isCompleted) _transferDone.complete();
     }
@@ -358,10 +469,13 @@ class P2PFileSession {
     final sink = _currentSink;
     if (sink == null) return;
     sink.writeFromSync(bytes);
+    _currentWritten += bytes.length;
   }
 
-  /// Tears down PC, channels and any partially written inbound file.
+  /// Tears down PC, channels, pending files and the whole temp directory.
+  @override
   Future<void> dispose() async {
+    cancelWait();
     try {
       await _currentSink?.close();
     } catch (_) {}
@@ -369,6 +483,10 @@ class P2PFileSession {
     if (!_transferDone.isCompleted) {
       _transferDone.completeError(const SocketException('P2P disposed'));
     }
+    try {
+      _tempDir?.deleteSync(recursive: true);
+    } catch (_) {}
+    _tempDir = null;
     await _fileReceived.close();
     coordinator.dispose();
     await peer.dispose();

@@ -9,6 +9,8 @@ import '../../../../core/utils/qr_share_helper.dart';
 import '../../../../core/widgets/ad_banner_widget.dart';
 import '../../domain/entities/transfer.dart';
 import '../helpers/send_qr_helper.dart';
+import '../providers/upload_notifier.dart';
+import '../providers/upload_state.dart';
 
 class SendQrScreen extends ConsumerStatefulWidget {
   final Transfer transfer;
@@ -48,8 +50,83 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
     super.dispose();
   }
 
+  Widget _buildP2pStatus(UploadState state) {
+    final p2pActive =
+        state.phase == UploadPhase.uploading ||
+        state.p2pStage != P2PSendStage.none;
+
+    if (state.p2pStage == P2PSendStage.waitingForReceiver) {
+      return Column(
+        children: [
+          const SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2.5),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Waiting for receiver to scan...',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 4),
+          TextButton.icon(
+            onPressed: () =>
+                ref.read(uploadProvider.notifier).forceCloudFallback(),
+            icon: const Icon(Icons.cloud_upload_outlined, size: 16),
+            label: const Text('No one nearby? Send via Cloud'),
+          ),
+        ],
+      );
+    }
+
+    if (state.p2pStage == P2PSendStage.transferring) {
+      return Column(
+        children: [
+          Text(
+            'Sending directly... ${(state.overallProgress * 100).toStringAsFixed(0)}%',
+            style: const TextStyle(
+              color: AppTheme.secondary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          LinearProgressIndicator(value: state.overallProgress),
+        ],
+      );
+    }
+
+    if (state.p2pStage == P2PSendStage.none &&
+        state.phase == UploadPhase.uploading) {
+      // Auto-fallback fired or attach skipped: R2 upload in background.
+      return const Column(
+        children: [
+          Text(
+            'No direct connection -- sending via cloud instead.',
+            style: TextStyle(color: AppTheme.textSecondary),
+          ),
+          SizedBox(height: 8),
+          LinearProgressIndicator(),
+        ],
+      );
+    }
+
+    if (state.phase == UploadPhase.completed && p2pActive) {
+      return const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.check_circle, color: AppTheme.secondary),
+          SizedBox(width: 6),
+          Text('Delivered directly'),
+        ],
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final uploadState = ref.watch(uploadProvider);
     final qrData = SendQrHelper.buildQrData(
       ref: ref,
       transferId: widget.transfer.id,
@@ -142,6 +219,10 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
                   '${widget.transfer.totalFiles} files · ${FileSizeFormatter.format(widget.transfer.totalSize)}',
                   style: const TextStyle(color: AppTheme.textSecondary),
                 ),
+                if (uploadState.transferMode == TransferMode.p2p) ...[
+                  const SizedBox(height: 16),
+                  _buildP2pStatus(uploadState),
+                ],
                 const Spacer(),
                 OutlinedButton.icon(
                   onPressed: () {
@@ -163,11 +244,17 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
                 ),
                 const SizedBox(height: 12),
                 ElevatedButton(
-                  onPressed: () => SendQrHelper.cancelSessionAndGoHome(
-                    context: context,
-                    ref: ref,
-                    transferId: widget.transfer.id,
-                  ),
+                  onPressed: () {
+                    if (uploadState.p2pStage != P2PSendStage.none ||
+                        uploadState.phase == UploadPhase.uploading) {
+                      ref.read(uploadProvider.notifier).cancelUpload();
+                    }
+                    SendQrHelper.cancelSessionAndGoHome(
+                      context: context,
+                      ref: ref,
+                      transferId: widget.transfer.id,
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.error,
                   ),

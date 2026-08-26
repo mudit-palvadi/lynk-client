@@ -1,9 +1,18 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:client/core/providers/transfer_providers.dart';
+import 'package:client/core/providers/receiver_providers.dart';
+import 'package:client/core/errors/result.dart';
 import 'package:client/core/services/flutter_webrtc_p2p_session.dart';
+import 'package:client/features/file_receive/domain/entities/receiver_session.dart';
+import 'package:client/features/file_transfer/domain/entities/file_item.dart';
+import 'package:client/features/file_transfer/domain/entities/transfer.dart';
+import 'package:client/features/file_transfer/domain/repositories/transfer_repository.dart';
 import 'package:client/features/file_transfer/presentation/providers/upload_notifier.dart';
 import 'package:client/features/file_transfer/presentation/providers/upload_state.dart';
+import 'package:client/features/file_receive/domain/repositories/receiver_repository.dart';
 import 'package:client/features/onboarding/presentation/providers/onboarding_provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,6 +22,83 @@ import 'package:shared_preferences/shared_preferences.dart';
 class FakeOnboardingNotifier extends OnboardingNotifier {
   @override
   bool build() => true;
+}
+
+class FakeReceiverRepository implements ReceiverRepository {
+  final attachCalls =
+      <({String sessionId, String transferId, String? wrappedKey})>[];
+  void Function()? onAttach;
+
+  @override
+  Future<Result<ReceiverSession>> createReceiverSession() async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<Result<ReceiverSession>> getReceiverSession(String sessionId) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<Result<void>> attachTransfer({
+    required String sessionId,
+    required String transferId,
+    String? wrappedKey,
+  }) async {
+    attachCalls.add((
+      sessionId: sessionId,
+      transferId: transferId,
+      wrappedKey: wrappedKey,
+    ));
+    onAttach?.call();
+    return Result.success(null);
+  }
+
+  @override
+  Future<Result<void>> cancelReceiverSession(String sessionId) async {
+    return Result.success(null);
+  }
+}
+
+class FakeTransferRepository implements TransferRepository {
+  @override
+  Future<Result<Transfer>> createTransfer(List<FileItem> files) async {
+    return Result.success(
+      Transfer(
+        id: 'room-fb',
+        status: TransferStatus.uploading,
+        totalFiles: files.length,
+        totalSize: files.fold(0, (s, f) => s + f.size),
+        files: files,
+      ),
+    );
+  }
+
+  @override
+  Future<Result<void>> completeFileUpload({
+    required String transferId,
+    required String fileId,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<Result<Transfer>> getTransferMetadata(String transferId) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<Result<List<FileItem>>> getDownloadUrls({
+    required String transferId,
+    List<String>? fileIds,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<Result<void>> cancelTransfer(String transferId) async {
+    return Result.success(null);
+  }
 }
 
 /// Scriptable fake of the sender-side WebRTC session.
@@ -92,16 +178,22 @@ void main() {
   SharedPreferences.setMockInitialValues({});
 
   late FakeSenderSession fakeSession;
+  late FakeTransferRepository fakeTransferRepo;
+  late FakeReceiverRepository fakeReceiverRepo;
   const tinyWindow = Duration(milliseconds: 150);
 
   late SharedPreferences mockPrefs;
 
   Future<ProviderContainer> makeContainer() async {
+    fakeTransferRepo = FakeTransferRepository();
+    fakeReceiverRepo = FakeReceiverRepository();
     mockPrefs = await SharedPreferences.getInstance();
     final container = ProviderContainer(
       overrides: [
         onboardingProvider.overrideWith(() => FakeOnboardingNotifier()),
         sharedPreferencesProvider.overrideWithValue(mockPrefs),
+        transferRepositoryProvider.overrideWithValue(fakeTransferRepo),
+        receiverRepositoryProvider.overrideWithValue(fakeReceiverRepo),
         p2pSessionFactoryProvider.overrideWithValue(({
           required signalingUrl,
           required sessionId,
@@ -265,5 +357,50 @@ void main() {
       expect(ok, isFalse);
       expect(container.read(uploadProvider).phase, UploadPhase.failed);
     });
+
+    test(
+      'flow B: wraps and attaches key during waitingForReceiver stage',
+      () async {
+        final container = await makeContainer();
+        final notifier = container.read(uploadProvider.notifier);
+        notifier.setTransferMode(TransferMode.p2p);
+
+        final events = <String>[];
+        fakeReceiverRepo.onAttach = () {
+          events.add('attach@${container.read(uploadProvider).p2pStage.name}');
+        };
+
+        final src = tempFileOf('doc.pdf', 5 * 1024);
+        addTearDown(src.deleteSync);
+        notifier.setFilesForTesting([
+          PlatformFile(name: 'doc.pdf', size: src.lengthSync(), path: src.path),
+        ]);
+
+        final seen = <String>[];
+        final sub = container.listen<UploadState>(uploadProvider, (_, next) {
+          seen.add(
+            '${next.p2pStage.name}:${next.phase.name}:${next.transferMode.name}',
+          );
+        });
+
+        await notifier.startUpload(
+          attachToSessionId: 'sess-9',
+          receiverPk: base64Url.encode(List.filled(32, 7)).replaceAll('=', ''),
+        );
+        sub.close();
+
+        expect(fakeSession.sendCalls, 1); // P2P stream happened
+        expect(fakeReceiverRepo.attachCalls, hasLength(1));
+        final call = fakeReceiverRepo.attachCalls.single;
+        expect(call.sessionId, 'sess-9');
+        expect(call.transferId, 'room-fb');
+        expect(call.wrappedKey, isNotNull);
+        // Key must reach the receiver BEFORE the transfer stage begins, so the
+        // paired phone can join the room already able to decrypt.
+        expect(events, ['attach@none']);
+        expect(seen.where((s) => s.startsWith('transferring')), isNotEmpty);
+        expect(container.read(uploadProvider).phase, UploadPhase.completed);
+      },
+    );
   });
 }

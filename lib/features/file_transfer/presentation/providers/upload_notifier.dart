@@ -126,7 +126,9 @@ class UploadNotifier extends _$UploadNotifier {
   }
 
   void setFilesForTesting(List<PlatformFile> files) {
-    state = UploadState(selectedFiles: files, phase: UploadPhase.selecting);
+    // Preserve mode + unlock state so staged flows see the same config the
+    // user picked (mirrors pickMedia/pickFiles behavior).
+    state = state.copyWith(selectedFiles: files, phase: UploadPhase.selecting);
   }
 
   void removeFile(int index) {
@@ -171,160 +173,204 @@ class UploadNotifier extends _$UploadNotifier {
 
     final createResult = await repo.createTransfer(fileItems);
 
-    createResult.fold(
-      (transfer) async {
-        final effectiveTotalSize = transfer.totalSize > 0
-            ? transfer.totalSize
-            : state.totalSize;
-        final updatedTransfer = transfer.copyWith(
-          totalSize: effectiveTotalSize,
-          totalFiles: transfer.totalFiles > 0
-              ? transfer.totalFiles
-              : state.selectedFiles.length,
+    // Await the outcome directly: fold() discards async closures, which
+    // previously let startUpload return before the transfer finished.
+    if (createResult.isSuccess) {
+      final transfer = createResult.value!;
+      final effectiveTotalSize = transfer.totalSize > 0
+          ? transfer.totalSize
+          : state.totalSize;
+      final updatedTransfer = transfer.copyWith(
+        totalSize: effectiveTotalSize,
+        totalFiles: transfer.totalFiles > 0
+            ? transfer.totalFiles
+            : state.selectedFiles.length,
+      );
+      state = state.copyWith(transfer: updatedTransfer);
+
+      // P2P mode: show the QR first, wait patiently for a receiver, then
+      // stream. Falls through to the R2 pipeline when nobody connects
+      // within the window, on ICE failure after handshake, or on error.
+      var useP2P = state.transferMode == TransferMode.p2p;
+
+      // Flow B (reverse pairing): deliver the wrapped AES key to the paired
+      // receiver BEFORE streaming so it can join the room already able to
+      // decrypt. On attach failure, skip P2P and let R2 retry after upload.
+      if (useP2P && attachToSessionId != null && receiverPk != null) {
+        final attached = await _attachWrappedKey(
+          sessionId: attachToSessionId,
+          transferId: transfer.id,
+          aesKey: aesKey,
+          receiverPk: receiverPk,
         );
-        state = state.copyWith(transfer: updatedTransfer);
+        if (!attached) useP2P = false;
+      }
 
-        // Ã¢Å¡Â¡ P2P mode: show the QR first, wait patiently for a receiver, then
-        // stream. Falls through to the R2 pipeline when nobody connects
-        // within the window, on ICE failure after handshake, or on error.
-        if (state.transferMode == TransferMode.p2p) {
-          final p2pCompleted = await runP2PSession(
-            sessionId: transfer.id,
-            aesKey: aesKey,
-          );
-          if (p2pCompleted) return;
-        }
-
-        int cumulativeBytes = 0;
-
-        for (int i = 0; i < state.selectedFiles.length; i++) {
-          if (_cancelToken?.isCancelled ?? false) return;
-
-          final pFile = state.selectedFiles[i];
-          final item = transfer.files[i];
-
-          state = state.copyWith(currentFileIndex: i, currentFileProgress: 0.0);
-
-          try {
-            File? encryptedFile;
-            Uint8List? encryptedBytes;
-
-            if (pFile.path != null) {
-              encryptedFile = await encryptUseCase.execute(
-                inputFile: File(pFile.path!),
-                aesKey32Bytes: aesKey,
-              );
-            } else if (pFile.bytes != null) {
-              encryptedBytes = encryptUseCase.executeBytes(
-                inputBytes: pFile.bytes!,
-                aesKey32Bytes: aesKey,
-              );
-            } else {
-              throw ArgumentError('File has no valid path or bytes payload');
-            }
-
-            final int encSize =
-                encryptedBytes?.length ?? await encryptedFile!.length();
-
-            await uploadService.uploadFileToR2(
-              name: pFile.name,
-              size: encSize,
-              contentType: item.contentType,
-              uploadUrl: item.uploadUrl!,
-              file: encryptedFile,
-              bytes: encryptedBytes,
-              cancelToken: _cancelToken,
-              onProgress: (sent, total) {
-                final fileProgress = sent / total;
-                final currentOverall =
-                    (cumulativeBytes + sent) / state.totalSize;
-                state = state.copyWith(
-                  currentFileProgress: fileProgress,
-                  overallProgress: currentOverall.clamp(0.0, 1.0),
-                );
-              },
-            );
-
-            if (encryptedFile != null && await encryptedFile.exists()) {
-              await encryptedFile.delete();
-            }
-
-            await repo.completeFileUpload(
-              transferId: transfer.id,
-              fileId: item.id,
-            );
-            cumulativeBytes += encSize;
-          } catch (e) {
-            if (_cancelToken?.isCancelled ?? false) return;
-            state = state.copyWith(
-              phase: UploadPhase.failed,
-              errorMessage: 'Failed uploading ${pFile.name}: $e',
-            );
-            return;
-          }
-        }
-
-        if (attachToSessionId != null) {
-          final receiverRepo = ref.read(receiverRepositoryProvider);
-
-          String? wrappedKey;
-          if (receiverPk != null && receiverPk.isNotEmpty) {
-            try {
-              wrappedKey = await KeyWrapService().wrapKey(
-                aesKey: aesKey,
-                receiverPublicKeyB64: receiverPk,
-                sessionId: attachToSessionId,
-              );
-            } catch (_) {
-              wrappedKey = null;
-            }
-          }
-
-          await receiverRepo.attachTransfer(
-            sessionId: attachToSessionId,
-            transferId: transfer.id,
-            wrappedKey: wrappedKey,
-          );
-        }
-
-        state = state.copyWith(
-          phase: UploadPhase.completed,
-          overallProgress: 1.0,
+      if (useP2P) {
+        final p2pCompleted = await runP2PSession(
+          sessionId: transfer.id,
+          aesKey: aesKey,
         );
+        if (p2pCompleted) return;
+      }
+
+      int cumulativeBytes = 0;
+
+      for (int i = 0; i < state.selectedFiles.length; i++) {
+        if (_cancelToken?.isCancelled ?? false) return;
+
+        final pFile = state.selectedFiles[i];
+        final item = transfer.files[i];
+
+        state = state.copyWith(currentFileIndex: i, currentFileProgress: 0.0);
 
         try {
-          ref
-              .read(recentTransfersProvider.notifier)
-              .addRecord(
-                RecentTransferRecordModel(
-                  id: transfer.id,
-                  type: RecentTransferType.sent,
-                  fileNames: state.selectedFiles.map((f) => f.name).toList(),
-                  totalSize: state.totalSize,
-                  timestamp: DateTime.now(),
-                  status: 'completed',
-                  filePaths: state.selectedFiles
-                      .where((f) => f.path != null)
-                      .map((f) => f.path!)
-                      .toList(),
-                ),
+          File? encryptedFile;
+          Uint8List? encryptedBytes;
+
+          if (pFile.path != null) {
+            encryptedFile = await encryptUseCase.execute(
+              inputFile: File(pFile.path!),
+              aesKey32Bytes: aesKey,
+            );
+          } else if (pFile.bytes != null) {
+            encryptedBytes = encryptUseCase.executeBytes(
+              inputBytes: pFile.bytes!,
+              aesKey32Bytes: aesKey,
+            );
+          } else {
+            throw ArgumentError('File has no valid path or bytes payload');
+          }
+
+          final int encSize =
+              encryptedBytes?.length ?? await encryptedFile!.length();
+
+          await uploadService.uploadFileToR2(
+            name: pFile.name,
+            size: encSize,
+            contentType: item.contentType,
+            uploadUrl: item.uploadUrl!,
+            file: encryptedFile,
+            bytes: encryptedBytes,
+            cancelToken: _cancelToken,
+            onProgress: (sent, total) {
+              final fileProgress = sent / total;
+              final currentOverall = (cumulativeBytes + sent) / state.totalSize;
+              state = state.copyWith(
+                currentFileProgress: fileProgress,
+                overallProgress: currentOverall.clamp(0.0, 1.0),
               );
-        } catch (_) {
-          // History is best-effort; never fail a finished transfer over it.
+            },
+          );
+
+          if (encryptedFile != null && await encryptedFile.exists()) {
+            await encryptedFile.delete();
+          }
+
+          await repo.completeFileUpload(
+            transferId: transfer.id,
+            fileId: item.id,
+          );
+          cumulativeBytes += encSize;
+        } catch (e) {
+          if (_cancelToken?.isCancelled ?? false) return;
+          state = state.copyWith(
+            phase: UploadPhase.failed,
+            errorMessage: 'Failed uploading ${pFile.name}: $e',
+          );
+          return;
         }
-      },
-      (failure) async {
-        state = state.copyWith(
-          phase: UploadPhase.failed,
-          errorMessage: failure.message,
+      }
+
+      if (attachToSessionId != null) {
+        final receiverRepo = ref.read(receiverRepositoryProvider);
+
+        String? wrappedKey;
+        if (receiverPk != null && receiverPk.isNotEmpty) {
+          try {
+            wrappedKey = await KeyWrapService().wrapKey(
+              aesKey: aesKey,
+              receiverPublicKeyB64: receiverPk,
+              sessionId: attachToSessionId,
+            );
+          } catch (_) {
+            wrappedKey = null;
+          }
+        }
+
+        await receiverRepo.attachTransfer(
+          sessionId: attachToSessionId,
+          transferId: transfer.id,
+          wrappedKey: wrappedKey,
         );
-      },
-    );
+      }
+
+      state = state.copyWith(
+        phase: UploadPhase.completed,
+        overallProgress: 1.0,
+      );
+
+      try {
+        ref
+            .read(recentTransfersProvider.notifier)
+            .addRecord(
+              RecentTransferRecordModel(
+                id: transfer.id,
+                type: RecentTransferType.sent,
+                fileNames: state.selectedFiles.map((f) => f.name).toList(),
+                totalSize: state.totalSize,
+                timestamp: DateTime.now(),
+                status: 'completed',
+                filePaths: state.selectedFiles
+                    .where((f) => f.path != null)
+                    .map((f) => f.path!)
+                    .toList(),
+              ),
+            );
+      } catch (_) {
+        // History is best-effort; never fail a finished transfer over it.
+      }
+    } else {
+      state = state.copyWith(
+        phase: UploadPhase.failed,
+        errorMessage: createResult.failure!.message,
+      );
+    }
   }
 
   void reset() {
     _cancelToken?.cancel();
+    _activeSession?.cancelWait();
     state = const UploadState();
+  }
+
+  /// Flow B: wraps [aesKey] to the receiver's ephemeral public key and
+  /// attaches it to the receiver session. Returns false when either step
+  /// fails so callers can degrade gracefully.
+  Future<bool> _attachWrappedKey({
+    required String sessionId,
+    required String transferId,
+    required String aesKey,
+    required String receiverPk,
+  }) async {
+    try {
+      final wrappedKey = await KeyWrapService().wrapKey(
+        aesKey: aesKey,
+        receiverPublicKeyB64: receiverPk,
+        sessionId: sessionId,
+      );
+      await ref
+          .read(receiverRepositoryProvider)
+          .attachTransfer(
+            sessionId: sessionId,
+            transferId: transferId,
+            wrappedKey: wrappedKey,
+          );
+      return true;
+    } catch (e) {
+      debugPrint('_attachWrappedKey failed: $e');
+      return false;
+    }
   }
 
   /// User tapped "Send via Cloud instead" while waiting for a receiver.

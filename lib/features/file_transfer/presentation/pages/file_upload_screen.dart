@@ -33,7 +33,10 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
       //  P2P: navigate to the QR screen the moment the session is live --
       // BEFORE any connection exists -- so the receiver has something to
       // scan. Live status (waiting / sending %) renders on SendQrScreen.
+      // Skipped in reverse-pairing mode: the receiver's QR was already
+      // scanned at entry, and completion routes home instead.
       if (next.transferMode == TransferMode.p2p &&
+          widget.attachToSessionId == null &&
           next.phase == UploadPhase.uploading &&
           next.p2pStage != P2PSendStage.none &&
           next.p2pStage != P2PSendStage.preparing &&

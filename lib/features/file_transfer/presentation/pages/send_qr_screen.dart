@@ -56,24 +56,22 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
         state.p2pStage != P2PSendStage.none;
 
     if (state.p2pStage == P2PSendStage.waitingForReceiver) {
-      return Column(
+      return const Column(
         children: [
-          const SizedBox(
+          SizedBox(
             width: 22,
             height: 22,
             child: CircularProgressIndicator(strokeWidth: 2.5),
           ),
-          const SizedBox(height: 10),
-          const Text(
+          SizedBox(height: 10),
+          Text(
             'Waiting for receiver to scan...',
             style: TextStyle(fontWeight: FontWeight.w600),
           ),
-          const SizedBox(height: 4),
-          TextButton.icon(
-            onPressed: () =>
-                ref.read(uploadProvider.notifier).forceCloudFallback(),
-            icon: const Icon(Icons.cloud_upload_outlined, size: 16),
-            label: const Text('No one nearby? Send via Cloud'),
+          SizedBox(height: 4),
+          Text(
+            'Keep this screen open',
+            style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
           ),
         ],
       );
@@ -97,11 +95,10 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
 
     if (state.p2pStage == P2PSendStage.none &&
         state.phase == UploadPhase.uploading) {
-      // Auto-fallback fired or attach skipped: R2 upload in background.
       return const Column(
         children: [
           Text(
-            'No direct connection -- sending via cloud instead.',
+            'Establishing secure connection...',
             style: TextStyle(color: AppTheme.textSecondary),
           ),
           SizedBox(height: 8),

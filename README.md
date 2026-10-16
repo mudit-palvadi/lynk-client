@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge" alt="License" />
 </p>
 
-Lynk is a login-free file transfer app. A Flutter client (Android and iOS) and the website in `web/` can both send and receive. Files are encrypted on the device with AES-256-CBC before they leave. The plaintext key stays in the QR link fragment. The server stores ciphertext plus the filename and size.
+Lynk is a login-free file transfer app. A Flutter client (Android) and the website in `web/` can both send and receive. There is no iOS app distribution — iOS users use the website. Files are encrypted on the device with AES-256-CBC before they leave. The plaintext key stays in the QR link fragment. The server stores ciphertext plus the filename and size.
 
 Files are uploaded directly to **Cloudflare R2** via short-lived presigned URLs, and session/transfer metadata is stored in **Redis** with strict TTL-based expiration.
 

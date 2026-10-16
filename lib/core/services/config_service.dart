@@ -2,7 +2,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ConfigService {
-  static const String _fallbackApiBase = 'http://140.245.220.117:8000/api/v1/';
+  static const String _fallbackApiBase = 'https://api.lynkshare.app/api/v1/';
 
   /// REST base URL from env, always ending with a trailing slash.
   /// Falls back to the production default when .env is unavailable.

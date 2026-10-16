@@ -24,7 +24,7 @@ Future<({List<String> urls, String username, String credential})?>
 fetchTurnCredentials(String sessionId, {Dio? dio}) async {
   try {
     final base =
-        dotenv.env['API_BASE_URL'] ?? 'http://140.245.220.117:8000/api/v1/';
+        dotenv.env['API_BASE_URL'] ?? 'https://api.lynkshare.app/api/v1/';
     final client = dio ?? Dio();
     final resp = await client.getUri(
       Uri.parse(base).resolve('transfers/$sessionId/turn-credentials'),

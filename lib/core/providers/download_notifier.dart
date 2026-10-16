@@ -240,7 +240,7 @@ class DownloadNotifier extends _$DownloadNotifier {
 
   static Uri _signalingUri(String sessionId) {
     final base =
-        dotenv.env['API_BASE_URL'] ?? 'http://140.245.220.117:8000/api/v1/';
+        dotenv.env['API_BASE_URL'] ?? 'https://api.lynkshare.app/api/v1/';
     final parsed = Uri.parse(base);
     final scheme = parsed.scheme == 'https' ? 'wss' : 'ws';
     return Uri(

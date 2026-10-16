@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge" alt="License" />
 </p>
 
-Lynk is a minimal, login-free, cross-device file transfer mobile application built with Flutter. It allows users to select multiple files on one device and securely transfer them to another device by scanning a temporary, secure QR code. Files are encrypted on-device prior to upload, ensuring absolute privacy.
+Lynk is a login-free file transfer app. A Flutter client (Android and iOS) and the website in `web/` can both send and receive. Files are encrypted on the device with AES-256-CBC before they leave. The plaintext key stays in the QR link fragment. The server stores ciphertext plus the filename and size.
 
 Files are uploaded directly to **Cloudflare R2** via short-lived presigned URLs, and session/transfer metadata is stored in **Redis** with strict TTL-based expiration.
 
@@ -16,14 +16,14 @@ Files are uploaded directly to **Cloudflare R2** via short-lived presigned URLs,
 ## Features
 
 * **Zero Login/Sign-up:** Open the app, pick your files, and start transferring instantly.
-* **End-to-End Encryption (E2EE):** Files are encrypted on-device before uploading and decrypted only on the receiver's device, ensuring that not even the server operator or Cloudflare can read their contents.
+* **Client-side encryption:** AES-256-CBC with a prepended IV. The fragment key is a 32-character string used as raw UTF-8, from `EntropyGenerator.generateKey()` on the app and from 16 CSPRNG bytes on the website. The file ciphertext has no authentication tag.
 * **Multi-File Support:** Select, preview, and remove multiple files in a single transfer.
-* **Direct R2 Uploads/Downloads:** File bytes stream directly between the client and Cloudflare R2 storage without proxying through the app server.
+* **Two transports:** WebRTC data channel first (the mobile sender waits up to 60 seconds; the receiver and the website use 8 seconds), then Cloudflare R2 through presigned URLs. File bytes are not proxied through the API. The server rejects a file over 50 MB even when the app UI offers a 200 MB P2P unlock.
 * **Secure QR Flows:**
   1. **Sender QR Flow (Primary):** Upload files $\rightarrow$ generate QR code $\rightarrow$ scan to download.
   2. **Receiver QR Flow:** Receiver generates session QR $\rightarrow$ Sender scans $\rightarrow$ Sender uploads $\rightarrow$ Receiver downloads.
 * **Byte-Weighted Progress:** Real-time upload and download progress accurately calculated using file size weights.
-* **Premium UX/UI:** Designed with a sleek slate-indigo dark theme and glassmorphic card elements.
+* **Dark UI:** Slate-indigo dark theme. The fuller visual pass (glass, motion, type) is still Phase 5 and is not shipped.
 
 ---
 

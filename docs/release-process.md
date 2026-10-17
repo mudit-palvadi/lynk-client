@@ -33,3 +33,7 @@ Releases are built and uploaded by Codemagic — no more manual Play Console upl
   Codemagic cannot return an uploaded keystore, so back this file up somewhere safe too.
 - To publish to a different track: edit `track:` in `codemagic.yaml`, or start a build with
   the `GOOGLE_PLAY_TRACK` environment variable set (e.g. `internal`, `beta`, `production`).
+- CI runs on the free plan's Mac mini M2 machine (`instance_type: mac_mini_m2`, `java: 21`
+  pinned). Linux machines (`linux_x2`) are not available on the free plan — the build is
+  rejected with "selected instance type is not available with the current billing plan".
+  Leave the machine type as is unless the Codemagic billing plan changes.

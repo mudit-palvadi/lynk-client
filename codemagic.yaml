@@ -14,9 +14,13 @@ workflows:
   lynk-android-release:
     name: Lynk Android Release (Closed Testing)
     max_build_duration: 60
-    instance_type: linux_x2
+    # Mac mini M2 is the only machine included in the Codemagic free plan
+    # (500 min/month). Linux X2 requires enabling pay-as-you-go billing.
+    instance_type: mac_mini_m2
     environment:
       flutter: 3.44.6
+      # Gradle 9.1 / AGP 9.0 require JDK 17+; pin 21 for a deterministic build.
+      java: 21
       groups:
         - lynk_config
         - google_play

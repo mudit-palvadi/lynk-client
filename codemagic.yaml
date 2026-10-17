@@ -1,0 +1,90 @@
+# Lynk — Android release pipeline
+#
+# Manually triggered only: it builds a signed release AAB and uploads it to the
+# Google Play closed testing track. Nothing runs on push.
+#
+# One-time setup required in the Codemagic UI:
+#   1. Team settings > codemagic.yaml settings > Code signing identities >
+#      Android keystores: upload android/app/upload-keystore.jks with the
+#      reference name `lynk_upload_keystore` (paths/passwords from android/key.properties).
+#   2. Env group `lynk_config`: API_BASE_URL, DEV_CONFIG_KEY, PRIVACY_POLICY_URL, DEEP_LINK_BASE_URL
+#   3. Env group `google_play`: GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS (service account JSON key content)
+
+workflows:
+  lynk-android-release:
+    name: Lynk Android Release (Closed Testing)
+    max_build_duration: 60
+    instance_type: linux_x2
+    environment:
+      flutter: 3.44.6
+      groups:
+        - lynk_config
+        - google_play
+      android_signing:
+        - lynk_upload_keystore
+
+    cache:
+      cache_paths:
+        - $HOME/.pub-cache
+        - $HOME/.gradle/caches
+
+    scripts:
+      - name: Recreate .env
+        script: |
+          cat > $CM_BUILD_DIR/.env <<EOF
+          API_BASE_URL=$API_BASE_URL
+          DEV_CONFIG_KEY=$DEV_CONFIG_KEY
+          PRIVACY_POLICY_URL=$PRIVACY_POLICY_URL
+          DEEP_LINK_BASE_URL=$DEEP_LINK_BASE_URL
+          EOF
+
+      - name: Set up Android signing (key.properties)
+        script: |
+          cat > $CM_BUILD_DIR/android/key.properties <<EOF
+          storePassword=$CM_KEYSTORE_PASSWORD
+          keyPassword=$CM_KEY_PASSWORD
+          keyAlias=$CM_KEY_ALIAS
+          storeFile=$CM_KEYSTORE_PATH
+          EOF
+
+      - name: Get Flutter packages
+        script: |
+          flutter pub get
+
+      - name: Analyze
+        script: |
+          flutter analyze
+
+      - name: Run tests
+        script: |
+          flutter test
+
+      - name: Build release AAB
+        script: |
+          # build number = Codemagic project build counter + 100, so the first CI
+          # build is versionCode 101 — always higher than any manual +N upload.
+          flutter build appbundle --release --build-number=$(($PROJECT_BUILD_NUMBER + 100))
+
+      - name: Verify signing certificate (must not say "Android Debug")
+        script: |
+          keytool -printcert -jarfile build/app/outputs/bundle/release/app-release.aab | grep -E "Owner:|SHA256:"
+
+    artifacts:
+      - build/app/outputs/bundle/release/app-release.aab
+
+    publishing:
+      google_play:
+        credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS
+        # "alpha" = default closed testing track. If your closed track has a
+        # custom name, put it here instead. Can also be overridden per build
+        # with the GOOGLE_PLAY_TRACK environment variable.
+        track: alpha
+        submit_as_draft: false
+
+    # Optional: uncomment to also auto-release when a version tag is pushed.
+    #triggering:
+    #  events:
+    #    - tag
+    #  tag_patterns:
+    #    - pattern: 'v*'
+    #      include: true

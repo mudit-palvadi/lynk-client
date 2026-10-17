@@ -24,6 +24,8 @@ Releases are built and uploaded by Codemagic — no more manual Play Console upl
 
 - versionCode = `100 + Codemagic PROJECT_BUILD_NUMBER` (first CI build → 101, then 102, 103 …).
   This is always higher than the manual `+N` uploads, so Play never rejects a reused code.
+- Failed or cancelled builds still consume a `PROJECT_BUILD_NUMBER`, so shipped versionCodes
+  can skip a number — expected, not a problem.
 - versionName still comes from `pubspec.yaml` (the part before `+`).
 
 ## Notes

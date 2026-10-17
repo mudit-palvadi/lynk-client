@@ -38,6 +38,44 @@ DeepLinkTarget parseSendDeepLink(Uri uri) {
   return DeepLinkTarget(transferId: transferId, aesKey: aesKey);
 }
 
+/// Parsed target of a receiver-QR deep link (`/receive/{sessionId}#pk={key}`).
+///
+/// The receiver's ephemeral public key lives exclusively in the URL `#fragment`
+/// (client-side only, Memory.md Rule 4); it wraps the AES key for pairing.
+class ReceiveDeepLinkTarget {
+  final String sessionId;
+  final String receiverPk;
+
+  const ReceiveDeepLinkTarget({
+    required this.sessionId,
+    required this.receiverPk,
+  });
+}
+
+/// Extracts [ReceiveDeepLinkTarget] from a deep-link URI.
+///
+/// Mirrors `QrScanHelper.extractReceiveSessionIdAndPublicKey`: the fragment
+/// must start with `pk=` for a public key to be extracted; missing values
+/// degrade to empty strings instead of throwing.
+ReceiveDeepLinkTarget parseReceiveDeepLink(Uri uri) {
+  final sessionId = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : '';
+  final fragment = uri.fragment;
+  final receiverPk = fragment.startsWith('pk=') ? fragment.substring(3) : '';
+  return ReceiveDeepLinkTarget(sessionId: sessionId, receiverPk: receiverPk);
+}
+
+/// Builds the upload location that pairs the sender with a receiver session.
+///
+/// Mirrors `QrScanHelper.handleReceiveSession` for camera-scanned receiver
+/// QRs: the upload screen receives the session id and the receiver public key,
+/// then attaches the transfer and wraps the AES key client-side.
+String receiveUploadLocation(ReceiveDeepLinkTarget target) {
+  final pkParam = target.receiverPk.isNotEmpty
+      ? '&pk=${Uri.encodeComponent(target.receiverPk)}'
+      : '';
+  return '/upload?attachToSessionId=${target.sessionId}$pkParam';
+}
+
 @riverpod
 GoRouter appRouter(Ref ref) {
   final hasOnboarded = ref.watch(onboardingProvider);
@@ -111,6 +149,16 @@ GoRouter appRouter(Ref ref) {
             transferId: target.transferId,
             aesKey: target.aesKey,
           );
+        },
+      ),
+      GoRoute(
+        path: '/receive/:sessionId',
+        redirect: (context, state) {
+          final target = parseReceiveDeepLink(state.uri);
+          if (target.sessionId.isEmpty) {
+            return '/home';
+          }
+          return receiveUploadLocation(target);
         },
       ),
     ],

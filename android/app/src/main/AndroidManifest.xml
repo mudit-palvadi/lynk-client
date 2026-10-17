@@ -26,7 +26,7 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
 
-            <!-- Sender QR Deep Link Intent Filter for https://lynkshare.app/send/* (.app TLD is HSTS-preloaded, https only) -->
+            <!-- Sender/Receiver QR Deep Link Intent Filter for https://lynkshare.app/{send,receive}/* (.app TLD is HSTS-preloaded, https only) -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -36,9 +36,14 @@
                     android:scheme="https"
                     android:host="lynkshare.app"
                     android:pathPrefix="/send/" />
+
+                <data
+                    android:scheme="https"
+                    android:host="lynkshare.app"
+                    android:pathPrefix="/receive/" />
             </intent-filter>
 
-            <!-- Offline Custom Scheme Deep Link Intent Filter for lynk://send/* -->
+            <!-- Offline Custom Scheme Deep Link Intent Filters for lynk://send/* and lynk://receive/* -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -47,6 +52,10 @@
                 <data
                     android:scheme="lynk"
                     android:host="send" />
+
+                <data
+                    android:scheme="lynk"
+                    android:host="receive" />
             </intent-filter>
         </activity>
         <meta-data

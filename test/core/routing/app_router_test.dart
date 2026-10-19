@@ -132,6 +132,105 @@ void main() {
     });
   });
 
+  group('normalizeCustomSchemeLink (offline lynk:// links)', () {
+    test('rewrites lynk://send/{id} to the canonical path', () {
+      expect(
+        normalizeCustomSchemeLink(Uri.parse('lynk://send/abc#key')),
+        '/send/abc#key',
+      );
+    });
+
+    test('rewrites lynk://receive/{id} to the canonical path', () {
+      expect(
+        normalizeCustomSchemeLink(Uri.parse('lynk://receive/s1#pk=k1')),
+        '/receive/s1#pk=k1',
+      );
+    });
+
+    test('keeps the fragment byte-for-byte, including base64 padding', () {
+      // The key is opaque ciphertext material: decoding and re-encoding it
+      // would corrupt any `+`, `/` or `=` it contains.
+      expect(
+        normalizeCustomSchemeLink(
+          Uri.parse('lynk://receive/s2#pk=AbC%2B%2F%3D'),
+        ),
+        '/receive/s2#pk=AbC%2B%2F%3D',
+      );
+    });
+
+    test('preserves query parameters', () {
+      expect(
+        normalizeCustomSchemeLink(Uri.parse('lynk://send/abc?aesKey=legacy')),
+        '/send/abc?aesKey=legacy',
+      );
+    });
+
+    test('accepts the empty-host form lynk:///send/{id}', () {
+      expect(
+        normalizeCustomSchemeLink(Uri.parse('lynk:///send/abc#k')),
+        '/send/abc#k',
+      );
+    });
+
+    test('ignores https links, which already have a canonical path', () {
+      expect(
+        normalizeCustomSchemeLink(
+          Uri.parse('https://lynkshare.app/send/abc#key'),
+        ),
+        isNull,
+      );
+    });
+
+    test('ignores in-app locations', () {
+      expect(normalizeCustomSchemeLink(Uri.parse('/home')), isNull);
+      expect(normalizeCustomSchemeLink(Uri.parse('/send/abc')), isNull);
+    });
+
+    test('ignores unknown lynk:// hosts', () {
+      expect(normalizeCustomSchemeLink(Uri.parse('lynk://settings')), isNull);
+      expect(normalizeCustomSchemeLink(Uri.parse('lynk://home/x')), isNull);
+    });
+
+    test('ignores a lynk:// link with no id segment', () {
+      expect(normalizeCustomSchemeLink(Uri.parse('lynk://send')), isNull);
+      expect(normalizeCustomSchemeLink(Uri.parse('lynk://receive')), isNull);
+    });
+  });
+
+  group('isTransferDeepLink (what survives the onboarding gate)', () {
+    test('recognises send and receive paths, with or without a fragment', () {
+      expect(isTransferDeepLink(Uri.parse('/send/abc#k')), isTrue);
+      expect(isTransferDeepLink(Uri.parse('/receive/s#pk=k')), isTrue);
+      expect(isTransferDeepLink(Uri.parse('/send/abc')), isTrue);
+    });
+
+    test('rejects ordinary app chrome', () {
+      expect(isTransferDeepLink(Uri.parse('/home')), isFalse);
+      expect(isTransferDeepLink(Uri.parse('/upload')), isFalse);
+      expect(isTransferDeepLink(Uri.parse('/onboarding')), isFalse);
+      expect(isTransferDeepLink(Uri.parse('/')), isFalse);
+    });
+  });
+
+  group('canonicalDeepLinkLocation (replayable form)', () {
+    test('drops scheme and host but keeps path, query and fragment', () {
+      expect(
+        canonicalDeepLinkLocation(
+          Uri.parse('https://lynkshare.app/receive/s1?x=1#pk=k1'),
+        ),
+        '/receive/s1?x=1#pk=k1',
+      );
+    });
+
+    test('round-trips a custom-scheme link after normalization', () {
+      final normalized = Uri.parse(
+        normalizeCustomSchemeLink(Uri.parse('lynk://send/abc#k1'))!,
+      );
+
+      expect(canonicalDeepLinkLocation(normalized), '/send/abc#k1');
+    });
+  });
+
   group('deep link route matching (/send/:transferId)', () {
     late ProviderContainer container;
     late GoRouter router;

@@ -263,14 +263,6 @@ void main() {
 
         expect(fingerprints.length, greaterThanOrEqualTo(2));
       },
-      // Actionable and currently unmet: only the upload certificate is listed.
-      // The second fingerprint can only be copied by a human from Play Console,
-      // so this stays skipped instead of failing every run. Remove the `skip`
-      // once the Play app-signing certificate is in the file.
-      skip:
-          'Blocked: add the Play app-signing SHA-256 from Play Console → Test '
-          'and release → App integrity → App signing to '
-          'web/.well-known/assetlinks.json, then unskip this test.',
     );
   });
 }

@@ -18,6 +18,11 @@ class RecentTransfersNotifier extends _$RecentTransfersNotifier {
     final prefs = ref.read(sharedPreferencesProvider);
     final repo = RecentTransfersRepositoryImpl(prefs: prefs);
     await repo.addRecentTransfer(record);
+    // The record is written before this point, so a disposed provider only
+    // means nobody is listening for the refresh. Calling invalidateSelf on a
+    // disposed ref throws, and the caller's try/catch cannot see it because
+    // this method is async.
+    if (!ref.mounted) return;
     ref.invalidateSelf();
   }
 
@@ -25,6 +30,7 @@ class RecentTransfersNotifier extends _$RecentTransfersNotifier {
     final prefs = ref.read(sharedPreferencesProvider);
     final repo = RecentTransfersRepositoryImpl(prefs: prefs);
     await repo.clearAllRecentTransfers();
+    if (!ref.mounted) return;
     ref.invalidateSelf();
   }
 }

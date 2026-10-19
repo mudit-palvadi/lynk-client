@@ -16,6 +16,15 @@ import 'package:xml/xml.dart';
 /// * `android/app/src/main/AndroidManifest.xml` — the intent filters
 /// * `../web/.well-known/assetlinks.json` — the verification file
 void main() {
+  // The web app is a separate checkout, so the verification file may not be
+  // next to this one (CI checks out the client repo alone). The Digital Asset
+  // Links group then skips instead of failing, exactly like the API contract
+  // test does for the sibling backend checkout.
+  final assetLinksFile = File('../web/.well-known/assetlinks.json');
+  final assetLinksSkipReason = assetLinksFile.existsSync()
+      ? null
+      : 'web checkout not found next to client/ (expected ../web)';
+
   final manifest = XmlDocument.parse(
     File('android/app/src/main/AndroidManifest.xml').readAsStringSync(),
   );
@@ -174,77 +183,86 @@ void main() {
     late String applicationId;
 
     setUpAll(() {
-      // Test cwd is the Flutter package root; the web app is a sibling repo.
-      final file = File('../web/.well-known/assetlinks.json');
-      expect(
-        file.existsSync(),
-        isTrue,
-        reason:
-            'assetlinks.json must be served from the site root so Android can '
-            'verify the App Link.',
-      );
-      assetLinks = jsonDecode(file.readAsStringSync()) as List<dynamic>;
-
       final gradle = File('android/app/build.gradle.kts').readAsStringSync();
       final match = RegExp(
         r'applicationId\s*=\s*"([^"]+)"',
       ).firstMatch(gradle);
       expect(match, isNotNull, reason: 'applicationId not found in Gradle');
       applicationId = match!.group(1)!;
-    });
 
-    test('declares the same package name the app is built with', () {
-      final packages = assetLinks
-          .cast<Map<String, dynamic>>()
-          .map((entry) => (entry['target'] as Map)['package_name'])
-          .toSet();
-
-      expect(
-        packages,
-        contains(applicationId),
-        reason:
-            'Android only honours the statement whose package_name matches '
-            'the installed applicationId.',
-      );
-    });
-
-    test('grants handle_all_urls for that package', () {
-      final statement = assetLinks
-          .cast<Map<String, dynamic>>()
-          .singleWhere(
-            (entry) => (entry['target'] as Map)['package_name'] == applicationId,
-          );
-
-      expect(
-        statement['relation'],
-        contains('delegate_permission/common.handle_all_urls'),
-      );
-      expect((statement['target'] as Map)['namespace'], 'android_app');
-    });
-
-    test('lists at least one well-formed SHA-256 fingerprint', () {
-      final fingerprints = assetLinks
-          .cast<Map<String, dynamic>>()
-          .expand(
-            (entry) =>
-                ((entry['target'] as Map)['sha256_cert_fingerprints'] as List)
-                    .cast<String>(),
-          )
-          .toList();
-
-      expect(fingerprints, isNotEmpty);
-
-      final sha256 = RegExp(r'^([0-9A-F]{2}:){31}[0-9A-F]{2}$');
-      for (final fingerprint in fingerprints) {
-        expect(
-          sha256.hasMatch(fingerprint),
-          isTrue,
-          reason:
-              'Fingerprints must be uppercase colon-separated SHA-256 digests; '
-              'Android compares them literally. Offending value: $fingerprint',
-        );
+      // Read only when the file is there; the tests that use it are skipped
+      // otherwise, so a missing sibling checkout is not a failure.
+      if (assetLinksFile.existsSync()) {
+        assetLinks =
+            jsonDecode(assetLinksFile.readAsStringSync()) as List<dynamic>;
       }
     });
+
+    test(
+      'declares the same package name the app is built with',
+      () {
+        final packages = assetLinks
+            .cast<Map<String, dynamic>>()
+            .map((entry) => (entry['target'] as Map)['package_name'])
+            .toSet();
+
+        expect(
+          packages,
+          contains(applicationId),
+          reason:
+              'Android only honours the statement whose package_name matches '
+              'the installed applicationId.',
+        );
+      },
+      skip: assetLinksSkipReason,
+    );
+
+    test(
+      'grants handle_all_urls for that package',
+      () {
+        final statement = assetLinks
+            .cast<Map<String, dynamic>>()
+            .singleWhere(
+              (entry) =>
+                  (entry['target'] as Map)['package_name'] == applicationId,
+            );
+
+        expect(
+          statement['relation'],
+          contains('delegate_permission/common.handle_all_urls'),
+        );
+        expect((statement['target'] as Map)['namespace'], 'android_app');
+      },
+      skip: assetLinksSkipReason,
+    );
+
+    test(
+      'lists at least one well-formed SHA-256 fingerprint',
+      () {
+        final fingerprints = assetLinks
+            .cast<Map<String, dynamic>>()
+            .expand(
+              (entry) =>
+                  ((entry['target'] as Map)['sha256_cert_fingerprints'] as List)
+                      .cast<String>(),
+            )
+            .toList();
+
+        expect(fingerprints, isNotEmpty);
+
+        final sha256 = RegExp(r'^([0-9A-F]{2}:){31}[0-9A-F]{2}$');
+        for (final fingerprint in fingerprints) {
+          expect(
+            sha256.hasMatch(fingerprint),
+            isTrue,
+            reason:
+                'Fingerprints must be uppercase colon-separated SHA-256 digests; '
+                'Android compares them literally. Offending value: $fingerprint',
+          );
+        }
+      },
+      skip: assetLinksSkipReason,
+    );
 
     test(
       'lists Play app-signing and upload certificates separately',
@@ -263,6 +281,7 @@ void main() {
 
         expect(fingerprints.length, greaterThanOrEqualTo(2));
       },
+      skip: assetLinksSkipReason,
     );
   });
 }

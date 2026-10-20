@@ -58,6 +58,7 @@ class KeyWrapService {
     required String aesKey,
     required String receiverPublicKeyB64,
     required String sessionId,
+    String? accessToken,
   }) async {
     final ephemeral = await _x25519.newKeyPair();
     final receiverPub = SimplePublicKey(
@@ -75,7 +76,7 @@ class KeyWrapService {
       List<int>.generate(12, (_) => _random.nextInt(256)),
     );
     final secretBox = await _aead.encrypt(
-      utf8.encode(aesKey),
+      utf8.encode(wrappedPlaintext(aesKey, accessToken)),
       secretKey: kek,
       nonce: nonce,
       aad: utf8.encode(sessionId),
@@ -92,6 +93,21 @@ class KeyWrapService {
   }
 
   Future<String> unwrapKey({
+    required String wrappedBase64,
+    required List<int> privateKeySeed,
+    required String sessionId,
+  }) async {
+    final delivery = await unwrapDelivery(
+      wrappedBase64: wrappedBase64,
+      privateKeySeed: privateKeySeed,
+      sessionId: sessionId,
+    );
+    return delivery.aesKey;
+  }
+
+  /// Same unwrap as [unwrapKey], also returning the access token when the
+  /// sender wrapped a v2 payload.
+  Future<UnwrappedDelivery> unwrapDelivery({
     required String wrappedBase64,
     required List<int> privateKeySeed,
     required String sessionId,
@@ -121,7 +137,7 @@ class KeyWrapService {
       aad: utf8.encode(sessionId),
     );
 
-    return utf8.decode(plainBytes);
+    return splitWrappedPlaintext(utf8.decode(plainBytes));
   }
 
   Future<SecretKey> _deriveKek(SecretKey sharedSecret, String sessionId) {
@@ -131,6 +147,34 @@ class KeyWrapService {
       info: utf8.encode(_keyInfo),
     );
   }
+}
+
+class UnwrappedDelivery {
+  final String aesKey;
+  final String accessToken;
+
+  const UnwrappedDelivery({required this.aesKey, this.accessToken = ''});
+}
+
+/// Plaintext inside the Flow B wrap. A missing access token stays the raw AES
+/// key so older wraps still unwrap to that string.
+String wrappedPlaintext(String aesKey, String? accessToken) {
+  if (accessToken == null || accessToken.isEmpty) return aesKey;
+  return 'v2\n$aesKey\n$accessToken';
+}
+
+UnwrappedDelivery splitWrappedPlaintext(String plain) {
+  const prefix = 'v2\n';
+  if (!plain.startsWith(prefix)) {
+    return UnwrappedDelivery(aesKey: plain);
+  }
+  final rest = plain.substring(prefix.length);
+  final splitAt = rest.indexOf('\n');
+  if (splitAt < 0) return UnwrappedDelivery(aesKey: rest);
+  return UnwrappedDelivery(
+    aesKey: rest.substring(0, splitAt),
+    accessToken: rest.substring(splitAt + 1),
+  );
 }
 
 String encodeBase64Url(List<int> bytes) =>

@@ -275,19 +275,25 @@ class _OfflineTransferRepository implements TransferRepository {
   Future<Result<void>> completeFileUpload({
     required String transferId,
     required String fileId,
+    String? senderSecret,
   }) async => Result.failure(const NetworkFailure('offline'));
 
   @override
-  Future<Result<Transfer>> getTransferMetadata(String transferId) async =>
-      Result.failure(const NetworkFailure('offline'));
+  Future<Result<Transfer>> getTransferMetadata(
+    String transferId, {
+    String? accessToken,
+  }) async => Result.failure(const NetworkFailure('offline'));
 
   @override
   Future<Result<List<FileItem>>> getDownloadUrls({
     required String transferId,
     List<String>? fileIds,
+    String? accessToken,
   }) async => Result.failure(const NetworkFailure('offline'));
 
   @override
-  Future<Result<void>> cancelTransfer(String transferId) async =>
-      Result.failure(const NetworkFailure('offline'));
+  Future<Result<void>> cancelTransfer(
+    String transferId, {
+    String? senderSecret,
+  }) async => Result.failure(const NetworkFailure('offline'));
 }

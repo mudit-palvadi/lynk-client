@@ -8,14 +8,19 @@ abstract class TransferRepository {
   Future<Result<void>> completeFileUpload({
     required String transferId,
     required String fileId,
+    String? senderSecret,
   });
 
-  Future<Result<Transfer>> getTransferMetadata(String transferId);
+  Future<Result<Transfer>> getTransferMetadata(
+    String transferId, {
+    String? accessToken,
+  });
 
   Future<Result<List<FileItem>>> getDownloadUrls({
     required String transferId,
     List<String>? fileIds,
+    String? accessToken,
   });
 
-  Future<Result<void>> cancelTransfer(String transferId);
+  Future<Result<void>> cancelTransfer(String transferId, {String? senderSecret});
 }

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../../core/providers/receiver_providers.dart';
+import '../../../../core/routing/send_link_capability.dart';
 import '../../../../core/services/key_wrap_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../providers/upload_notifier.dart';
@@ -15,20 +16,27 @@ class QrScanHelper {
     final uri = Uri.tryParse(rawValue);
     if (uri == null) return {'transferId': null, 'aesKey': null};
 
+    String? transferId;
     if (uri.scheme == 'lynk') {
       if (uri.host == 'send' && uri.pathSegments.isNotEmpty) {
-        return {'transferId': uri.pathSegments.first, 'aesKey': uri.fragment};
-      }
-      if (uri.pathSegments.length >= 2 && uri.pathSegments[0] == 'send') {
-        return {'transferId': uri.pathSegments[1], 'aesKey': uri.fragment};
+        transferId = uri.pathSegments.first;
+      } else if (uri.pathSegments.length >= 2 && uri.pathSegments[0] == 'send') {
+        transferId = uri.pathSegments[1];
       }
     } else if (uri.scheme == 'https' || uri.scheme == 'http') {
       final segments = uri.pathSegments;
       if (segments.length >= 2 && segments[0] == 'send') {
-        return {'transferId': segments[1], 'aesKey': uri.fragment};
+        transferId = segments[1];
       }
     }
-    return {'transferId': null, 'aesKey': null};
+    if (transferId == null) return {'transferId': null, 'aesKey': null};
+
+    final capability = splitFragmentCapability(uri.fragment.split('?').first);
+    return {
+      'transferId': transferId,
+      'aesKey': capability.aesKey,
+      'accessToken': capability.accessToken,
+    };
   }
 
   /// Extracts receiver session id and ephemeral public key from a receiver
@@ -131,7 +139,13 @@ class QrScanHelper {
     if (extracted['transferId'] != null) {
       final id = extracted['transferId']!;
       final aesKey = extracted['aesKey'] ?? '';
-      context.go('/download-progress/$id?aesKey=$aesKey');
+      final accessToken = extracted['accessToken'] ?? '';
+      final tokenQuery = accessToken.isEmpty
+          ? ''
+          : '&a=${Uri.encodeQueryComponent(accessToken)}';
+      context.go(
+        '/download-progress/$id?aesKey=${Uri.encodeQueryComponent(aesKey)}$tokenQuery',
+      );
       return true;
     }
 
@@ -194,6 +208,7 @@ class QrScanHelper {
           currentAesKey.isNotEmpty) {
         wrappedKey = await KeyWrapService().wrapKey(
           aesKey: currentAesKey,
+          accessToken: ref.read(uploadProvider).transfer?.accessToken,
           receiverPublicKeyB64: receiverPk,
           sessionId: sessionId,
         );

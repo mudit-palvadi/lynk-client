@@ -270,6 +270,7 @@ class UploadNotifier extends _$UploadNotifier {
           await repo.completeFileUpload(
             transferId: transfer.id,
             fileId: item.id,
+            senderSecret: transfer.senderSecret,
           );
           cumulativeBytes += encSize;
         } catch (e) {
@@ -290,6 +291,7 @@ class UploadNotifier extends _$UploadNotifier {
           try {
             wrappedKey = await KeyWrapService().wrapKey(
               aesKey: aesKey,
+              accessToken: transfer.accessToken,
               receiverPublicKeyB64: receiverPk,
               sessionId: attachToSessionId,
             );
@@ -356,6 +358,7 @@ class UploadNotifier extends _$UploadNotifier {
     try {
       final wrappedKey = await KeyWrapService().wrapKey(
         aesKey: aesKey,
+        accessToken: state.transfer?.accessToken,
         receiverPublicKeyB64: receiverPk,
         sessionId: sessionId,
       );
@@ -483,7 +486,10 @@ class UploadNotifier extends _$UploadNotifier {
     _cancelToken?.cancel();
     forceCloudFallback();
     if (state.transfer != null) {
-      ref.read(transferRepositoryProvider).cancelTransfer(state.transfer!.id);
+      ref.read(transferRepositoryProvider).cancelTransfer(
+        state.transfer!.id,
+        senderSecret: state.transfer!.senderSecret,
+      );
     }
     state = const UploadState(phase: UploadPhase.cancelled);
   }

@@ -16,6 +16,9 @@ class ReceiverState {
   /// Plaintext AES key recovered in memory after unwrapping the delivered
   /// `wrapped_key`. Never persisted, never sent over the network.
   final String? attachedAesKey;
+
+  /// Access token recovered from a v2 wrap. Memory only.
+  final String? attachedAccessToken;
   final String? errorMessage;
   final bool isPausedForBackground;
 
@@ -28,6 +31,7 @@ class ReceiverState {
     this.isPolling = false,
     this.attachedTransferId,
     this.attachedAesKey,
+    this.attachedAccessToken,
     this.errorMessage,
     this.isPausedForBackground = false,
     this.receiverPublicKeyB64,
@@ -39,6 +43,7 @@ class ReceiverState {
     bool? isPolling,
     String? attachedTransferId,
     String? attachedAesKey,
+    String? attachedAccessToken,
     String? errorMessage,
     bool? isPausedForBackground,
     String? receiverPublicKeyB64,
@@ -49,6 +54,7 @@ class ReceiverState {
       isPolling: isPolling ?? this.isPolling,
       attachedTransferId: attachedTransferId ?? this.attachedTransferId,
       attachedAesKey: attachedAesKey ?? this.attachedAesKey,
+      attachedAccessToken: attachedAccessToken ?? this.attachedAccessToken,
       errorMessage: errorMessage ?? this.errorMessage,
       isPausedForBackground:
           isPausedForBackground ?? this.isPausedForBackground,
@@ -163,17 +169,20 @@ class ReceiverNotifier extends _$ReceiverNotifier with WidgetsBindingObserver {
             _pollingTimer?.cancel();
 
             String? unwrappedKey;
+            String? unwrappedToken;
             if (session.wrappedKey != null &&
                 session.wrappedKey!.isNotEmpty &&
                 state.receiverPrivateKeySeed != null) {
               try {
-                unwrappedKey = await ref
+                final delivery = await ref
                     .read(keyWrapServiceProvider)
-                    .unwrapKey(
+                    .unwrapDelivery(
                       wrappedBase64: session.wrappedKey!,
                       privateKeySeed: state.receiverPrivateKeySeed!,
                       sessionId: sessionId,
                     );
+                unwrappedKey = delivery.aesKey;
+                unwrappedToken = delivery.accessToken;
               } catch (_) {
                 unwrappedKey = null;
               }
@@ -183,6 +192,7 @@ class ReceiverNotifier extends _$ReceiverNotifier with WidgetsBindingObserver {
               isPolling: false,
               attachedTransferId: session.transferId,
               attachedAesKey: unwrappedKey,
+              attachedAccessToken: unwrappedToken,
             );
           } else {
             _scheduleNextPoll(sessionId);

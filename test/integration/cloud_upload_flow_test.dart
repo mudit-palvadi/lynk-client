@@ -95,6 +95,17 @@ void main() {
         complete.path,
         'transfers/${state.transfer!.id}/files/${state.transfer!.files.first.id}/complete',
       );
+      expect(state.transfer!.senderSecret, isNotEmpty);
+      expect(state.transfer!.accessToken, isNotEmpty);
+      expect(
+        complete.headers.entries
+            .firstWhere(
+              (entry) => entry.key.toLowerCase() == 'x-lynk-sender-secret',
+            )
+            .value,
+        state.transfer!.senderSecret,
+      );
+      expect(complete.rawBody ?? '', isNot(contains(state.aesKey)));
     });
 
     test('the uploaded bytes decrypt back to the original file', () async {

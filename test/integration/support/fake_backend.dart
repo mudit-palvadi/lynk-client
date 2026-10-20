@@ -53,6 +53,9 @@ class FakeBackend {
     if (method == 'GET' && path.startsWith('transfers/')) {
       final transfer = _transfers[path.substring('transfers/'.length)];
       if (transfer == null) return _notFound();
+      if (!_matches(request, 'x-lynk-access-token', transfer.accessToken)) {
+        return _unauthorized();
+      }
       return jsonResponse(200, _transferMetadata(transfer));
     }
 
@@ -62,6 +65,9 @@ class FakeBackend {
           .substring(0, path.length - 'transfers/'.length - '/downloads'.length);
       final transfer = _transfers[transferId];
       if (transfer == null) return _notFound();
+      if (!_matches(request, 'x-lynk-access-token', transfer.accessToken)) {
+        return _unauthorized();
+      }
       return jsonResponse(200, _downloadUrls(transfer, request.body));
     }
 
@@ -69,6 +75,9 @@ class FakeBackend {
       final parts = path.split('/');
       final transfer = _transfers[parts[1]];
       if (transfer == null) return _notFound();
+      if (!_matches(request, 'x-lynk-sender-secret', transfer.senderSecret)) {
+        return _unauthorized();
+      }
       final file = transfer.files.firstWhere(
         (candidate) => candidate.fileId == parts[3],
         orElse: () => throw StateError('unknown file ${parts[3]}'),
@@ -85,7 +94,13 @@ class FakeBackend {
     }
 
     if (method == 'DELETE' && path.startsWith('transfers/')) {
-      _transfers.remove(path.substring('transfers/'.length));
+      final transferId = path.substring('transfers/'.length);
+      final transfer = _transfers[transferId];
+      if (transfer != null &&
+          !_matches(request, 'x-lynk-sender-secret', transfer.senderSecret)) {
+        return _unauthorized();
+      }
+      _transfers.remove(transferId);
       return ResponseBody.fromString('', 204);
     }
 
@@ -155,6 +170,8 @@ class FakeBackend {
       'total_files': transfer.files.length,
       'total_size': transfer.totalSize,
       'expires_in': 3600,
+      'sender_secret': transfer.senderSecret,
+      'access_token': transfer.accessToken,
       'files': [
         for (final file in transfer.files)
           {
@@ -217,6 +234,30 @@ class FakeBackend {
   String _objectUrl(String transferId, String fileId) =>
       'https://r2.test/objects/$transferId/$fileId';
 
+  bool _matches(RecordedRequest request, String name, String expected) {
+    final presented = _header(request, name);
+    return presented != null && presented.isNotEmpty && presented == expected;
+  }
+
+  String? _header(RecordedRequest request, String name) {
+    for (final entry in request.headers.entries) {
+      if (entry.key.toLowerCase() == name) {
+        final value = entry.value;
+        if (value is List && value.isNotEmpty) return value.first.toString();
+        return value?.toString();
+      }
+    }
+    return null;
+  }
+
+  ResponseBody _unauthorized() => ResponseBody.fromString(
+    jsonEncode({'detail': 'Missing or invalid credential'}),
+    401,
+    headers: {
+      Headers.contentTypeHeader: [Headers.jsonContentType],
+    },
+  );
+
   ResponseBody _notFound() => ResponseBody.fromString(
     jsonEncode({'detail': 'not found'}),
     404,
@@ -227,9 +268,13 @@ class FakeBackend {
 }
 
 class _FakeTransfer {
-  _FakeTransfer(this.transferId);
+  _FakeTransfer(this.transferId)
+    : senderSecret = 'sender-$transferId',
+      accessToken = 'access-$transferId';
 
   final String transferId;
+  final String senderSecret;
+  final String accessToken;
   final List<_FakeFile> files = <_FakeFile>[];
   String status = 'uploading';
   int totalSize = 0;

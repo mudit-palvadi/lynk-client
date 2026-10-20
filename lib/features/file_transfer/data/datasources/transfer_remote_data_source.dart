@@ -7,14 +7,19 @@ abstract class TransferRemoteDataSource {
   Future<void> completeFileUpload({
     required String transferId,
     required String fileId,
+    String? senderSecret,
   });
 
-  Future<TransferModel> getTransferMetadata(String transferId);
+  Future<TransferModel> getTransferMetadata(
+    String transferId, {
+    String? accessToken,
+  });
 
   Future<List<FileItemModel>> getDownloadUrls({
     required String transferId,
     List<String>? fileIds,
+    String? accessToken,
   });
 
-  Future<void> cancelTransfer(String transferId);
+  Future<void> cancelTransfer(String transferId, {String? senderSecret});
 }

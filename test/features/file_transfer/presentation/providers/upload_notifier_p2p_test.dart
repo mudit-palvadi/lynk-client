@@ -78,12 +78,16 @@ class FakeTransferRepository implements TransferRepository {
   Future<Result<void>> completeFileUpload({
     required String transferId,
     required String fileId,
+    String? senderSecret,
   }) async {
     throw UnimplementedError();
   }
 
   @override
-  Future<Result<Transfer>> getTransferMetadata(String transferId) async {
+  Future<Result<Transfer>> getTransferMetadata(
+    String transferId, {
+    String? accessToken,
+  }) async {
     throw UnimplementedError();
   }
 
@@ -91,12 +95,16 @@ class FakeTransferRepository implements TransferRepository {
   Future<Result<List<FileItem>>> getDownloadUrls({
     required String transferId,
     List<String>? fileIds,
+    String? accessToken,
   }) async {
     throw UnimplementedError();
   }
 
   @override
-  Future<Result<void>> cancelTransfer(String transferId) async {
+  Future<Result<void>> cancelTransfer(
+    String transferId, {
+    String? senderSecret,
+  }) async {
     return Result.success(null);
   }
 }

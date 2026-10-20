@@ -12,6 +12,12 @@ class Transfer extends Equatable {
   final DateTime? createdAt;
   final List<FileItem> files;
 
+  /// Returned once, at create. Stays in memory. Never goes in the share link.
+  final String? senderSecret;
+
+  /// Returned once, at create. Travels in the link fragment for receivers.
+  final String? accessToken;
+
   const Transfer({
     required this.id,
     required this.status,
@@ -20,6 +26,8 @@ class Transfer extends Equatable {
     this.expiresMultiplier,
     this.createdAt,
     required this.files,
+    this.senderSecret,
+    this.accessToken,
   });
 
   Transfer copyWith({
@@ -30,6 +38,8 @@ class Transfer extends Equatable {
     int? expiresMultiplier,
     DateTime? createdAt,
     List<FileItem>? files,
+    String? senderSecret,
+    String? accessToken,
   }) {
     return Transfer(
       id: id ?? this.id,
@@ -39,6 +49,8 @@ class Transfer extends Equatable {
       expiresMultiplier: expiresMultiplier ?? this.expiresMultiplier,
       createdAt: createdAt ?? this.createdAt,
       files: files ?? this.files,
+      senderSecret: senderSecret ?? this.senderSecret,
+      accessToken: accessToken ?? this.accessToken,
     );
   }
 
@@ -51,5 +63,7 @@ class Transfer extends Equatable {
     expiresMultiplier,
     createdAt,
     files,
+    senderSecret,
+    accessToken,
   ];
 }

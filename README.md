@@ -104,6 +104,10 @@ lib/
   flutter test test/core/routing/deep_link_behavior_test.dart
   ```
   The contract suite reads `../web/.well-known/assetlinks.json`; it skips when the sibling `web/` checkout is absent (CI checks out one repo at a time) and fails only when the file is present and the contract is wrong.
+* **Run the File-Name Suites:**
+  ```bash
+  flutter test test/core/utils/file_name_sanitizer_test.dart test/integration/download_flow_test.dart
+  ```
 * **Run App (Local Development):**
   ```bash
   flutter run
@@ -115,5 +119,6 @@ lib/
 
 * **Zero-Knowledge Encryption:** Cryptographic keys are generated on-device and shared only via the QR code. Files remain fully encrypted in transit and at rest on R2 storage.
 * **Secure Keys:** Never store Cloudflare R2 bucket credentials or private secrets on the client. All upload and download URLs are presigned and short-lived.
+* **Untrusted File Names:** A file name comes from the sender, so it is never used as a path. `FileNameSanitizer.safeFileName()` (`lib/core/utils/file_name_sanitizer.dart`) takes the last path segment, strips control characters, and trims to 255 UTF-8 bytes at every write site (cloud download, P2P download, P2P temp file, upload). The backend validates the same rules and answers `400` for a bad name.
 * **Low Memory Footprint:** Files are streamed during upload (`File.openRead()`) and download instead of being loaded fully into memory.
 * **Abuse Controls:** File counts, total sizes, and rates are authoritatively checked on the backend and mapped to friendly, descriptive error widgets on the client.

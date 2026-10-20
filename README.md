@@ -96,6 +96,14 @@ lib/
   ```bash
   flutter test
   ```
+* **Run the Deep-Link Suites:**
+
+  Three layers: parser units, end-to-end behaviour (cold start, warm start, onboarding gate) and the manifest/assetlinks contract. See `docs/ARCHITECTURE.md` §7.1 in the repo root `docs/` for the full description.
+  ```bash
+  flutter test test/core/routing/ test/platform/          # both deep-link suites
+  flutter test test/core/routing/deep_link_behavior_test.dart
+  ```
+  The contract suite reads `../web/.well-known/assetlinks.json`; it skips when the sibling `web/` checkout is absent (CI checks out one repo at a time) and fails only when the file is present and the contract is wrong.
 * **Run App (Local Development):**
   ```bash
   flutter run

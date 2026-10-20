@@ -21,13 +21,23 @@ class TransferRemoteDataSourceImpl implements TransferRemoteDataSource {
   Future<void> completeFileUpload({
     required String transferId,
     required String fileId,
+    String? senderSecret,
   }) async {
-    await dio.post('transfers/$transferId/files/$fileId/complete');
+    await dio.post(
+      'transfers/$transferId/files/$fileId/complete',
+      options: Options(headers: _secretHeader('X-Lynk-Sender-Secret', senderSecret)),
+    );
   }
 
   @override
-  Future<TransferModel> getTransferMetadata(String transferId) async {
-    final response = await dio.get('transfers/$transferId');
+  Future<TransferModel> getTransferMetadata(
+    String transferId, {
+    String? accessToken,
+  }) async {
+    final response = await dio.get(
+      'transfers/$transferId',
+      options: Options(headers: _secretHeader('X-Lynk-Access-Token', accessToken)),
+    );
     return TransferModel.fromJson(response.data as Map<String, dynamic>);
   }
 
@@ -35,10 +45,12 @@ class TransferRemoteDataSourceImpl implements TransferRemoteDataSource {
   Future<List<FileItemModel>> getDownloadUrls({
     required String transferId,
     List<String>? fileIds,
+    String? accessToken,
   }) async {
     final response = await dio.post(
       'transfers/$transferId/downloads',
       data: fileIds != null && fileIds.isNotEmpty ? {'file_ids': fileIds} : {},
+      options: Options(headers: _secretHeader('X-Lynk-Access-Token', accessToken)),
     );
     final list = response.data['files'] as List<dynamic>;
     return list
@@ -47,7 +59,15 @@ class TransferRemoteDataSourceImpl implements TransferRemoteDataSource {
   }
 
   @override
-  Future<void> cancelTransfer(String transferId) async {
-    await dio.delete('transfers/$transferId');
+  Future<void> cancelTransfer(String transferId, {String? senderSecret}) async {
+    await dio.delete(
+      'transfers/$transferId',
+      options: Options(headers: _secretHeader('X-Lynk-Sender-Secret', senderSecret)),
+    );
   }
+}
+
+Map<String, String>? _secretHeader(String name, String? value) {
+  if (value == null || value.isEmpty) return null;
+  return {name: value};
 }

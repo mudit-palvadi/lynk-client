@@ -11,6 +11,7 @@ import '../../features/onboarding/presentation/pages/onboarding_screen.dart';
 import '../../features/onboarding/presentation/providers/onboarding_provider.dart';
 import '../widgets/not_found_screen.dart';
 import 'pending_deep_link.dart';
+import 'send_link_capability.dart';
 
 part 'app_router.g.dart';
 
@@ -22,7 +23,14 @@ class DeepLinkTarget {
   final String transferId;
   final String aesKey;
 
-  const DeepLinkTarget({required this.transferId, required this.aesKey});
+  /// Capability for metadata and download. Lives in the fragment, never the path.
+  final String accessToken;
+
+  const DeepLinkTarget({
+    required this.transferId,
+    required this.aesKey,
+    this.accessToken = '',
+  });
 }
 
 /// Extracts [DeepLinkTarget] from a deep-link URI.
@@ -33,10 +41,18 @@ class DeepLinkTarget {
 DeepLinkTarget parseSendDeepLink(Uri uri) {
   final transferId = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : '';
   final rawFragment = uri.fragment.split('?').first;
-  final aesKey = rawFragment.isNotEmpty
-      ? rawFragment
+  final split = splitFragmentCapability(rawFragment);
+  final aesKey = split.aesKey.isNotEmpty
+      ? split.aesKey
       : (uri.queryParameters['aesKey'] ?? '');
-  return DeepLinkTarget(transferId: transferId, aesKey: aesKey);
+  final accessToken = split.accessToken.isNotEmpty
+      ? split.accessToken
+      : (uri.queryParameters['a'] ?? '');
+  return DeepLinkTarget(
+    transferId: transferId,
+    aesKey: aesKey,
+    accessToken: accessToken,
+  );
 }
 
 /// Parsed target of a receiver-QR deep link (`/receive/{sessionId}#pk={key}`).
@@ -226,7 +242,12 @@ GoRouter appRouter(Ref ref) {
         builder: (context, state) {
           final transferId = state.pathParameters['transferId'] ?? '';
           final aesKey = state.uri.queryParameters['aesKey'] ?? '';
-          return DownloadProgressScreen(transferId: transferId, aesKey: aesKey);
+          final accessToken = state.uri.queryParameters['a'] ?? '';
+          return DownloadProgressScreen(
+            transferId: transferId,
+            aesKey: aesKey,
+            accessToken: accessToken,
+          );
         },
       ),
       GoRoute(
@@ -236,6 +257,7 @@ GoRouter appRouter(Ref ref) {
           return DownloadProgressScreen(
             transferId: target.transferId,
             aesKey: target.aesKey,
+            accessToken: target.accessToken,
           );
         },
       ),

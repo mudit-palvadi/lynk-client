@@ -35,11 +35,13 @@ class TransferRepositoryImpl implements TransferRepository {
   Future<Result<void>> completeFileUpload({
     required String transferId,
     required String fileId,
+    String? senderSecret,
   }) async {
     try {
       await remoteDataSource.completeFileUpload(
         transferId: transferId,
         fileId: fileId,
+        senderSecret: senderSecret,
       );
       return Result.success(null);
     } catch (e) {
@@ -48,9 +50,15 @@ class TransferRepositoryImpl implements TransferRepository {
   }
 
   @override
-  Future<Result<Transfer>> getTransferMetadata(String transferId) async {
+  Future<Result<Transfer>> getTransferMetadata(
+    String transferId, {
+    String? accessToken,
+  }) async {
     try {
-      final result = await remoteDataSource.getTransferMetadata(transferId);
+      final result = await remoteDataSource.getTransferMetadata(
+        transferId,
+        accessToken: accessToken,
+      );
       return Result.success(result);
     } on DioException catch (e) {
       return Result.failure(
@@ -68,11 +76,13 @@ class TransferRepositoryImpl implements TransferRepository {
   Future<Result<List<FileItem>>> getDownloadUrls({
     required String transferId,
     List<String>? fileIds,
+    String? accessToken,
   }) async {
     try {
       final result = await remoteDataSource.getDownloadUrls(
         transferId: transferId,
         fileIds: fileIds,
+        accessToken: accessToken,
       );
       return Result.success(result);
     } catch (e) {
@@ -81,9 +91,15 @@ class TransferRepositoryImpl implements TransferRepository {
   }
 
   @override
-  Future<Result<void>> cancelTransfer(String transferId) async {
+  Future<Result<void>> cancelTransfer(
+    String transferId, {
+    String? senderSecret,
+  }) async {
     try {
-      await remoteDataSource.cancelTransfer(transferId);
+      await remoteDataSource.cancelTransfer(
+        transferId,
+        senderSecret: senderSecret,
+      );
       return Result.success(null);
     } catch (e) {
       return Result.failure(ServerFailure(e.toString()));

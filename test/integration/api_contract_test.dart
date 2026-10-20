@@ -104,6 +104,10 @@ void main() {
               expect(parsed.files.first.id, sampleFile['file_id']);
               expect(parsed.files.first.name, sampleFile['file_name']);
               expect(parsed.files.first.uploadUrl, sampleFile['upload_url']);
+              if (sample.containsKey('sender_secret')) {
+                expect(parsed.senderSecret, sample['sender_secret']);
+                expect(parsed.accessToken, sample['access_token']);
+              }
               break;
             case 'FileItemModel':
               final sampleFile =
@@ -212,19 +216,32 @@ Future<void> _callClient(
     return;
   }
   if (path.endsWith('/complete')) {
-    await transfers.completeFileUpload(transferId: _transferId, fileId: _fileId);
+    await transfers.completeFileUpload(
+      transferId: _transferId,
+      fileId: _fileId,
+      senderSecret: 'contract-sender-secret',
+    );
     return;
   }
   if (path == '/transfers/{transfer_id}' && method == 'GET') {
-    await transfers.getTransferMetadata(_transferId);
+    await transfers.getTransferMetadata(
+      _transferId,
+      accessToken: 'contract-access-token',
+    );
     return;
   }
   if (path == '/transfers/{transfer_id}' && method == 'DELETE') {
-    await transfers.cancelTransfer(_transferId);
+    await transfers.cancelTransfer(
+      _transferId,
+      senderSecret: 'contract-sender-secret',
+    );
     return;
   }
   if (path.endsWith('/downloads')) {
-    await transfers.getDownloadUrls(transferId: _transferId);
+    await transfers.getDownloadUrls(
+      transferId: _transferId,
+      accessToken: 'contract-access-token',
+    );
     return;
   }
   if (path == '/receiver-sessions' && method == 'POST') {

@@ -3,17 +3,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/providers/download_notifier.dart';
 import '../../../../core/providers/download_state.dart';
-import '../../../../core/providers/transfer_providers.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/ad_banner_widget.dart';
 
 class DownloadProgressScreen extends ConsumerStatefulWidget {
   final String transferId;
   final String aesKey;
+  final String accessToken;
   const DownloadProgressScreen({
     super.key,
     required this.transferId,
     this.aesKey = '',
+    this.accessToken = '',
   });
 
   @override
@@ -31,7 +32,10 @@ class _DownloadProgressScreenState
     Future.microtask(
       () => ref
           .read(downloadProvider.notifier)
-          .loadTransferPreview(widget.transferId),
+          .loadTransferPreview(
+            widget.transferId,
+            accessToken: widget.accessToken,
+          ),
     );
   }
 
@@ -118,11 +122,6 @@ class _DownloadProgressScreenState
                         OutlinedButton(
                           onPressed: () {
                             notifier.cancelDownload();
-                            if (state.transfer != null) {
-                              ref
-                                  .read(transferRepositoryProvider)
-                                  .cancelTransfer(state.transfer!.id);
-                            }
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text('Download cancelled.'),

@@ -29,10 +29,19 @@ class DownloadNotifier extends _$DownloadNotifier {
   @override
   DownloadState build() => const DownloadState();
 
-  Future<void> loadTransferPreview(String transferId) async {
-    state = const DownloadState(phase: DownloadPhase.idle);
+  Future<void> loadTransferPreview(
+    String transferId, {
+    String accessToken = '',
+  }) async {
+    state = DownloadState(
+      phase: DownloadPhase.idle,
+      accessToken: accessToken,
+    );
     final repo = ref.read(transferRepositoryProvider);
-    final result = await repo.getTransferMetadata(transferId);
+    final result = await repo.getTransferMetadata(
+      transferId,
+      accessToken: accessToken,
+    );
 
     result.fold(
       (transfer) async {
@@ -41,7 +50,10 @@ class DownloadNotifier extends _$DownloadNotifier {
           phase: DownloadPhase.preview,
         );
 
-        final urlResult = await repo.getDownloadUrls(transferId: transfer.id);
+        final urlResult = await repo.getDownloadUrls(
+          transferId: transfer.id,
+          accessToken: state.accessToken,
+        );
         urlResult.fold((downloadFiles) {
           state = state.copyWith(downloadFiles: downloadFiles);
         }, (_) {});
@@ -84,6 +96,7 @@ class DownloadNotifier extends _$DownloadNotifier {
     if (downloadFiles.isEmpty) {
       final urlResult = await repo.getDownloadUrls(
         transferId: state.transfer!.id,
+        accessToken: state.accessToken,
       );
 
       if (urlResult.isFailure) {

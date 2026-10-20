@@ -182,8 +182,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   onTap: () {
                     if (downloadState.transfer != null) {
                       final key = downloadState.aesKey ?? '';
+                      final token = downloadState.accessToken ?? '';
                       context.push(
-                        '/download-progress/${downloadState.transfer!.id}?aesKey=$key',
+                        '/download-progress/${downloadState.transfer!.id}?aesKey=$key&a=$token',
                       );
                     }
                   },

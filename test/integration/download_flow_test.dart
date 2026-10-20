@@ -9,6 +9,7 @@ import 'package:client/core/providers/transfer_providers.dart';
 import 'package:client/core/services/download_service.dart';
 import 'package:client/features/file_receive/domain/usecases/decrypt_file_use_case.dart';
 import 'package:client/features/file_transfer/domain/entities/file_item.dart';
+import 'package:client/features/file_transfer/domain/entities/transfer.dart';
 import 'package:client/features/file_transfer/domain/usecases/encrypt_file_use_case.dart';
 import 'package:client/features/onboarding/presentation/providers/onboarding_provider.dart';
 import 'package:dio/dio.dart';
@@ -58,10 +59,13 @@ void main() {
       final backend = FakeBackend();
       final container = await _container(backend);
 
-      final transferId = await _seedTransfer(container, backend, 'note.bin');
+      final seeded = await _seedTransfer(container, backend, 'note.bin');
       final notifier = container.read(downloadProvider.notifier);
 
-      await notifier.loadTransferPreview(transferId);
+      await notifier.loadTransferPreview(
+        seeded.id,
+        accessToken: seeded.accessToken ?? '',
+      );
 
       // `loadTransferPreview` folds the metadata result with an async
       // callback, so it returns before the download urls have been fetched.
@@ -73,7 +77,7 @@ void main() {
 
       final state = container.read(downloadProvider);
       expect(state.phase, DownloadPhase.preview, reason: state.errorMessage);
-      expect(state.transfer!.id, transferId);
+      expect(state.transfer!.id, seeded.id);
       expect(state.downloadFiles, hasLength(1));
       expect(state.downloadFiles.first.name, 'note.bin');
       expect(state.downloadFiles.first.downloadUrl, isNotNull);
@@ -156,10 +160,13 @@ void main() {
         aesKey32Bytes: aesKey,
       );
 
-      final transferId = await _seedTransfer(container, backend, 'note.bin', contents: encrypted);
+      final seeded = await _seedTransfer(container, backend, 'note.bin', contents: encrypted);
 
       final notifier = container.read(downloadProvider.notifier);
-      await notifier.loadTransferPreview(transferId);
+      await notifier.loadTransferPreview(
+        seeded.id,
+        accessToken: seeded.accessToken ?? '',
+      );
       await _waitUntil(
         () => container.read(downloadProvider).downloadFiles.isNotEmpty,
         description: 'the download urls to arrive',
@@ -187,9 +194,12 @@ void main() {
       final backend = FakeBackend();
       final container = await _container(backend);
 
-      final transferId = await _seedTransfer(container, backend, 'note.bin');
+      final seeded = await _seedTransfer(container, backend, 'note.bin');
       final notifier = container.read(downloadProvider.notifier);
-      await notifier.loadTransferPreview(transferId);
+      await notifier.loadTransferPreview(
+        seeded.id,
+        accessToken: seeded.accessToken ?? '',
+      );
       await _waitUntil(
         () => container.read(downloadProvider).downloadFiles.isNotEmpty,
         description: 'the download urls to arrive',
@@ -224,7 +234,7 @@ Future<void> _waitUntil(
 
 /// Creates a transfer through the client's own repository so the backend ends
 /// up holding a file the download flow can fetch.
-Future<String> _seedTransfer(
+Future<Transfer> _seedTransfer(
   ProviderContainer container,
   FakeBackend backend,
   String fileName, {
@@ -247,7 +257,7 @@ Future<String> _seedTransfer(
     // the download service can serve them back.
     backend.uploadedObjects[uploadUrl] = contents;
   }
-  return result.value!.id;
+  return result.value!;
 }
 
 Future<ProviderContainer> _container(FakeBackend backend) async {

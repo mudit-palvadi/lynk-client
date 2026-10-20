@@ -17,7 +17,9 @@ class SendQrHelper {
     final key = aesKey.isNotEmpty
         ? aesKey
         : (ref.read(uploadProvider).aesKey ?? '');
-    return '${AppLinks.deepLinkBase}/send/$transferId#$key';
+    final accessToken = ref.read(uploadProvider).transfer?.accessToken ?? '';
+    final capability = accessToken.isEmpty ? '' : '&a=$accessToken';
+    return '${AppLinks.deepLinkBase}/send/$transferId#$key$capability';
   }
 
   /// Calculates the exact remaining seconds for an active transfer session (default 600s).
@@ -64,7 +66,11 @@ class SendQrHelper {
     required WidgetRef ref,
     required String transferId,
   }) {
-    ref.read(transferRepositoryProvider).cancelTransfer(transferId);
+    final secret = ref.read(uploadProvider).transfer?.senderSecret;
+    ref.read(transferRepositoryProvider).cancelTransfer(
+      transferId,
+      senderSecret: secret,
+    );
     ref.read(uploadProvider.notifier).reset();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(

@@ -37,6 +37,7 @@ class MockTransferRemoteDataSource implements TransferRemoteDataSource {
   Future<void> completeFileUpload({
     required String transferId,
     required String fileId,
+    String? senderSecret,
   }) async {
     if (shouldThrowDioException) {
       throw DioException(requestOptions: RequestOptions(path: '/complete'));
@@ -44,7 +45,10 @@ class MockTransferRemoteDataSource implements TransferRemoteDataSource {
   }
 
   @override
-  Future<TransferModel> getTransferMetadata(String transferId) async {
+  Future<TransferModel> getTransferMetadata(
+    String transferId, {
+    String? accessToken,
+  }) async {
     if (shouldThrowDioException) {
       throw DioException(
         requestOptions: RequestOptions(path: '/transfers/$transferId'),
@@ -68,6 +72,7 @@ class MockTransferRemoteDataSource implements TransferRemoteDataSource {
   Future<List<FileItemModel>> getDownloadUrls({
     required String transferId,
     List<String>? fileIds,
+    String? accessToken,
   }) async {
     if (shouldThrowDioException) {
       throw DioException(requestOptions: RequestOptions(path: '/downloads'));
@@ -85,7 +90,7 @@ class MockTransferRemoteDataSource implements TransferRemoteDataSource {
   }
 
   @override
-  Future<void> cancelTransfer(String transferId) async {
+  Future<void> cancelTransfer(String transferId, {String? senderSecret}) async {
     if (shouldThrowDioException) {
       throw DioException(requestOptions: RequestOptions(path: '/cancel'));
     }

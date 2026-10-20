@@ -10,6 +10,8 @@ class TransferModel extends Transfer {
     super.expiresMultiplier,
     super.createdAt,
     required super.files,
+    super.senderSecret,
+    super.accessToken,
   });
 
   factory TransferModel.fromJson(Map<String, dynamic> json) {
@@ -49,6 +51,8 @@ class TransferModel extends Transfer {
           json['expires_in'] as int? ?? json['expires_at_seconds'] as int?,
       createdAt: parsedCreatedAt ?? DateTime.now(),
       files: parsedFiles,
+      senderSecret: json['sender_secret'] as String?,
+      accessToken: json['access_token'] as String?,
     );
   }
 
@@ -86,6 +90,8 @@ class TransferModel extends Transfer {
       expiresMultiplier: entity.expiresMultiplier,
       createdAt: entity.createdAt,
       files: entity.files,
+      senderSecret: entity.senderSecret,
+      accessToken: entity.accessToken,
     );
   }
 }

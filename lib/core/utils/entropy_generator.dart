@@ -1,5 +1,5 @@
-import 'dart:convert';
-import 'package:crypto/crypto.dart';
+import 'dart:math';
+
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
@@ -15,22 +15,20 @@ class EntropyGenerator {
     return uuid;
   }
 
-  /// Obtains the current device/battery temperature (simulated to 36.5°C +/- 2°C fluctuation)
-  static double getDeviceTemperature() {
-    final ms = DateTime.now().millisecond;
-    return 35.0 + (ms % 40) / 10.0;
-  }
-
-  /// Generates the secure 256-bit key from UUID, Temperature, and Timestamp
+  /// Generates the 256-bit AES key for a transfer.
+  ///
+  /// This key is the only thing protecting the file contents: it travels to
+  /// the receiver in the link fragment and is never sent to the server. It used
+  /// to be a SHA-256 hash of the device UUID, a clock-derived "temperature"
+  /// and the timestamp, so anybody who knew the UUID and the approximate send
+  /// time could rebuild the key (POTENTIAL_ISSUES #26). It is now drawn from a
+  /// cryptographically secure random source.
+  ///
+  /// The format is unchanged - 32 lowercase hex characters used as raw UTF-8
+  /// by the AES-256 cipher - so the app and the website stay compatible.
   static Future<String> generateKey() async {
-    final uuid = await getDeviceUuid();
-    final temp = getDeviceTemperature();
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-
-    final seed = '${uuid}_${temp}_$timestamp';
-    final bytes = utf8.encode(seed);
-    final digest = sha256.convert(bytes);
-
-    return digest.toString().substring(0, 32);
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    return bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
   }
 }

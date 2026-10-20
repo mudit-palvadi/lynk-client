@@ -9,18 +9,29 @@ Releases are built and uploaded by Codemagic — no more manual Play Console upl
   reference name `lynk_upload_keystore`
 - Env group `lynk_config` — the `.env` values:
   `API_BASE_URL`, `PRIVACY_POLICY_URL`, `DEEP_LINK_BASE_URL`,
-  `ADMOB_APP_ID`, `ADMOB_BANNER_ID`, `ADMOB_INTERSTITIAL_ID`,
-  `ADMOB_REWARDED_ID`, `ADMOB_REWARDED_INTERSTITIAL_ID`
+  and the five AdMob ids `ADMOB_APP_ID`, `ADMOB_BANNER_ID`,
+  `ADMOB_INTERSTITIAL_ID`, `ADMOB_REWARDED_ID`,
+  `ADMOB_REWARDED_INTERSTITIAL_ID` (optional — see below)
 - Env group `google_play` — `GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS` (service account JSON key)
 - Google Play service account invited in Play Console with "Releases to testing tracks" for Lynk
 
-> `ADMOB_APP_ID` must be the **real** AdMob application id
-> (`ca-app-pub-…~…`), never Google's sample id. The release build fails
-> without it: the Gradle gate rejects the sample id, the pipeline's
-> "Verify release configuration" step rejects a missing one, and a final step
-> unzips the packaged AAB and fails if the sample id is in the manifest. The
-> four ad unit ids are what the app requests at runtime; when any of them is
-> missing the app shows no ads at all rather than test ads.
+> **The AdMob ids are optional, but all five or none of them.**
+>
+> With none of them set, the pipeline falls back to Google's public **test**
+> ids: the build succeeds, the app is published, and it serves test ads and
+> earns nothing. The pipeline prints a warning on every run, so the state is
+> never silent. With a real AdMob account, set all five and they are used
+> as-is. Setting only some of them fails the build, because a half-configured
+> release would ship with ads silently half-enabled.
+>
+> The Gradle build enforces the same rule from the other side: a release build
+> with **no** app id always fails, and one with Google's public test id fails
+> unless it was asked for (`ALLOW_TEST_ADMOB_IDS=true`, which the pipeline sets
+> when it falls back). The final step unzips the packaged AAB and checks that
+> the manifest carries the configured id.
+>
+> The four ad unit ids are what the app requests at runtime; when any of them
+> is missing the app shows no ads at all rather than test ads.
 >
 > There is deliberately **no** `DEV_CONFIG_KEY` in the env group any more. The
 > ad bypass used to be a value in `.env`, which meant the key shipped inside

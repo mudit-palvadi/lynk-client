@@ -85,10 +85,29 @@ void main() {
       );
     });
 
-    test('a release build fails without a real app id', () {
+    test('a release build without any ad id is always fatal', () {
       expect(gradle, contains('requireReleaseAdMobAppId'));
-      expect(gradle, contains('isSampleAdMobAppId'));
+      expect(gradle, contains('isAdMobAppIdMissing'));
       expect(gradle, contains('GradleException'));
+
+      // A missing id breaks the AdMob SDK at start-up, so it must be checked
+      // before - and independently of - the test-ads opt-in.
+      final missingCheck = gradle.indexOf('if (isAdMobAppIdMissing)');
+      final optIn = gradle.indexOf('if (!allowTestAdMobIds)');
+      expect(missingCheck, isNot(-1));
+      expect(optIn, isNot(-1));
+      expect(
+        missingCheck,
+        lessThan(optIn),
+        reason: 'a missing id must fail even when test ads are allowed',
+      );
+    });
+
+    test('shipping the public test ids has to be asked for', () {
+      expect(gradle, contains('allowTestAdMobIds'));
+      expect(gradle, contains('isGoogleTestAdMobAppId'));
+      expect(gradle, contains('ALLOW_TEST_ADMOB_IDS'));
+      expect(gradle, contains('ORG_GRADLE_PROJECT_allowTestAdMobIds'));
     });
 
     test('the release pipeline injects the real id', () {
@@ -96,14 +115,22 @@ void main() {
       expect(codemagic, contains('ADMOB_APP_ID'));
     });
 
-    test('the release pipeline refuses a missing or sample ad configuration', () {
-      expect(codemagic, contains('Verify release configuration'));
+    test('the release pipeline refuses a half-configured ad setup', () {
+      // Either all five ids come from the env group or none of them do. A
+      // release with some real ids and some missing ones would ship with ads
+      // silently half-enabled.
+      expect(codemagic, contains('incomplete AdMob configuration'));
+    });
+
+    test('the release pipeline can deliberately ship the public test ids', () {
+      expect(codemagic, contains('ORG_GRADLE_PROJECT_allowTestAdMobIds'));
+      expect(codemagic, contains('Falling back to Google'));
       expect(
         codemagic,
         contains('ca-app-pub-3940256099942544~3347511713'),
         reason:
-            'The verification step has to recognise the sample id in order '
-            'to reject it.',
+            'The verification step has to recognise the public test id in '
+            'order to default to it.',
       );
     });
 
@@ -129,6 +156,16 @@ void main() {
     test('the release pipeline obfuscates the Dart code', () {
       expect(codemagic, contains('--obfuscate'));
       expect(codemagic, contains('--split-debug-info'));
+    });
+
+    test('the pipeline uploads the de-obfuscation symbols', () {
+      // Dart symbols: build/symbols. R8 mapping: the Java/Kotlin side.
+      // Without the R8 mapping a minified Play stack trace is unreadable.
+      expect(codemagic, contains('- build/symbols'));
+      expect(
+        codemagic,
+        contains('build/app/outputs/mapping/release/mapping.txt'),
+      );
     });
   });
 

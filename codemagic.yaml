@@ -8,8 +8,12 @@
 #      Android keystores: upload android/app/upload-keystore.jks with the
 #      reference name `lynk_upload_keystore` (paths/passwords from android/key.properties).
 #   2. Env group `lynk_config`: API_BASE_URL, PRIVACY_POLICY_URL, DEEP_LINK_BASE_URL,
-#      ADMOB_APP_ID, ADMOB_BANNER_ID, ADMOB_INTERSTITIAL_ID, ADMOB_REWARDED_ID,
-#      ADMOB_REWARDED_INTERSTITIAL_ID
+#      and - optionally - ADMOB_APP_ID, ADMOB_BANNER_ID, ADMOB_INTERSTITIAL_ID,
+#      ADMOB_REWARDED_ID, ADMOB_REWARDED_INTERSTITIAL_ID.
+#      Set either all five AdMob variables or none of them. With none of them
+#      the build falls back to Google's public test ids: the app is built and
+#      published, it serves test ads and earns nothing until a real AdMob
+#      account is configured.
 #   3. Env group `google_play`: GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS (service account JSON key content)
 
 workflows:
@@ -35,8 +39,51 @@ workflows:
         - $HOME/.gradle/caches
 
     scripts:
+      - name: Resolve AdMob configuration
+        script: |
+          # The AdMob ids are optional for now: without an AdMob account the
+          # build falls back to Google's public test ids, which serve test ads
+          # and earn nothing. That is a deliberate, warned-about state.
+          #
+          # What is NOT allowed is a half-configured release, so either all
+          # five ids are set or none of them are.
+          count=0
+          for var in ADMOB_APP_ID ADMOB_BANNER_ID ADMOB_INTERSTITIAL_ID ADMOB_REWARDED_ID ADMOB_REWARDED_INTERSTITIAL_ID; do
+            if [ -n "$(printenv $var)" ]; then
+              count=$((count+1))
+            fi
+          done
+          if [ "$count" = "0" ]; then
+            echo "WARNING: no AdMob ids in the lynk_config env group."
+            echo "Falling back to Google's public test ids: the app will serve test ads and earn nothing."
+            echo "Set the five ADMOB_* variables to your own AdMob ids to fix this."
+            ADMOB_APP_ID=ca-app-pub-3940256099942544~3347511713
+            ADMOB_BANNER_ID=ca-app-pub-3940256099942544/6300978111
+            ADMOB_INTERSTITIAL_ID=ca-app-pub-3940256099942544/1033173712
+            ADMOB_REWARDED_ID=ca-app-pub-3940256099942544/5224354917
+            ADMOB_REWARDED_INTERSTITIAL_ID=ca-app-pub-3940256099942544/5354046379
+            allow_test=true
+          elif [ "$count" = "5" ]; then
+            allow_test=false
+          else
+            echo "ERROR: incomplete AdMob configuration - set all five ADMOB_* variables, or none of them."
+            exit 1
+          fi
+          # Written to a file rather than exported, because Codemagic does not
+          # guarantee that an export in one step survives into the next one.
+          {
+            echo "export ADMOB_APP_ID=\"$ADMOB_APP_ID\""
+            echo "export ADMOB_BANNER_ID=\"$ADMOB_BANNER_ID\""
+            echo "export ADMOB_INTERSTITIAL_ID=\"$ADMOB_INTERSTITIAL_ID\""
+            echo "export ADMOB_REWARDED_ID=\"$ADMOB_REWARDED_ID\""
+            echo "export ADMOB_REWARDED_INTERSTITIAL_ID=\"$ADMOB_REWARDED_INTERSTITIAL_ID\""
+            echo "export ORG_GRADLE_PROJECT_admobAppId=\"$ADMOB_APP_ID\""
+            echo "export ORG_GRADLE_PROJECT_allowTestAdMobIds=\"$allow_test\""
+          } > $CM_BUILD_DIR/.admob-release.env
+
       - name: Recreate .env
         script: |
+          . $CM_BUILD_DIR/.admob-release.env
           # DEV_CONFIG_KEY is gone: the ad bypass is a compile-time define
           # (LYNK_DEBUG_BYPASS_KEY) that only exists in debug builds, so no
           # released APK can carry a working bypass.
@@ -50,31 +97,6 @@ workflows:
           ADMOB_REWARDED_ID=$ADMOB_REWARDED_ID
           ADMOB_REWARDED_INTERSTITIAL_ID=$ADMOB_REWARDED_INTERSTITIAL_ID
           EOF
-
-      - name: Verify release configuration
-        script: |
-          # Fail before the build rather than shipping an APK that shows test
-          # ads. The Gradle build also refuses the sample AdMob app id for a
-          # release build, but a missing *ad unit* id would only disable ads
-          # at runtime, so it is checked here.
-          missing=""
-          for var in ADMOB_APP_ID ADMOB_BANNER_ID ADMOB_INTERSTITIAL_ID ADMOB_REWARDED_ID ADMOB_REWARDED_INTERSTITIAL_ID; do
-            value=$(printenv $var)
-            if [ -z "$value" ]; then
-              missing="$missing $var"
-            fi
-          done
-          if [ -n "$missing" ]; then
-            echo "ERROR: missing AdMob configuration in the lynk_config env group:$missing"
-            echo "The release build needs the real AdMob app id and ad unit ids."
-            exit 1
-          fi
-          if [ "$ADMOB_APP_ID" = "ca-app-pub-3940256099942544~3347511713" ]; then
-            echo "ERROR: ADMOB_APP_ID is Google's sample id. A release build must use the real one."
-            exit 1
-          fi
-          # Gradle reads the app id from this property.
-          export ORG_GRADLE_PROJECT_admobAppId=$ADMOB_APP_ID
 
       - name: Set up Android signing (key.properties)
         script: |
@@ -99,6 +121,7 @@ workflows:
 
       - name: Build release AAB
         script: |
+          . $CM_BUILD_DIR/.admob-release.env
           # build number = Codemagic project build counter + 100, so the first CI
           # build is versionCode 101 — always higher than any manual +N upload.
           # --obfuscate + --split-debug-info keep the Dart symbols out of the
@@ -113,8 +136,9 @@ workflows:
         script: |
           keytool -printcert -jarfile build/app/outputs/bundle/release/app-release.aab | grep -E "Owner:|SHA256:"
 
-      - name: Verify the release manifest has the real AdMob app id
+      - name: Verify the release manifest carries the configured AdMob app id
         script: |
+          . $CM_BUILD_DIR/.admob-release.env
           # The manifest is merged at build time, so read it back from the
           # packaged AAB rather than from the source file. The manifest inside
           # an AAB is binary, but the application id is still greppable in the
@@ -124,21 +148,28 @@ workflows:
           # make the step fail on the *success* path, because the list would
           # then end with grep's "not found" status.
           aab=build/app/outputs/bundle/release/app-release.aab
-          sample=ca-app-pub-3940256099942544~3347511713
-          if unzip -p "$aab" base/manifest/AndroidManifest.xml | grep -q "$sample"; then
-            echo "ERROR: the release manifest still carries Google's sample AdMob app id."
-            exit 1
+          test_id=ca-app-pub-3940256099942544~3347511713
+          if [ "$ADMOB_APP_ID" != "$test_id" ]; then
+            if unzip -p "$aab" base/manifest/AndroidManifest.xml | grep -qF "$test_id"; then
+              echo "ERROR: the release manifest still carries Google's public test AdMob app id."
+              exit 1
+            fi
           fi
-          if ! unzip -p "$aab" base/manifest/AndroidManifest.xml | grep -q "$ADMOB_APP_ID"; then
+          if ! unzip -p "$aab" base/manifest/AndroidManifest.xml | grep -qF "$ADMOB_APP_ID"; then
             echo "ERROR: the release manifest does not carry the configured AdMob application id ($ADMOB_APP_ID)."
             exit 1
           fi
-          echo "OK: the release manifest carries the configured AdMob app id."
+          echo "OK: the release manifest carries the configured AdMob app id ($ADMOB_APP_ID)."
 
     artifacts:
       - build/app/outputs/bundle/release/app-release.aab
       # Dart obfuscation symbols: needed to read a Play stack trace.
       - build/symbols
+      # R8 mapping for the minified Java/Kotlin side. The release buildType
+      # sets isMinifyEnabled, so a Play crash report from a release build
+      # cannot be de-obfuscated without this file. It is large (~60 MB) but
+      # it is the only way to read a minified stack trace.
+      - build/app/outputs/mapping/release/mapping.txt
 
     publishing:
       google_play:

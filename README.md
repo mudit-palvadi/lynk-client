@@ -120,19 +120,25 @@ lib/
 
 ### Release Builds
 
-A release build refuses to run without a real AdMob configuration, so a sample
-id can never reach Play.
+A release build refuses to run without an AdMob configuration, so a missing id
+can never reach Play.
 
 ```bash
-# the AdMob application id (not the sample one) and the four ad unit ids
+# the AdMob application id and the four ad unit ids
 export ADMOB_APP_ID=ca-app-pub-xxxxxxxxxxxxxxxx~yyyyyyyyyyyy
 export ORG_GRADLE_PROJECT_admobAppId=$ADMOB_APP_ID
 flutter build appbundle --release --obfuscate --split-debug-info=build/symbols
 ```
 
 * `ORG_GRADLE_PROJECT_admobAppId` (or `-PadmobAppId=`, or `ADMOB_APP_ID`)
-  fills the `${admobAppId}` placeholder in the manifest. Without it, or with
-  Google's sample id, every release Gradle task fails with a `GradleException`.
+  fills the `${admobAppId}` placeholder in the manifest. Without it every
+  release Gradle task fails with a `GradleException`.
+* Google's **public test id** (`ca-app-pub-3940256099942544~3347511713`) is
+  refused too, unless the build is told it was deliberate:
+  `ALLOW_TEST_ADMOB_IDS=true` (or
+  `ORG_GRADLE_PROJECT_allowTestAdMobIds=true`). The build then prints a
+  warning: the app serves Google's test ads and earns nothing. This is how
+  the release pipeline builds before an AdMob account exists.
 * The four ad unit ids (`ADMOB_BANNER_ID`, `ADMOB_INTERSTITIAL_ID`,
   `ADMOB_REWARDED_ID`, `ADMOB_REWARDED_INTERSTITIAL_ID`) are read from `.env` at
   runtime. When any of them is missing, `AdService` reports that there are no

@@ -43,6 +43,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+# Gradle build output, including the problems report, which embeds absolute
+# developer paths and changes on every build.
+/android/build/
 
 .env
 # Play Store upload signing

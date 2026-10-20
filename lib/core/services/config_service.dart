@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -28,14 +29,33 @@ class ConfigService {
     );
   }
 
-  /// Verifies generic system configuration key loaded from environment
+  /// Applies the debug-only "disable ads" bypass.
+  ///
+  /// The key is a compile-time define, so a release binary never carries it:
+  /// the release pipeline does not pass
+  /// `--dart-define=LYNK_DEBUG_BYPASS_KEY=...`, and the `kDebugMode` guard
+  /// compiles the whole path out of a release build anyway.
+  ///
+  /// It used to be read from `DEV_CONFIG_KEY` in `.env`, which meant every
+  /// distributed APK carried a working bypass. A client-side key shipped to
+  /// every user is not a secret - it is a revenue bypass anyone can pull out
+  /// of the APK with `unzip`.
+  ///
+  /// To use it locally: run with
+  /// `flutter run --dart-define=LYNK_DEBUG_BYPASS_KEY=<key>`, then tap the
+  /// version label seven times on the home screen and enter the same key.
   static Future<bool> applyConfigurationKey(String inputKey) async {
-    final secret = dotenv.env['DEV_CONFIG_KEY'];
-    if (secret != null && secret.isNotEmpty && inputKey == secret) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('ads_enabled', false);
-      return true;
+    if (!kDebugMode) {
+      return false;
     }
-    return false;
+
+    const debugBypassKey = String.fromEnvironment('LYNK_DEBUG_BYPASS_KEY');
+    if (debugBypassKey.isEmpty || inputKey != debugBypassKey) {
+      return false;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('ads_enabled', false);
+    return true;
   }
 }

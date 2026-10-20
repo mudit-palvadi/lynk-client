@@ -7,9 +7,26 @@ Releases are built and uploaded by Codemagic — no more manual Play Console upl
 - Codemagic app connected to this repo
 - Upload keystore stored in Codemagic → Code signing identities → Android keystores,
   reference name `lynk_upload_keystore`
-- Env group `lynk_config` — the `.env` values (API_BASE_URL, DEV_CONFIG_KEY, PRIVACY_POLICY_URL, DEEP_LINK_BASE_URL)
+- Env group `lynk_config` — the `.env` values:
+  `API_BASE_URL`, `PRIVACY_POLICY_URL`, `DEEP_LINK_BASE_URL`,
+  `ADMOB_APP_ID`, `ADMOB_BANNER_ID`, `ADMOB_INTERSTITIAL_ID`,
+  `ADMOB_REWARDED_ID`, `ADMOB_REWARDED_INTERSTITIAL_ID`
 - Env group `google_play` — `GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS` (service account JSON key)
 - Google Play service account invited in Play Console with "Releases to testing tracks" for Lynk
+
+> `ADMOB_APP_ID` must be the **real** AdMob application id
+> (`ca-app-pub-…~…`), never Google's sample id. The release build fails
+> without it: the Gradle gate rejects the sample id, the pipeline's
+> "Verify release configuration" step rejects a missing one, and a final step
+> unzips the packaged AAB and fails if the sample id is in the manifest. The
+> four ad unit ids are what the app requests at runtime; when any of them is
+> missing the app shows no ads at all rather than test ads.
+>
+> There is deliberately **no** `DEV_CONFIG_KEY` in the env group any more. The
+> ad bypass used to be a value in `.env`, which meant the key shipped inside
+> every APK. It is now a compile-time define
+> (`--dart-define=LYNK_DEBUG_BYPASS_KEY=…`) that only exists in a local
+> debug build.
 
 ## Cut a release
 
@@ -31,6 +48,13 @@ Releases are built and uploaded by Codemagic — no more manual Play Console upl
 ## Notes
 
 - The workflow runs `flutter analyze` and `flutter test` first — a failing test blocks the release.
+- The release build is **minified, resource-shrunk and obfuscated**:
+  `isMinifyEnabled`, `isShrinkResources` and `--obfuscate` are all on. The Dart
+  symbols are written to `build/symbols` and uploaded as a build artifact, so
+  a Play crash report can still be symbolised. **Keep that artifact** — without
+  it a release stack trace is unreadable.
+- Cleartext traffic is off in the release manifest; only the debug variant
+  allows it (for a plaintext local backend).
 - `android/app/upload-keystore.jks` locally is the backup copy of the keystore.
   Codemagic cannot return an uploaded keystore, so back this file up somewhere safe too.
 - To publish to a different track: edit `track:` in `codemagic.yaml`, or start a build with

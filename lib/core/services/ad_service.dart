@@ -22,29 +22,58 @@ class AdService {
   static const String _testRewardedInterstitialId =
       'ca-app-pub-3940256099942544/5354046379';
 
+  /// Reads an ad unit id from the environment.
+  ///
+  /// Returns `null` when the variable is missing or empty, which is how a
+  /// release build detects that the ad configuration was not supplied.
+  static String? _envAdUnit(String name) {
+    final value = dotenv.env[name];
+    if (value == null || value.isEmpty) return null;
+    return value;
+  }
+
+  /// Whether real (non-test) ad units are configured for this build.
+  ///
+  /// A release build without ad unit ids shows no ads at all. It must never
+  /// fall back to Google's test ad units: an APK that serves test ads earns
+  /// nothing and breaks the AdMob policy. The release pipeline fails the build
+  /// when the ids are missing, so this is the last line of defence.
+  static bool get hasRealAdUnits {
+    if (kDebugMode) return true;
+    return _envAdUnit('ADMOB_BANNER_ID') != null &&
+        _envAdUnit('ADMOB_INTERSTITIAL_ID') != null &&
+        _envAdUnit('ADMOB_REWARDED_ID') != null &&
+        _envAdUnit('ADMOB_REWARDED_INTERSTITIAL_ID') != null;
+  }
+
   static String get bannerAdUnitId {
     if (kDebugMode) return _testBannerId;
-    return dotenv.env['ADMOB_BANNER_ID'] ?? _testBannerId;
+    return _envAdUnit('ADMOB_BANNER_ID') ?? '';
   }
 
   static String get interstitialAdUnitId {
     if (kDebugMode) return _testInterstitialId;
-    return dotenv.env['ADMOB_INTERSTITIAL_ID'] ?? _testInterstitialId;
+    return _envAdUnit('ADMOB_INTERSTITIAL_ID') ?? '';
   }
 
   static String get rewardedAdUnitId {
     if (kDebugMode) return _testRewardedId;
-    return dotenv.env['ADMOB_REWARDED_ID'] ?? _testRewardedId;
+    return _envAdUnit('ADMOB_REWARDED_ID') ?? '';
   }
 
   static String get rewardedInterstitialAdUnitId {
     if (kDebugMode) return _testRewardedInterstitialId;
-    return dotenv.env['ADMOB_REWARDED_INTERSTITIAL_ID'] ??
-        _testRewardedInterstitialId;
+    return _envAdUnit('ADMOB_REWARDED_INTERSTITIAL_ID') ?? '';
   }
 
   static Future<void> init() async {
     if (kIsWeb) return;
+    if (!hasRealAdUnits) {
+      debugPrint(
+        'AdService: no ad units configured, ads are disabled for this build.',
+      );
+      return;
+    }
     try {
       await MobileAds.instance.initialize();
       preloadInterstitialAd();
@@ -57,6 +86,7 @@ class AdService {
 
   static Future<bool> shouldShowAds() async {
     if (kIsWeb) return false;
+    if (!hasRealAdUnits) return false;
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool('ads_enabled') ?? true;
   }

@@ -7,7 +7,7 @@
         android:label="Lynk"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="false">
         <activity
             android:name="app.xynix.lynk.MainActivity"
             android:exported="true"
@@ -58,9 +58,18 @@
                     android:host="receive" />
             </intent-filter>
         </activity>
+        <!--
+            The AdMob application id is injected by Gradle from the
+            `admobAppId` property (ORG_GRADLE_PROJECT_admobAppId or
+            -PadmobAppId=). Debug and profile builds fall back to Google's
+            public sample id; a release build fails the build instead of
+            shipping the sample id, so a production APK always carries the
+            real one and the release pipeline cannot silently fall back to
+            test ad units.
+        -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3940256099942544~3347511713"/>
+            android:value="${admobAppId}" />
 
         <meta-data
             android:name="flutterEmbedding"

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -38,6 +39,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _onVersionTap() {
+    // The diagnostic-key gesture is a developer affordance. It is compiled
+    // out of release builds so no released APK advertises a bypass dialog.
+    if (!kDebugMode) {
+      return;
+    }
     _tapCount++;
     if (_tapCount == 7) {
       _tapCount = 0;

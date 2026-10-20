@@ -108,10 +108,47 @@ lib/
   ```bash
   flutter test test/core/utils/file_name_sanitizer_test.dart test/integration/download_flow_test.dart
   ```
+* **Run the Release-Hardening Suite:**
+  ```bash
+  flutter test test/platform/release_hardening_test.dart
+  ```
+  It asserts the release manifest forbids cleartext, the AdMob app id is a build-time placeholder rather than Google's sample id, the release build type shrinks and obfuscates, and the ad-bypass key is not shipped.
 * **Run App (Local Development):**
   ```bash
   flutter run
   ```
+
+### Release Builds
+
+A release build refuses to run without a real AdMob configuration, so a sample
+id can never reach Play.
+
+```bash
+# the AdMob application id (not the sample one) and the four ad unit ids
+export ADMOB_APP_ID=ca-app-pub-xxxxxxxxxxxxxxxx~yyyyyyyyyyyy
+export ORG_GRADLE_PROJECT_admobAppId=$ADMOB_APP_ID
+flutter build appbundle --release --obfuscate --split-debug-info=build/symbols
+```
+
+* `ORG_GRADLE_PROJECT_admobAppId` (or `-PadmobAppId=`, or `ADMOB_APP_ID`)
+  fills the `${admobAppId}` placeholder in the manifest. Without it, or with
+  Google's sample id, every release Gradle task fails with a `GradleException`.
+* The four ad unit ids (`ADMOB_BANNER_ID`, `ADMOB_INTERSTITIAL_ID`,
+  `ADMOB_REWARDED_ID`, `ADMOB_REWARDED_INTERSTITIAL_ID`) are read from `.env` at
+  runtime. When any of them is missing, `AdService` reports that there are no
+  real ad units and no ad is requested, rather than silently showing test ads.
+* `--obfuscate` plus `--split-debug-info` keeps the Dart symbols out of the
+  bundle. Upload `build/symbols` to Play so crash reports stay readable.
+* Cleartext traffic is off in the release manifest. Only the debug variant
+  allows it, for a plaintext local backend.
+* The ad bypass is a **compile-time define**, not a value in `.env`:
+  `flutter run --dart-define=LYNK_DEBUG_BYPASS_KEY=<key>` plus seven taps on
+  the version label. It is ignored in a release build, and the key never
+  reaches a shipped APK.
+* `.env` **is** bundled as an asset, so it ships inside the APK. It holds
+  public configuration only (the API base URL, the privacy-policy URL, the
+  deep-link base URL, the AdMob ids). Never put a secret in it — that is
+  exactly how the old bypass key ended up in every user's hands.
 
 ---
 
@@ -120,5 +157,6 @@ lib/
 * **Zero-Knowledge Encryption:** Cryptographic keys are generated on-device and shared only via the QR code. Files remain fully encrypted in transit and at rest on R2 storage.
 * **Secure Keys:** Never store Cloudflare R2 bucket credentials or private secrets on the client. All upload and download URLs are presigned and short-lived.
 * **Untrusted File Names:** A file name comes from the sender, so it is never used as a path. `FileNameSanitizer.safeFileName()` (`lib/core/utils/file_name_sanitizer.dart`) takes the last path segment, strips control characters, and trims to 255 UTF-8 bytes at every write site (cloud download, P2P download, P2P temp file, upload). The backend validates the same rules and answers `400` for a bad name.
+* **Hardened release build:** cleartext traffic is off outside the debug variant, the release build type is minified and resource-shrunk, the Dart code is obfuscated with the symbols split out, the AdMob application id is injected at build time and Google's sample id is rejected by a Gradle gate, and no client-side bypass key is compiled into a release APK. See "Release Builds" above and `test/platform/release_hardening_test.dart`.
 * **Low Memory Footprint:** Files are streamed during upload (`File.openRead()`) and download instead of being loaded fully into memory.
 * **Abuse Controls:** File counts, total sizes, and rates are authoritatively checked on the backend and mapped to friendly, descriptive error widgets on the client.

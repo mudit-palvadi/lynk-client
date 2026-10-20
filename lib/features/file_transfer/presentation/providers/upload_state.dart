@@ -43,16 +43,33 @@ class UploadState extends Equatable {
       selectedFiles.fold(0, (sum, f) => sum + ((f.size ~/ 16) + 1) * 16 + 16);
 
   /// Size tiers (bytes):
-  /// - Cloud/R2: free = 20 MB, rewarded-ad unlocked = 50 MB
-  /// - P2P:      free = 10 MB, rewarded-ad unlocked = 200 MB
-  int get maxTotalSize {
-    if (transferMode == TransferMode.p2p) {
-      return isSizeLimitUnlocked ? 200 * 1024 * 1024 : 10 * 1024 * 1024;
-    }
-    return isSizeLimitUnlocked ? 50 * 1024 * 1024 : 20 * 1024 * 1024;
-  }
+  /// - Cloud/R2: free = 15 MB, rewarded-ad unlocked = 30 MB
+  /// - P2P:      free = 20 MB, rewarded-ad unlocked = 50 MB
+  ///
+  /// Both unlocked tiers stay inside the server's 50 MB per-file cap, so every
+  /// advertised tier is actually accepted by the API.
+  int get maxTotalSizeFree => transferMode == TransferMode.p2p
+      ? 20 * 1024 * 1024
+      : 15 * 1024 * 1024;
 
-  int get maxTotalSizeUnlockedMb => maxTotalSize ~/ (1024 * 1024);
+  /// Rewarded-ad unlocked tier (bytes), whatever the current unlock state is.
+  int get maxTotalSizeUnlocked => transferMode == TransferMode.p2p
+      ? 50 * 1024 * 1024
+      : 30 * 1024 * 1024;
+
+  /// The limit that currently applies (bytes).
+  int get maxTotalSize =>
+      isSizeLimitUnlocked ? maxTotalSizeUnlocked : maxTotalSizeFree;
+
+  /// The current limit in MB: what the user may send right now.
+  int get maxTotalSizeMb => maxTotalSize ~/ (1024 * 1024);
+
+  /// The unlocked tier in MB: the number the "watch an ad to unlock" hint has
+  /// to advertise.
+  int get maxTotalSizeUnlockedMb => maxTotalSizeUnlocked ~/ (1024 * 1024);
+
+  /// The free tier in MB.
+  int get maxTotalSizeFreeMb => maxTotalSizeFree ~/ (1024 * 1024);
 
   UploadState copyWith({
     List<PlatformFile>? selectedFiles,

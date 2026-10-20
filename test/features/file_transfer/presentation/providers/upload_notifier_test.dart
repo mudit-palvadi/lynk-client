@@ -41,27 +41,42 @@ void main() {
       expect(state.totalSize, 400);
     });
 
-    test('cloud mode free tier max total is 20 MB', () {
+    test('cloud mode free tier max total is 15 MB', () {
       const state = UploadState();
+      expect(state.maxTotalSize, 15 * mb);
+    });
+
+    test('cloud mode unlocked tier max total is 30 MB', () {
+      const state = UploadState(isSizeLimitUnlocked: true);
+      expect(state.maxTotalSize, 30 * mb);
+    });
+
+    test('p2p mode free tier max total is 20 MB', () {
+      const state = UploadState(transferMode: TransferMode.p2p);
       expect(state.maxTotalSize, 20 * mb);
     });
 
-    test('cloud mode unlocked tier max total is 50 MB', () {
-      const state = UploadState(isSizeLimitUnlocked: true);
-      expect(state.maxTotalSize, 50 * mb);
-    });
-
-    test('p2p mode free tier max total is 10 MB', () {
-      const state = UploadState(transferMode: TransferMode.p2p);
-      expect(state.maxTotalSize, 10 * mb);
-    });
-
-    test('p2p mode unlocked tier max total is 100 MB', () {
+    test('p2p mode unlocked tier max total is 50 MB', () {
       const state = UploadState(
         transferMode: TransferMode.p2p,
         isSizeLimitUnlocked: true,
       );
-      expect(state.maxTotalSize, 200 * mb);
+      expect(state.maxTotalSize, 50 * mb);
+    });
+
+    test('the unlock hint advertises the unlocked tier, not the free tier', () {
+      // The hint shown next to the "watch an ad" button has to name the tier
+      // the ad buys, otherwise it would say "unlock up to 15 MB" while the
+      // unlocked limit is 30 MB.
+      const cloud = UploadState();
+      expect(cloud.maxTotalSizeMb, 15);
+      expect(cloud.maxTotalSizeFreeMb, 15);
+      expect(cloud.maxTotalSizeUnlockedMb, 30);
+
+      const p2p = UploadState(transferMode: TransferMode.p2p);
+      expect(p2p.maxTotalSizeMb, 20);
+      expect(p2p.maxTotalSizeFreeMb, 20);
+      expect(p2p.maxTotalSizeUnlockedMb, 50);
     });
   });
 
@@ -125,7 +140,7 @@ void main() {
       }
 
       test(
-        'cloud free tier: total over 20 MB is rejected with unlock hint',
+        'cloud free tier: total over 15 MB is rejected with unlock hint',
         () async {
           final container = makeContainer();
           addTearDown(container.dispose);
@@ -140,24 +155,26 @@ void main() {
 
           final state = container.read(uploadProvider);
           expect(state.phase, UploadPhase.failed);
-          expect(state.errorMessage, contains('20 MB'));
+          expect(state.errorMessage, contains('15 MB'));
+          // The hint must name the unlocked tier the ad buys.
+          expect(state.errorMessage, contains('30 MB'));
         },
       );
 
-      test('cloud unlocked tier: up to 50 MB total is accepted', () async {
+      test('cloud unlocked tier: up to 30 MB total is accepted', () async {
         final container = makeContainer();
         addTearDown(container.dispose);
 
         final notifier = container.read(uploadProvider.notifier);
         notifier.unlockExtendedSizeLimit();
-        fakePicker.nextResult = FilePickerResult([fileOf('big.bin', 45 * mb)]);
+        fakePicker.nextResult = FilePickerResult([fileOf('big.bin', 25 * mb)]);
         await notifier.pickFiles();
 
         expect(container.read(uploadProvider).phase, UploadPhase.selecting);
       });
 
       test(
-        'p2p unlocked tier: 150 MB total accepted (above cloud ceiling)',
+        'p2p unlocked tier: 40 MB total accepted (above cloud ceiling)',
         () async {
           final container = makeContainer();
           addTearDown(container.dispose);
@@ -165,14 +182,14 @@ void main() {
           final notifier = container.read(uploadProvider.notifier);
           notifier.setTransferMode(TransferMode.p2p);
           notifier.unlockExtendedSizeLimit();
-          fakePicker.nextResult = FilePickerResult([fileOf('v.mp4', 150 * mb)]);
+          fakePicker.nextResult = FilePickerResult([fileOf('v.mp4', 40 * mb)]);
           await notifier.pickFiles();
 
           expect(container.read(uploadProvider).phase, UploadPhase.selecting);
         },
       );
 
-      test('p2p free tier rejects 30 MB (above the 10 MB p2p limit)', () async {
+      test('p2p free tier rejects 30 MB (above the 20 MB p2p limit)', () async {
         final container = makeContainer();
         addTearDown(container.dispose);
 
@@ -182,7 +199,7 @@ void main() {
         await notifier.pickFiles();
 
         expect(container.read(uploadProvider).phase, UploadPhase.failed);
-        expect(container.read(uploadProvider).errorMessage, contains('10 MB'));
+        expect(container.read(uploadProvider).errorMessage, contains('20 MB'));
       });
 
       test(
@@ -196,11 +213,11 @@ void main() {
           ]);
 
           final notifier = container.read(uploadProvider.notifier);
-          await notifier.pickMedia(); // locked state -> cloud free tier 20 MB
+          await notifier.pickMedia(); // locked state -> cloud free tier 15 MB
 
           final state = container.read(uploadProvider);
           expect(state.phase, UploadPhase.failed);
-          expect(state.errorMessage, contains('20 MB'));
+          expect(state.errorMessage, contains('15 MB'));
         },
       );
 

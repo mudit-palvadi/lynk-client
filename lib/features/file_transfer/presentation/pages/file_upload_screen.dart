@@ -151,7 +151,7 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                         '${uploadState.selectedFiles.length} files selected',
                       ),
                       Text(
-                        '${FileSizeFormatter.format(uploadState.totalSize)} / ${uploadState.maxTotalSizeUnlockedMb} MB',
+                        '${FileSizeFormatter.format(uploadState.totalSize)} / ${uploadState.maxTotalSizeMb} MB',
                         style: const TextStyle(
                           color: AppTheme.primary,
                           fontWeight: FontWeight.bold,

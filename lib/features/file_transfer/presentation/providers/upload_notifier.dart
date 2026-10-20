@@ -73,18 +73,19 @@ class UploadNotifier extends _$UploadNotifier {
   }
 
   /// Enforces the per-mode size tiers against the current unlocked state:
-  /// - Cloud/R2: free 20 MB -> unlocked 50 MB
-  /// - P2P: free 10 MB -> unlocked 200 MB
+  /// - Cloud/R2: free 15 MB -> unlocked 30 MB
+  /// - P2P: free 20 MB -> unlocked 50 MB
   bool _validateSizes(List<PlatformFile> files) {
     final totalSize = files.fold(0, (sum, f) => sum + f.size);
     final maxLimit = state.maxTotalSize;
-    final maxMb = state.maxTotalSizeUnlockedMb;
-    final freeMb = state.transferMode == TransferMode.p2p ? 10 : 20;
+    final maxMb = state.maxTotalSizeMb;
+    final unlockedMb = state.maxTotalSizeUnlockedMb;
+    final freeMb = state.maxTotalSizeFreeMb;
 
     if (totalSize > maxLimit) {
       final msg = state.isSizeLimitUnlocked
           ? 'Total transfer limit is $maxMb MB'
-          : 'Free limit is $freeMb MB. Watch an ad to unlock up to $maxMb MB!';
+          : 'Free limit is $freeMb MB. Watch an ad to unlock up to $unlockedMb MB!';
       state = state.copyWith(phase: UploadPhase.failed, errorMessage: msg);
       return false;
     }
@@ -93,7 +94,7 @@ class UploadNotifier extends _$UploadNotifier {
       if (f.size > maxLimit) {
         final msg = state.isSizeLimitUnlocked
             ? 'File "${f.name}" exceeds $maxMb MB limit'
-            : 'File "${f.name}" exceeds the $freeMb MB free limit. Watch an ad to unlock up to $maxMb MB!';
+            : 'File "${f.name}" exceeds the $freeMb MB free limit. Watch an ad to unlock up to $unlockedMb MB!';
         state = state.copyWith(phase: UploadPhase.failed, errorMessage: msg);
         return false;
       }

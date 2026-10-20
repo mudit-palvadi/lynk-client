@@ -13,6 +13,7 @@ import 'signaling_channel.dart';
 import 'transfer_framer.dart';
 import 'webrtc_peer.dart';
 import 'webrtc_service.dart';
+import '../utils/file_name_sanitizer.dart';
 
 /// Legacy alias kept for callers that only need STUN.
 const List<Map<String, String>> kLynkIceServers = kStunServers;
@@ -428,7 +429,10 @@ class P2PFileSession implements P2PSenderSession {
         _currentWritten = 0;
         _currentInboundFile = File(
           '${_tempDir!.path}/'
-          '${DateTime.now().microsecondsSinceEpoch}_${parsed.meta!.name}',
+          // The name comes from the peer, so it is reduced to a single safe
+          // path segment before it is joined onto the temp directory.
+          '${DateTime.now().microsecondsSinceEpoch}_'
+          '${FileNameSanitizer.safeFileName(parsed.meta!.name)}',
         );
         _currentSink = _currentInboundFile!.openSync(mode: FileMode.write);
       case FrameKind.eof:

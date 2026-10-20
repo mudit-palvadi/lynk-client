@@ -211,6 +211,63 @@ void main() {
       expect(state.phase, DownloadPhase.failed);
       expect(state.errorMessage, contains('key'));
     });
+
+    test('a hostile file name cannot escape the download directory', () async {
+      // The name is chosen by the sender and echoed back by the server, so a
+      // malicious sender could try to write outside the download folder.
+      final backend = FakeBackend();
+      final container = await _container(backend);
+
+      final plaintext = Uint8List.fromList(
+        List<int>.generate(256, (i) => (i * 7) % 256),
+      );
+      final encrypted = EncryptFileUseCase().executeBytes(
+        inputBytes: plaintext,
+        aesKey32Bytes: aesKey,
+      );
+
+      final seeded = await _seedTransfer(
+        container,
+        backend,
+        '../escaped.txt',
+        contents: encrypted,
+      );
+
+      final notifier = container.read(downloadProvider.notifier);
+      await notifier.loadTransferPreview(
+        seeded.id,
+        accessToken: seeded.accessToken ?? '',
+      );
+      await _waitUntil(
+        () => container.read(downloadProvider).downloadFiles.isNotEmpty,
+        description: 'the download urls to arrive',
+      );
+
+      await notifier.startDownload(aesKey: aesKey);
+      await _waitUntil(
+        () =>
+            container.read(downloadProvider).phase == DownloadPhase.completed ||
+            container.read(downloadProvider).phase == DownloadPhase.failed,
+        description: 'the download to finish',
+      );
+
+      final state = container.read(downloadProvider);
+      expect(state.phase, DownloadPhase.completed, reason: state.errorMessage);
+      expect(state.downloadedPaths, hasLength(1));
+
+      // The file landed inside the download directory...
+      final written = state.downloadedPaths.single;
+      expect(written, startsWith(sandbox.path));
+      expect(File(written).existsSync(), isTrue);
+      expect(File(written).readAsBytesSync(), plaintext);
+
+      // ...and not one level up, where the traversal would have landed.
+      expect(
+        File('${sandbox.parent.path}/escaped.txt').existsSync(),
+        isFalse,
+        reason: 'the file was written outside the download directory',
+      );
+    });
   });
 }
 

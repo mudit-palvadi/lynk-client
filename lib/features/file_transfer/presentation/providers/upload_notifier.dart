@@ -8,6 +8,7 @@ import 'package:client/core/providers/receiver_providers.dart';
 import 'package:client/core/services/key_wrap_service.dart';
 import 'package:client/core/services/flutter_webrtc_p2p_session.dart';
 import 'package:client/core/utils/entropy_generator.dart';
+import 'package:client/core/utils/file_name_sanitizer.dart';
 import 'package:client/features/file_transfer/domain/entities/file_item.dart';
 import 'package:client/features/file_transfer/domain/usecases/encrypt_file_use_case.dart';
 import 'package:file_picker/file_picker.dart';
@@ -165,7 +166,9 @@ class UploadNotifier extends _$UploadNotifier {
       final encSize = ((f.size ~/ 16) + 1) * 16 + 16;
       return FileItem(
         id: '',
-        name: f.name,
+        // The name is sent to every receiver, who writes it to disk, so it
+        // is reduced to a single safe path segment on the way out.
+        name: FileNameSanitizer.safeFileName(f.name),
         size: encSize,
         contentType: 'application/octet-stream',
         status: FileStatus.pending,

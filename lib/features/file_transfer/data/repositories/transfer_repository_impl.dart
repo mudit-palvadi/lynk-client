@@ -13,6 +13,24 @@ class TransferRepositoryImpl implements TransferRepository {
 
   TransferRepositoryImpl({required this.remoteDataSource});
 
+  /// Reads the server's error message out of a response body.
+  ///
+  /// The API answers with `{"detail": "..."}`, but a schema-validation
+  /// failure answers with a list of error objects instead. Both have to end
+  /// up as a string: the message is shown to the user, and a list would
+  /// crash the failure rather than explain it.
+  static String _errorMessage(dynamic body, String fallback) {
+    final detail = body is Map ? body['detail'] : null;
+    if (detail is String && detail.isNotEmpty) return detail;
+    if (detail is List && detail.isNotEmpty) {
+      final first = detail.first;
+      if (first is Map && first['msg'] is String) {
+        return first['msg'] as String;
+      }
+    }
+    return fallback;
+  }
+
   @override
   Future<Result<Transfer>> createTransfer(List<FileItem> files) async {
     try {
@@ -22,7 +40,7 @@ class TransferRepositoryImpl implements TransferRepository {
     } on DioException catch (e) {
       return Result.failure(
         ServerFailure(
-          e.response?.data['detail'] ?? 'Failed to create transfer',
+          _errorMessage(e.response?.data, 'Failed to create transfer'),
           statusCode: e.response?.statusCode,
         ),
       );
@@ -63,7 +81,7 @@ class TransferRepositoryImpl implements TransferRepository {
     } on DioException catch (e) {
       return Result.failure(
         ServerFailure(
-          e.response?.data['detail'] ?? 'Transfer not found',
+          _errorMessage(e.response?.data, 'Transfer not found'),
           statusCode: e.response?.statusCode,
         ),
       );

@@ -9,6 +9,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../services/download_service.dart';
 import '../services/flutter_webrtc_p2p_session.dart';
 import '../services/webrtc_peer.dart';
+import '../utils/file_name_sanitizer.dart';
 import 'download_state.dart';
 import 'transfer_providers.dart';
 import '../../features/file_receive/domain/usecases/decrypt_file_use_case.dart';
@@ -159,7 +160,10 @@ class DownloadNotifier extends _$DownloadNotifier {
           }
           downloadedPaths.add('${item.name} (${finalBytes.length} bytes)');
         } else {
-          final savePath = '${saveDir!.path}/${item.name}';
+          // The name came from the sender, so it is reduced to a single safe
+          // path segment before it is joined onto the download directory.
+          final savePath =
+              '${saveDir!.path}/${FileNameSanitizer.safeFileName(item.name)}';
           final tempSavePath = '$savePath.enc';
 
           await downloadService.downloadFileFromR2(
@@ -308,7 +312,10 @@ class DownloadNotifier extends _$DownloadNotifier {
           : 1;
       final sub = session.onFileReceived.listen((received) async {
         try {
-          final savePath = '${saveDir!.path}/${received.name}';
+          // The name came straight from the peer, with no server in the
+          // middle to vouch for it.
+          final savePath =
+              '${saveDir!.path}/${FileNameSanitizer.safeFileName(received.name)}';
           await ref
               .read(decryptFileUseCaseProvider)
               .execute(

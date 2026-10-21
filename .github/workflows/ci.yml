@@ -1,0 +1,75 @@
+name: CI
+
+# Every push to main and every pull request runs the full suite. This workflow
+# is the merge gate: a change that breaks the app, the API or the website
+# must not reach main, so nothing here is allowed to continue on error.
+#
+# The release build itself stays in Codemagic (client/codemagic.yaml), which
+# also runs analyze and test before it packages an AAB. This workflow adds the
+# pull-request-time gate that was missing.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A new push supersedes an in-flight run for the same ref.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# The workflow only needs to read the repository.
+permissions:
+  contents: read
+
+jobs:
+  analyze-and-test:
+    name: Analyze and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.6'
+          channel: stable
+          cache: true
+
+      - name: Cache pub packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Create .env
+        # pubspec.yaml lists .env under assets, so the asset bundle fails
+        # without the file ("No file or variants found for asset: .env") and
+        # every test run would die before it started. .env is gitignored and
+        # it ships inside the APK, so it must only ever hold public
+        # configuration - never a secret.
+        run: |
+          cat > .env <<'EOF'
+          API_BASE_URL=https://api.lynkshare.app/api/v1/
+          PRIVACY_POLICY_URL=https://sites.google.com/view/lynk-privacy-policy/
+          DEEP_LINK_BASE_URL=https://lynkshare.app
+          ADMOB_APP_ID=ca-app-pub-3940256099942544~3347511713
+          ADMOB_BANNER_ID=ca-app-pub-3940256099942544/6300978111
+          ADMOB_INTERSTITIAL_ID=ca-app-pub-3940256099942544/1033173712
+          ADMOB_REWARDED_ID=ca-app-pub-3940256099942544/5224354917
+          ADMOB_REWARDED_INTERSTITIAL_ID=ca-app-pub-3940256099942544/5354046379
+          EOF
+
+      - name: Get packages
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test

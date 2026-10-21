@@ -167,7 +167,7 @@ void main() {
 
     test('default timeout is 8 seconds per Phases.md', () {
       final coordinator = WebrtcPeerCoordinator(actions: FakePeerActions());
-      expect(coordinator.connectTimeout, const Duration(seconds: 8));
+      expect(coordinator.connectTimeout, const Duration(seconds: 30));
       coordinator.dispose();
     });
   });

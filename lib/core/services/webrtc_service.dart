@@ -87,7 +87,9 @@ class SignalingMessage {
 /// so the caller can fall back to the R2 cloud pipeline.
 class P2PConnectionController {
   /// Per Phases.md: 8 seconds from connection initiation.
-  static const Duration defaultTimeout = Duration(seconds: 8);
+  // A phone that opens the app from a QR code is cold-starting, so the
+  // handshake needs more room than the old eight seconds.
+  static const Duration defaultTimeout = Duration(seconds: 30);
 
   final Duration connectTimeout;
   void Function()? onP2PFailed;

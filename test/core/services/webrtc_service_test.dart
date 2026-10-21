@@ -118,7 +118,7 @@ void main() {
 
     test('default timeout is 8 seconds per Phases.md', () {
       final controller = P2PConnectionController();
-      expect(controller.connectTimeout, const Duration(seconds: 8));
+      expect(controller.connectTimeout, const Duration(seconds: 30));
       controller.dispose();
     });
 

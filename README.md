@@ -113,10 +113,28 @@ lib/
   flutter test test/platform/release_hardening_test.dart
   ```
   It asserts the release manifest forbids cleartext, the AdMob app id is a build-time placeholder rather than Google's sample id, the release build type shrinks and obfuscates, and the ad-bypass key is not shipped.
+* **Run the CI-Contract Suite:**
+  ```bash
+  flutter test test/platform/ci_pipeline_test.dart
+  ```
+  It parses `.github/workflows/ci.yml` and asserts the pipeline really gates: the triggers, the concurrency cancellation, no `continue-on-error`, the read-only permission, the pinned tool versions, and that the workflow creates the `.env` the asset bundle needs. A CI file that silently stops running is worse than no CI file.
 * **Run App (Local Development):**
   ```bash
   flutter run
   ```
+
+### Continuous Integration
+
+`.github/workflows/ci.yml` runs on every push to `main`, on every pull request,
+and on demand. It creates the `.env` the asset bundle needs (`.env` is listed
+under `assets:` in `pubspec.yaml` and is gitignored, so the bundle fails
+without it - its content is public configuration only, because it ships inside
+the APK), then runs `flutter pub get`, `flutter analyze` and `flutter test`
+with Flutter pinned to `3.44.6`. A newer commit cancels an in-flight run, and
+no step may use `continue-on-error`.
+
+The release build itself runs through Codemagic (`codemagic.yaml`, manual
+trigger) and is separate from this pipeline.
 
 ### Release Builds
 

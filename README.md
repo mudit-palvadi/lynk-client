@@ -1,4 +1,4 @@
-# Lynk
+# LynkShare
 
 <p align="center">
   <img src="https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=flutter&logoColor=white" alt="Flutter" />
@@ -7,15 +7,12 @@
   <img src="https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge" alt="License" />
 </p>
 
-Lynk sends files straight from one device to another. No account, no sign-up,
-no password. Open the app, pick your files, and share a QR code.
+LynkShare sends files straight from one device to another. No account, no
+sign-up, no password. Open the app, pick your files, and share a QR code.
 
 The files are encrypted on the device that sends them. The key that unlocks
 them travels inside the QR code and never reaches the server, so what is
 stored is unreadable without the code.
-
-The Android app lives in this folder. The website that pairs with it lives in
-`web/`. There is no iOS app — iOS users use the website.
 
 ---
 
@@ -38,9 +35,9 @@ The Android app lives in this folder. The website that pairs with it lives in
 
 ## Size limits
 
-| App | Cloud (Free) | Cloud (Raised) | P2P (Free) | P2P (Raised) |
+| Device | Cloud (Free) | Cloud (Raised) | P2P (Free) | P2P (Raised) |
 |---|---|---|---|---|
-| Lynk for Android | 15 MB | 30 MB | 20 MB | 50 MB |
+| App | 15 MB | 30 MB | 20 MB | 50 MB |
 | Website | 10 MB | 10 MB | 10 MB | 10 MB |
 
 *Cloud* means the file is stored on the server for a moment and the other
@@ -48,8 +45,7 @@ device picks it up. *P2P* means the two devices send it to each other
 directly, with no storage in between.
 
 The app can raise a limit for you on request; the website always works at the
-free limit. The server refuses any single file over 50 MB, so every size the
-app offers is one it can really send.
+free limit.
 
 ---
 

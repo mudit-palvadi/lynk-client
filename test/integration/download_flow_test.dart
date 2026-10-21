@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -268,6 +269,105 @@ void main() {
         reason: 'the file was written outside the download directory',
       );
     });
+    test('a sender that is still uploading is waited for, not failed', () async {
+      // A sender shows the QR code before it uploads anything, so a receiver
+      // can arrive while the files are still on their way. The server answers
+      // 409 in that window, which is a temporary state and not an error.
+      final backend = FakeBackend();
+      final container = await _container(backend);
+
+      final plaintext = Uint8List.fromList(
+        List<int>.generate(256, (i) => (i * 7) % 256),
+      );
+      final encrypted = EncryptFileUseCase().executeBytes(
+        inputBytes: plaintext,
+        aesKey32Bytes: aesKey,
+      );
+
+      final seeded = await _seedTransfer(
+        container,
+        backend,
+        'note.bin',
+        contents: encrypted,
+        completeUpload: false,
+      );
+
+      final notifier = container.read(downloadProvider.notifier);
+      notifier.readyPollInterval = const Duration(milliseconds: 50);
+      notifier.readyTimeout = const Duration(seconds: 10);
+
+      await notifier.loadTransferPreview(
+        seeded.id,
+        accessToken: seeded.accessToken ?? '',
+      );
+      await _waitUntil(
+        () => container.read(downloadProvider).transfer != null,
+        description: 'the transfer details to arrive',
+      );
+
+      // The preview must not ask for the files yet: the server would answer
+      // 409, and that says nothing useful.
+      var state = container.read(downloadProvider);
+      expect(state.phase, DownloadPhase.preview);
+      expect(state.downloadFiles, isEmpty);
+
+      // The sender finishes uploading a moment later, the way a sender does
+      // once its direct-connection window has passed.
+      final repository = container.read(transferRepositoryProvider);
+      unawaited(
+        Future<void>.delayed(const Duration(milliseconds: 200)).then((_) async {
+          await repository.completeFileUpload(
+            transferId: seeded.id,
+            fileId: seeded.files.first.id,
+            senderSecret: seeded.senderSecret,
+          );
+        }),
+      );
+
+      await notifier.startDownload(aesKey: aesKey);
+      await _waitUntil(
+        () =>
+            container.read(downloadProvider).phase == DownloadPhase.completed ||
+            container.read(downloadProvider).phase == DownloadPhase.failed,
+        description: 'the download to finish',
+      );
+
+      state = container.read(downloadProvider);
+      expect(state.phase, DownloadPhase.completed, reason: state.errorMessage);
+      expect(state.downloadedPaths, hasLength(1));
+      expect(
+        File(state.downloadedPaths.single).readAsBytesSync(),
+        plaintext,
+      );
+    });
+
+    test('a sender that never uploads ends with a message that says so', () async {
+      final backend = FakeBackend();
+      final container = await _container(backend);
+
+      final seeded = await _seedTransfer(
+        container,
+        backend,
+        'note.bin',
+        completeUpload: false,
+      );
+
+      final notifier = container.read(downloadProvider.notifier);
+      notifier.readyPollInterval = const Duration(milliseconds: 50);
+      notifier.readyTimeout = const Duration(milliseconds: 300);
+
+      await notifier.loadTransferPreview(
+        seeded.id,
+        accessToken: seeded.accessToken ?? '',
+      );
+      await notifier.startDownload(aesKey: aesKey);
+
+      final state = container.read(downloadProvider);
+      expect(state.phase, DownloadPhase.failed);
+      expect(state.errorMessage, contains('still uploading'));
+      // The raw exception text must never reach the user.
+      expect(state.errorMessage, isNot(contains('DioException')));
+    });
   });
 }
 
@@ -291,13 +391,20 @@ Future<void> _waitUntil(
 
 /// Creates a transfer through the client's own repository so the backend ends
 /// up holding a file the download flow can fetch.
+///
+/// The sender uploads the file and then marks it complete, which is what
+/// moves the transfer to "ready". Pass `completeUpload: false` to leave the
+/// transfer in the "uploading" state a sender is in while it waits for a
+/// receiver.
 Future<Transfer> _seedTransfer(
   ProviderContainer container,
   FakeBackend backend,
   String fileName, {
   List<int>? contents,
+  bool completeUpload = true,
 }) async {
-  final result = await container.read(transferRepositoryProvider).createTransfer([
+  final repository = container.read(transferRepositoryProvider);
+  final result = await repository.createTransfer([
     FileItem(
       id: '',
       name: fileName,
@@ -314,6 +421,16 @@ Future<Transfer> _seedTransfer(
     // the download service can serve them back.
     backend.uploadedObjects[uploadUrl] = contents;
   }
+
+  if (completeUpload) {
+    final completed = await repository.completeFileUpload(
+      transferId: result.value!.id,
+      fileId: result.value!.files.first.id,
+      senderSecret: result.value!.senderSecret,
+    );
+    expect(completed.isSuccess, isTrue, reason: 'complete upload failed');
+  }
+
   return result.value!;
 }
 

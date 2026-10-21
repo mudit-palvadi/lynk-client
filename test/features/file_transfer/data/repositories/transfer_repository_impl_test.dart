@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:dio/dio.dart';
+import 'package:client/core/errors/failures.dart';
 import 'package:client/features/file_transfer/data/datasources/transfer_remote_data_source.dart';
 import 'package:client/features/file_transfer/data/models/file_item_model.dart';
 import 'package:client/features/file_transfer/data/models/transfer_model.dart';
@@ -11,6 +12,15 @@ class MockTransferRemoteDataSource implements TransferRemoteDataSource {
   bool shouldThrowDioException = false;
   int statusCode = 500;
   String errorMessage = 'Server error';
+
+  /// When set, `getDownloadUrls` answers with this status and detail
+  /// instead of the file list.
+  int? downloadUrlsStatusCode;
+  String downloadUrlsError = 'Transfer is not ready';
+
+  /// When set, `cancelTransfer` answers with this status and detail.
+  int? cancelStatusCode;
+  String cancelError = 'Transfer not found';
 
   @override
   Future<TransferModel> createTransfer(List<FileItemModel> files) async {
@@ -74,6 +84,16 @@ class MockTransferRemoteDataSource implements TransferRemoteDataSource {
     List<String>? fileIds,
     String? accessToken,
   }) async {
+    if (downloadUrlsStatusCode != null) {
+      throw DioException(
+        requestOptions: RequestOptions(path: '/downloads'),
+        response: Response(
+          requestOptions: RequestOptions(path: '/downloads'),
+          statusCode: downloadUrlsStatusCode!,
+          data: {'detail': downloadUrlsError},
+        ),
+      );
+    }
     if (shouldThrowDioException) {
       throw DioException(requestOptions: RequestOptions(path: '/downloads'));
     }
@@ -91,6 +111,16 @@ class MockTransferRemoteDataSource implements TransferRemoteDataSource {
 
   @override
   Future<void> cancelTransfer(String transferId, {String? senderSecret}) async {
+    if (cancelStatusCode != null) {
+      throw DioException(
+        requestOptions: RequestOptions(path: '/cancel'),
+        response: Response(
+          requestOptions: RequestOptions(path: '/cancel'),
+          statusCode: cancelStatusCode!,
+          data: {'detail': cancelError},
+        ),
+      );
+    }
     if (shouldThrowDioException) {
       throw DioException(requestOptions: RequestOptions(path: '/cancel'));
     }
@@ -156,6 +186,38 @@ void main() {
 
         expect(result.isFailure, isTrue);
         expect(result.failure?.message, 'Transfer not found');
+      },
+    );
+
+    test(
+      'getDownloadUrls reports the server message and the status code',
+      () async {
+        // The server answers 409 while the sender is still uploading. The
+        // message has to be the server's own, not the raw exception text.
+        mockDataSource.downloadUrlsStatusCode = 409;
+
+        final result = await repository.getDownloadUrls(
+          transferId: 'tx_mock_123',
+        );
+
+        expect(result.isFailure, isTrue);
+        expect(result.failure?.message, 'Transfer is not ready');
+        expect((result.failure! as ServerFailure).statusCode, 409);
+        expect(result.failure?.message, isNot(contains('DioException')));
+      },
+    );
+
+    test(
+      'cancelTransfer reports the server message and the status code',
+      () async {
+        mockDataSource.cancelStatusCode = 404;
+        mockDataSource.cancelError = 'Transfer not found';
+
+        final result = await repository.cancelTransfer('tx_mock_123');
+        expect(result.isFailure, isTrue);
+        expect(result.failure?.message, 'Transfer not found');
+        expect((result.failure! as ServerFailure).statusCode, 404);
+        expect(result.failure?.message, isNot(contains('DioException')));
       },
     );
   });

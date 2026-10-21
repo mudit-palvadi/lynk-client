@@ -103,6 +103,13 @@ class TransferRepositoryImpl implements TransferRepository {
         accessToken: accessToken,
       );
       return Result.success(result);
+    } on DioException catch (e) {
+      return Result.failure(
+        ServerFailure(
+          _errorMessage(e.response?.data, 'Failed fetching URLs'),
+          statusCode: e.response?.statusCode,
+        ),
+      );
     } catch (e) {
       return Result.failure(ServerFailure(e.toString()));
     }
@@ -119,6 +126,13 @@ class TransferRepositoryImpl implements TransferRepository {
         senderSecret: senderSecret,
       );
       return Result.success(null);
+    } on DioException catch (e) {
+      return Result.failure(
+        ServerFailure(
+          _errorMessage(e.response?.data, 'Failed cancelling transfer'),
+          statusCode: e.response?.statusCode,
+        ),
+      );
     } catch (e) {
       return Result.failure(ServerFailure(e.toString()));
     }

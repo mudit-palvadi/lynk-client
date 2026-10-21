@@ -148,6 +148,12 @@ class UploadNotifier extends _$UploadNotifier {
   }) async {
     if (state.selectedFiles.isEmpty) return;
 
+    // Snapshot the selection before the first await. `reset()` clears the
+    // selected files, and a cancel during the upload would otherwise record a
+    // transfer with no file names at all, which the history list cannot show.
+    final selectedFiles = List<PlatformFile>.from(state.selectedFiles);
+    final totalSize = state.totalSize;
+
     state = state.copyWith(
       phase: UploadPhase.uploading,
       currentFileIndex: 0,
@@ -323,11 +329,11 @@ class UploadNotifier extends _$UploadNotifier {
               RecentTransferRecordModel(
                 id: transfer.id,
                 type: RecentTransferType.sent,
-                fileNames: state.selectedFiles.map((f) => f.name).toList(),
-                totalSize: state.totalSize,
+                fileNames: selectedFiles.map((f) => f.name).toList(),
+                totalSize: totalSize,
                 timestamp: DateTime.now(),
                 status: 'completed',
-                filePaths: state.selectedFiles
+                filePaths: selectedFiles
                     .where((f) => f.path != null)
                     .map((f) => f.path!)
                     .toList(),
@@ -404,6 +410,12 @@ class UploadNotifier extends _$UploadNotifier {
   }) async {
     if (kIsWeb) return false;
 
+    // Snapshot the selection before the first await: the wait for a receiver
+    // can last a minute, and a cancel in that window would otherwise record a
+    // transfer with no file names.
+    final selectedFiles = List<PlatformFile>.from(state.selectedFiles);
+    final totalSize = state.totalSize;
+
     final factory = ref.read(p2pSessionFactoryProvider);
     final window = ref.read(p2pAutoFallbackDurationProvider);
     P2PSenderSession? session;
@@ -415,7 +427,7 @@ class UploadNotifier extends _$UploadNotifier {
       // Encrypt up-front so channel-open time is spent sending, not hashing.
       var totalEncrypted = 0;
       final encryptUseCase = ref.read(encryptFileUseCaseProvider);
-      for (final pFile in state.selectedFiles) {
+      for (final pFile in selectedFiles) {
         if (pFile.path == null) return false; // bytes-only pickers: use R2
         final encrypted = await encryptUseCase.execute(
           inputFile: File(pFile.path!),
@@ -459,11 +471,11 @@ class UploadNotifier extends _$UploadNotifier {
             RecentTransferRecordModel(
               id: sessionId,
               type: RecentTransferType.sent,
-              fileNames: state.selectedFiles.map((f) => f.name).toList(),
-              totalSize: state.totalSize,
+              fileNames: selectedFiles.map((f) => f.name).toList(),
+              totalSize: totalSize,
               timestamp: DateTime.now(),
               status: 'completed (p2p)',
-              filePaths: state.selectedFiles
+              filePaths: selectedFiles
                   .where((f) => f.path != null)
                   .map((f) => f.path!)
                   .toList(),

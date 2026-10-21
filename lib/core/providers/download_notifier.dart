@@ -12,8 +12,11 @@ import '../services/webrtc_peer.dart';
 import '../utils/file_name_sanitizer.dart';
 import 'download_state.dart';
 import 'transfer_providers.dart';
+import '../errors/failures.dart';
 import '../../features/file_receive/domain/usecases/decrypt_file_use_case.dart';
 import '../../features/file_transfer/domain/entities/file_item.dart';
+import '../../features/file_transfer/domain/entities/transfer.dart';
+import '../../features/file_transfer/domain/repositories/transfer_repository.dart';
 import '../../features/recent_transfers/data/models/recent_transfer_record_model.dart';
 import '../../features/recent_transfers/domain/entities/recent_transfer_record.dart';
 import '../../features/recent_transfers/presentation/providers/recent_transfers_notifier.dart';
@@ -51,6 +54,13 @@ class DownloadNotifier extends _$DownloadNotifier {
           phase: DownloadPhase.preview,
         );
 
+        // The files are often not on the server yet: the sender shows the QR
+        // code first and only uploads once the direct connection window has
+        // passed. Asking for the files then is answered with 409, which says
+        // nothing useful, so the preview leaves the list empty and the
+        // download flow fetches it when the sender is ready.
+        if (transfer.status != TransferStatus.ready) return;
+
         final urlResult = await repo.getDownloadUrls(
           transferId: transfer.id,
           accessToken: state.accessToken,
@@ -66,6 +76,112 @@ class DownloadNotifier extends _$DownloadNotifier {
         );
       },
     );
+  }
+
+  /// How long to wait for a sender whose files are not on the server yet.
+  ///
+  /// A sender shows the QR code before it uploads anything, and it keeps
+  /// waiting for a direct connection for a minute before it falls back to the
+  /// server. A receiver that arrives in that window is told the transfer is
+  /// not ready, which is a temporary state rather than a failure.
+  @visibleForTesting
+  Duration readyTimeout = const Duration(seconds: 120);
+
+  /// How often to ask whether the sender has finished uploading.
+  @visibleForTesting
+  Duration readyPollInterval = const Duration(seconds: 3);
+
+  /// Fetches the list of files to download.
+  ///
+  /// When the sender has not uploaded its files yet the server answers 409,
+  /// so the download waits for the sender instead of failing. Returns `null`
+  /// when the files cannot be fetched; the state then holds the failure and
+  /// the message to show.
+  Future<List<FileItem>?> _resolveDownloadFiles(
+    TransferRepository repo,
+    String transferId,
+    String accessToken,
+  ) async {
+    final result = await repo.getDownloadUrls(
+      transferId: transferId,
+      accessToken: accessToken,
+    );
+
+    if (result.isSuccess) return result.value!;
+
+    final failure = result.failure;
+    if (failure is ServerFailure && failure.statusCode == 409) {
+      return _waitForSenderToFinishUploading(repo, transferId, accessToken);
+    }
+
+    state = state.copyWith(
+      phase: DownloadPhase.failed,
+      errorMessage: failure?.message ?? 'Failed fetching URLs',
+    );
+    return null;
+  }
+
+  /// Waits for the sender to upload its files, then fetches the file list.
+  ///
+  /// The sender may still be waiting for a direct connection before it
+  /// starts uploading, so the wait is bounded and the screen says what is
+  /// happening. Returns `null` when the files could not be fetched; the
+  /// state then holds the failure and the message to show.
+  Future<List<FileItem>?> _waitForSenderToFinishUploading(
+    TransferRepository repo,
+    String transferId,
+    String accessToken,
+  ) async {
+    state = state.copyWith(phase: DownloadPhase.waiting);
+
+    final deadline = DateTime.now().add(readyTimeout);
+    while (DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(readyPollInterval);
+
+      final result = await repo.getTransferMetadata(
+        transferId,
+        accessToken: accessToken,
+      );
+      if (result.isFailure) {
+        state = state.copyWith(
+          phase: DownloadPhase.failed,
+          errorMessage: result.failure?.message ?? 'Failed reading transfer',
+        );
+        return null;
+      }
+
+      final transfer = result.value!;
+      if (transfer.status == TransferStatus.expired ||
+          transfer.status == TransferStatus.cancelled) {
+        state = state.copyWith(
+          phase: DownloadPhase.failed,
+          errorMessage: 'This transfer is no longer available.',
+        );
+        return null;
+      }
+      if (transfer.status != TransferStatus.ready) continue;
+
+      state = state.copyWith(transfer: transfer);
+      final urls = await repo.getDownloadUrls(
+        transferId: transfer.id,
+        accessToken: accessToken,
+      );
+      if (urls.isFailure) {
+        state = state.copyWith(
+          phase: DownloadPhase.failed,
+          errorMessage: urls.failure?.message ?? 'Failed fetching URLs',
+        );
+        return null;
+      }
+      return urls.value!;
+    }
+
+    state = state.copyWith(
+      phase: DownloadPhase.failed,
+      errorMessage:
+          'The sender is still uploading. Wait a moment and try again.',
+    );
+    return null;
   }
 
   Future<void> startDownload({String? aesKey}) async {
@@ -95,19 +211,13 @@ class DownloadNotifier extends _$DownloadNotifier {
 
     List<FileItem> downloadFiles = state.downloadFiles;
     if (downloadFiles.isEmpty) {
-      final urlResult = await repo.getDownloadUrls(
-        transferId: state.transfer!.id,
-        accessToken: state.accessToken,
+      final files = await _resolveDownloadFiles(
+        repo,
+        state.transfer!.id,
+        state.accessToken ?? '',
       );
-
-      if (urlResult.isFailure) {
-        state = state.copyWith(
-          phase: DownloadPhase.failed,
-          errorMessage: urlResult.failure?.message ?? 'Failed fetching URLs',
-        );
-        return;
-      }
-      downloadFiles = urlResult.value!;
+      if (files == null) return;
+      downloadFiles = files;
       state = state.copyWith(downloadFiles: downloadFiles);
     }
 

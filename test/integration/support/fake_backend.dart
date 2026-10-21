@@ -68,6 +68,10 @@ class FakeBackend {
       if (!_matches(request, 'x-lynk-access-token', transfer.accessToken)) {
         return _unauthorized();
       }
+      // The real service hands out download urls only once every file has
+      // been uploaded. Until then it answers 409, which is a temporary state
+      // rather than an error.
+      if (transfer.status != 'ready') return _notReady();
       return jsonResponse(200, _downloadUrls(transfer, request.body));
     }
 
@@ -261,6 +265,14 @@ class FakeBackend {
   ResponseBody _notFound() => ResponseBody.fromString(
     jsonEncode({'detail': 'not found'}),
     404,
+    headers: {
+      Headers.contentTypeHeader: [Headers.jsonContentType],
+    },
+  );
+
+  ResponseBody _notReady() => ResponseBody.fromString(
+    jsonEncode({'detail': 'Transfer is not ready'}),
+    409,
     headers: {
       Headers.contentTypeHeader: [Headers.jsonContentType],
     },

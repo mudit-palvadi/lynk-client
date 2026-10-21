@@ -94,6 +94,25 @@ class _DownloadProgressScreenState
                       ),
                     ),
                   ),
+                ] else if (state.phase == DownloadPhase.waiting) ...[
+                  const Expanded(
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 16),
+                          Text('The sender is still uploading...'),
+                          SizedBox(height: 8),
+                          Text(
+                            'This will start on its own once the sender is ready.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: AppTheme.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ] else if (state.phase == DownloadPhase.downloading) ...[
                   Expanded(
                     child: Column(

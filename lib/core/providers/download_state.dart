@@ -2,7 +2,19 @@ import 'package:equatable/equatable.dart';
 import '../../features/file_transfer/domain/entities/file_item.dart';
 import '../../features/file_transfer/domain/entities/transfer.dart';
 
-enum DownloadPhase { idle, preview, downloading, completed, failed, cancelled }
+enum DownloadPhase {
+  idle,
+  preview,
+
+  /// The sender has not uploaded its files yet. This is a temporary state,
+  /// not a failure: the sender may still be waiting for a direct connection
+  /// before it starts uploading.
+  waiting,
+  downloading,
+  completed,
+  failed,
+  cancelled,
+}
 
 class DownloadState extends Equatable {
   final Transfer? transfer;

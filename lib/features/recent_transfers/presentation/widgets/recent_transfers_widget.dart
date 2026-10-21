@@ -10,6 +10,19 @@ import '../../../file_transfer/presentation/providers/upload_notifier.dart';
 import '../../domain/entities/recent_transfer_record.dart';
 import '../providers/recent_transfers_notifier.dart';
 
+/// Builds the title shown on a recent-transfer card.
+///
+/// A transfer that was cancelled or interrupted can be recorded with no file
+/// names at all, so the first name is never read without a check. Without that
+/// check a single empty record takes the whole list down: the card is built
+/// inside a `ListView`, and one failed item is drawn in place while its
+/// neighbours keep rendering.
+String recentTransferTitle(List<String> fileNames) {
+  if (fileNames.isEmpty) return 'No files';
+  if (fileNames.length == 1) return fileNames.first;
+  return '${fileNames.first} + ${fileNames.length - 1} files';
+}
+
 class RecentTransfersWidget extends ConsumerWidget {
   const RecentTransfersWidget({super.key});
 
@@ -79,9 +92,7 @@ class RecentTransfersWidget extends ConsumerWidget {
     RecentTransferRecord item,
   ) {
     final isSent = item.type == RecentTransferType.sent;
-    final title = item.fileNames.length == 1
-        ? item.fileNames.first
-        : '${item.fileNames.first} + ${item.fileNames.length - 1} files';
+    final title = recentTransferTitle(item.fileNames);
 
     return Container(
       padding: const EdgeInsets.all(12),

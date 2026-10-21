@@ -13,6 +13,8 @@ import 'package:client/features/file_transfer/domain/repositories/transfer_repos
 import 'package:client/features/file_transfer/presentation/providers/upload_notifier.dart';
 import 'package:client/features/file_transfer/presentation/providers/upload_state.dart';
 import 'package:client/features/file_receive/domain/repositories/receiver_repository.dart';
+import 'package:client/features/recent_transfers/domain/entities/recent_transfer_record.dart';
+import 'package:client/features/recent_transfers/presentation/providers/recent_transfers_notifier.dart';
 import 'package:client/features/onboarding/presentation/providers/onboarding_provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -127,6 +129,10 @@ class FakeSenderSession implements P2PSenderSession {
   bool waitCancelled = false;
   bool failSend = false;
 
+  /// Called at the start of [sendFiles], so a test can change the app state
+  /// while the transfer is in flight.
+  void Function()? onSend;
+
   final _cancelled = Completer<void>();
 
   @override
@@ -156,6 +162,7 @@ class FakeSenderSession implements P2PSenderSession {
   }) async {
     sendCalls++;
     lastFiles = files;
+    onSend?.call();
     if (failSend) {
       throw const SocketException('channel died mid-transfer');
     }
@@ -411,4 +418,59 @@ void main() {
       },
     );
   });
+
+  group('history records the files that were sent', () {
+    setUp(() => fakeSession = FakeSenderSession());
+
+    test(
+      'a selection cleared while the transfer is running still records the '
+      'original file names',
+      () async {
+        // A transfer that finishes after the selection was cleared used to be
+        // written with no file names at all, and the history list could not
+        // show such a record - one bad entry took the whole list down.
+        final container = await makeContainer();
+        final notifier = container.read(uploadProvider.notifier);
+        notifier.setTransferMode(TransferMode.p2p);
+
+        final src = tempFileOf('keep.bin', 4 * 1024);
+        addTearDown(src.deleteSync);
+        notifier.setFilesForTesting([
+          PlatformFile(name: 'keep.bin', size: src.lengthSync(), path: src.path),
+        ]);
+
+        // The selection is emptied while the bytes are already going out.
+        fakeSession.onSend = () => notifier.setFilesForTesting([]);
+
+        final ok = await notifier.runP2PSession(
+          sessionId: 'room-snap',
+          aesKey: 'k' * 32,
+        );
+        expect(ok, isTrue);
+
+        final records = await _waitForRecord(container, 'room-snap');
+        final mine = records.firstWhere((r) => r.id == 'room-snap');
+        expect(mine.fileNames, ['keep.bin']);
+        // The size is the encrypted one (padding plus the IV), and it has to
+        // be the size of the files that were sent, not the size of a
+        // selection that no longer exists.
+        expect(mine.totalSize, ((4 * 1024 ~/ 16) + 1) * 16 + 16);
+      },
+    );
+  });
+}
+
+/// The history record is written without being awaited, so a test that reads
+/// it straight away can still see the previous list. The preference store is
+/// shared by every test in this file, so the record is looked up by id.
+Future<List<RecentTransferRecord>> _waitForRecord(
+  ProviderContainer container,
+  String id,
+) async {
+  for (var attempt = 0; attempt < 40; attempt++) {
+    final records = await container.read(recentTransfersProvider.future);
+    if (records.any((r) => r.id == id)) return records;
+    await Future<void>.delayed(const Duration(milliseconds: 25));
+  }
+  return container.read(recentTransfersProvider.future);
 }

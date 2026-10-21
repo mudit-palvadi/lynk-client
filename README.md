@@ -1,4 +1,4 @@
-# Lynk — Cross-Device File Transfer App (Client)
+# Lynk
 
 <p align="center">
   <img src="https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=flutter&logoColor=white" alt="Flutter" />
@@ -7,180 +7,148 @@
   <img src="https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge" alt="License" />
 </p>
 
-Lynk is a login-free file transfer app. A Flutter client (Android) and the website in `web/` can both send and receive. There is no iOS app distribution — iOS users use the website. Files are encrypted on the device with AES-256-CBC before they leave. The plaintext key stays in the QR link fragment. The server stores ciphertext plus the filename and size.
+Lynk sends files straight from one device to another. No account, no sign-up,
+no password. Open the app, pick your files, and share a QR code.
 
-Files are uploaded directly to **Cloudflare R2** via short-lived presigned URLs, and session/transfer metadata is stored in **Redis** with strict TTL-based expiration.
+The files are encrypted on the device that sends them. The key that unlocks
+them travels inside the QR code and never reaches the server, so what is
+stored is unreadable without the code.
 
----
-
-## Features
-
-* **Zero Login/Sign-up:** Open the app, pick your files, and start transferring instantly.
-* **Client-side encryption:** AES-256-CBC with a prepended IV. The fragment key is a 32-character string used as raw UTF-8, from `EntropyGenerator.generateKey()` on the app and from 16 CSPRNG bytes on the website. The file ciphertext has no authentication tag.
-* **Multi-File Support:** Select, preview, and remove multiple files in a single transfer.
-* **Two transports:** WebRTC data channel first (the mobile sender waits up to 60 seconds; the receiver and the website use 8 seconds), then Cloudflare R2 through presigned URLs. File bytes are not proxied through the API. The server rejects a file over 50 MB even when the app UI offers a 200 MB P2P unlock.
-* **Secure QR Flows:**
-  1. **Sender QR Flow (Primary):** Upload files $\rightarrow$ generate QR code $\rightarrow$ scan to download.
-  2. **Receiver QR Flow:** Receiver generates session QR $\rightarrow$ Sender scans $\rightarrow$ Sender uploads $\rightarrow$ Receiver downloads.
-* **Byte-Weighted Progress:** Real-time upload and download progress accurately calculated using file size weights.
-* **Dark UI:** Slate-indigo dark theme. The fuller visual pass (glass, motion, type) is still Phase 5 and is not shipped.
+The Android app lives in this folder. The website that pairs with it lives in
+`web/`. There is no iOS app — iOS users use the website.
 
 ---
 
-## 🛠️ Architecture & Folder Structure
+## What it does
 
-The client codebase is structured following **Clean Architecture** principles grouped by **Feature** to enforce separation of concerns, testability, and scalability.
+* **No account.** Open the app and start sending.
+* **Encrypted on the device.** Files are scrambled before they leave the phone,
+  and only the person holding the QR code can read them.
+* **Send several files at once.** Pick them, review the list, remove anything
+  you changed your mind about.
+* **Two ways to move the bytes.** Two devices talk directly to each other when
+  they can, and fall back to Cloudflare storage when they cannot.
+* **QR codes do the pairing.** Either you show a code and the other person
+  scans it, or the other person shows one and you scan it.
+* **Honest progress.** The progress bar follows the bytes actually sent.
+* **Dark interface.** A calm slate-and-indigo theme. A fuller visual pass is
+  still planned.
+
+---
+
+## Size limits
+
+| | Free | Raised limit |
+|---|---|---|
+| App, cloud storage | 15 MB | 30 MB |
+| App, device to device | 20 MB | 50 MB |
+| Website | 10 MB | 10 MB |
+
+The app can raise a limit for you on request. The server refuses any single
+file over 50 MB, so every size the app offers is one it can really send.
+
+---
+
+## Privacy
+
+* Files are encrypted on the device that sends them. The key stays on the
+  phone and travels only inside the QR code.
+* The server keeps encrypted files, plus the name and size of each file. It
+  cannot read the contents.
+* The app and the website share the same transfers, so you can send from one
+  and receive on the other.
+
+---
+
+## Project layout
 
 ```text
 lib/
-├── core/
-│   ├── theme/           # App styles, typography, and premium dark mode theme
-│   ├── network/         # ApiClient (Dio client with timeout and log interceptor)
-│   ├── errors/          # Custom Failure classes & Result monad wrapper
-│   └── utils/           # Shared helpers (e.g., FileSizeFormatter)
-│
+├── core/                  # Theme, networking, shared helpers
 └── features/
-    ├── file_transfer/   # Sender Flow: File selection, uploading, & QR generation
-    │   ├── domain/      # Entities and abstract repository contracts
-    │   ├── data/        # JSON Models, DataSources, and Repository implementations
-    │   └── presentation/# Riverpod controllers, widgets, and screen layouts
-    │
-    └── file_receive/    # Receiver Flow: QR scanning & file downloading
-        ├── domain/      # Entities and abstract repository contracts
-        ├── data/        # JSON Models, DataSources, and Repository implementations
-        └── presentation/# Riverpod controllers, widgets, and screen layouts
+    ├── file_transfer/     # Sending: picking files, uploading, showing the code
+    └── file_receive/      # Receiving: scanning the code, downloading
 ```
 
-### Clean Architecture Rules:
-1. **Domain Layer:** Independent of external frameworks, libraries, and the Data layer. It holds the pure business logic (**Entities** and **Repository contracts**).
-2. **Data Layer:** Handles data retrieval and serialization. It implements repository contracts, maps raw responses to entities, and connects to remote API sources.
-3. **Presentation Layer:** Manages application state via **Riverpod Notifiers** and builds responsive, beautiful user interfaces.
+Each feature is split into three layers: the rules, the data that comes and
+goes, and the screens the user sees.
 
 ---
 
-## Tech Stack & Dependencies
+## Tech stack
 
-* **State Management:** `flutter_riverpod` (Simple, reactive state architecture)
-* **HTTP Client:** `dio` (With custom timeouts, logs, and upload/download progress streaming)
-* **File Picker:** `file_picker` (For multi-file selection)
-* **QR Utilities:** `qr_flutter` (QR code generation) & `mobile_scanner` (Fast camera-based QR scanning)
-* **File Opener:** `open_filex` (To open downloaded files on device)
-* **Equality Helper:** `equatable` (For type-safe equality value checking without boilerplates)
+* Flutter and Dart
+* Riverpod, for state
+* Dio, for networking
+* file_picker, for choosing files
+* qr_flutter and mobile_scanner, for the codes
+* open_filex, for opening a finished download
 
 ---
 
-## 🏁 Getting Started
+## Getting started
 
-### Prerequisites
-* Flutter SDK (version `^3.12.2` or later)
-* Android SDK or Xcode (for iOS development)
+### What you need
 
-### Local Configuration
-1. Clone the repository and navigate to the client folder.
-2. Create a `.env` file in the root of the client directory:
-   ```env
-   API_BASE_URL=http://localhost:8000/api/v1
-   ```
-   *(Note: For Android Emulators, use `http://10.0.2.2:8000/api/v1` to point to your local machine backend).*
+* Flutter 3.44.6 or later
+* The Android SDK, or Xcode if you are building for a device that is not
+  Android
 
-### Commands
-* **Fetch Dependencies:**
-  ```bash
-  flutter pub get
-  ```
-* **Run Linter:**
-  ```bash
-  flutter analyze
-  ```
-* **Run Tests:**
-  ```bash
-  flutter test
-  ```
-* **Run the Deep-Link Suites:**
+### Configure
 
-  Three layers: parser units, end-to-end behaviour (cold start, warm start, onboarding gate) and the manifest/assetlinks contract. See `docs/ARCHITECTURE.md` §7.1 in the repo root `docs/` for the full description.
-  ```bash
-  flutter test test/core/routing/ test/platform/          # both deep-link suites
-  flutter test test/core/routing/deep_link_behavior_test.dart
-  ```
-  The contract suite reads `../web/.well-known/assetlinks.json`; it skips when the sibling `web/` checkout is absent (CI checks out one repo at a time) and fails only when the file is present and the contract is wrong.
-* **Run the File-Name Suites:**
-  ```bash
-  flutter test test/core/utils/file_name_sanitizer_test.dart test/integration/download_flow_test.dart
-  ```
-* **Run the Release-Hardening Suite:**
-  ```bash
-  flutter test test/platform/release_hardening_test.dart
-  ```
-  It asserts the release manifest forbids cleartext, the AdMob app id is a build-time placeholder rather than Google's sample id, the release build type shrinks and obfuscates, and the ad-bypass key is not shipped.
-* **Run the CI-Contract Suite:**
-  ```bash
-  flutter test test/platform/ci_pipeline_test.dart
-  ```
-  It parses `.github/workflows/ci.yml` and asserts the pipeline really gates: the triggers, the concurrency cancellation, no `continue-on-error`, the read-only permission, the pinned tool versions, and that the workflow creates the `.env` the asset bundle needs. A CI file that silently stops running is worse than no CI file.
-* **Run App (Local Development):**
-  ```bash
-  flutter run
-  ```
+Clone the repository and open the `client` folder. Create a `.env` file next
+to `pubspec.yaml`:
 
-### Continuous Integration
+```env
+API_BASE_URL=http://localhost:8000/api/v1
+```
 
-`.github/workflows/ci.yml` runs on every push to `main`, on every pull request,
-and on demand. It creates the `.env` the asset bundle needs (`.env` is listed
-under `assets:` in `pubspec.yaml` and is gitignored, so the bundle fails
-without it - its content is public configuration only, because it ships inside
-the APK), then runs `flutter pub get`, `flutter analyze` and `flutter test`
-with Flutter pinned to `3.44.6`. A newer commit cancels an in-flight run, and
-no step may use `continue-on-error`.
+On an Android emulator, use `http://10.0.2.2:8000/api/v1` to reach a backend
+running on your computer.
 
-The release build itself runs through Codemagic (`codemagic.yaml`, manual
-trigger) and is separate from this pipeline.
-
-### Release Builds
-
-A release build refuses to run without an AdMob configuration, so a missing id
-can never reach Play.
+### Run it
 
 ```bash
-# the AdMob application id and the four ad unit ids
-export ADMOB_APP_ID=ca-app-pub-xxxxxxxxxxxxxxxx~yyyyyyyyyyyy
-export ORG_GRADLE_PROJECT_admobAppId=$ADMOB_APP_ID
+flutter pub get
+flutter run
+```
+
+### Check it
+
+```bash
+flutter analyze
+flutter test
+```
+
+The tests cover routing and deep links, the file-name rules, the release
+configuration, and the CI pipeline. To run one part:
+
+```bash
+flutter test test/core/routing/    # routing and deep links
+flutter test test/platform/        # release and CI configuration
+```
+
+### Continuous integration
+
+`.github/workflows/ci.yml` runs on every push to `main`, on every pull
+request, and on demand. It checks the code and runs the tests. A newer commit
+cancels a run that is still going, and a failing check blocks the merge.
+
+Releases are built separately by Codemagic (`codemagic.yaml`, manual trigger).
+
+### Build a release
+
+```bash
 flutter build appbundle --release --obfuscate --split-debug-info=build/symbols
 ```
 
-* `ORG_GRADLE_PROJECT_admobAppId` (or `-PadmobAppId=`, or `ADMOB_APP_ID`)
-  fills the `${admobAppId}` placeholder in the manifest. Without it every
-  release Gradle task fails with a `GradleException`.
-* Google's **public test id** (`ca-app-pub-3940256099942544~3347511713`) is
-  refused too, unless the build is told it was deliberate:
-  `ALLOW_TEST_ADMOB_IDS=true` (or
-  `ORG_GRADLE_PROJECT_allowTestAdMobIds=true`). The build then prints a
-  warning: the app serves Google's test ads and earns nothing. This is how
-  the release pipeline builds before an AdMob account exists.
-* The four ad unit ids (`ADMOB_BANNER_ID`, `ADMOB_INTERSTITIAL_ID`,
-  `ADMOB_REWARDED_ID`, `ADMOB_REWARDED_INTERSTITIAL_ID`) are read from `.env` at
-  runtime. When any of them is missing, `AdService` reports that there are no
-  real ad units and no ad is requested, rather than silently showing test ads.
-* `--obfuscate` plus `--split-debug-info` keeps the Dart symbols out of the
-  bundle. Upload `build/symbols` to Play so crash reports stay readable.
-* Cleartext traffic is off in the release manifest. Only the debug variant
-  allows it, for a plaintext local backend.
-* The ad bypass is a **compile-time define**, not a value in `.env`:
-  `flutter run --dart-define=LYNK_DEBUG_BYPASS_KEY=<key>` plus seven taps on
-  the version label. It is ignored in a release build, and the key never
-  reaches a shipped APK.
-* `.env` **is** bundled as an asset, so it ships inside the APK. It holds
-  public configuration only (the API base URL, the privacy-policy URL, the
-  deep-link base URL, the AdMob ids). Never put a secret in it — that is
-  exactly how the old bypass key ended up in every user's hands.
+The release build shrinks and obfuscates the app, so keep `build/symbols` and
+upload it to Play — without it, crash reports cannot be read.
+
+`docs/release-process.md` lists everything the release pipeline needs.
 
 ---
 
-## Security & Performance Guidelines
+## License
 
-* **Zero-Knowledge Encryption:** Cryptographic keys are generated on-device and shared only via the QR code. Files remain fully encrypted in transit and at rest on R2 storage.
-* **Secure Keys:** Never store Cloudflare R2 bucket credentials or private secrets on the client. All upload and download URLs are presigned and short-lived.
-* **Untrusted File Names:** A file name comes from the sender, so it is never used as a path. `FileNameSanitizer.safeFileName()` (`lib/core/utils/file_name_sanitizer.dart`) takes the last path segment, strips control characters, and trims to 255 UTF-8 bytes at every write site (cloud download, P2P download, P2P temp file, upload). The backend validates the same rules and answers `400` for a bad name.
-* **Hardened release build:** cleartext traffic is off outside the debug variant, the release build type is minified and resource-shrunk, the Dart code is obfuscated with the symbols split out, the AdMob application id is injected at build time and Google's sample id is rejected by a Gradle gate, and no client-side bypass key is compiled into a release APK. See "Release Builds" above and `test/platform/release_hardening_test.dart`.
-* **Low Memory Footprint:** Files are streamed during upload (`File.openRead()`) and download instead of being loaded fully into memory.
-* **Abuse Controls:** File counts, total sizes, and rates are authoritatively checked on the backend and mapped to friendly, descriptive error widgets on the client.
+MIT

@@ -38,14 +38,18 @@ The Android app lives in this folder. The website that pairs with it lives in
 
 ## Size limits
 
-| | Free | Raised limit |
-|---|---|---|
-| App, cloud storage | 15 MB | 30 MB |
-| App, device to device | 20 MB | 50 MB |
-| Website | 10 MB | 10 MB |
+| App | Cloud (Free) | Cloud (Raised) | P2P (Free) | P2P (Raised) |
+|---|---|---|---|---|
+| Lynk for Android | 15 MB | 30 MB | 20 MB | 50 MB |
+| Website | 10 MB | 10 MB | 10 MB | 10 MB |
 
-The app can raise a limit for you on request. The server refuses any single
-file over 50 MB, so every size the app offers is one it can really send.
+*Cloud* means the file is stored on the server for a moment and the other
+device picks it up. *P2P* means the two devices send it to each other
+directly, with no storage in between.
+
+The app can raise a limit for you on request; the website always works at the
+free limit. The server refuses any single file over 50 MB, so every size the
+app offers is one it can really send.
 
 ---
 
@@ -64,25 +68,59 @@ file over 50 MB, so every size the app offers is one it can really send.
 
 ```text
 lib/
-├── core/                  # Theme, networking, shared helpers
+├── core/                     # Shared building blocks
+│   ├── theme/                 # Colors, typography, spacing
+│   ├── network/               # The HTTP client and its settings
+│   ├── errors/                # Failure types and a Result wrapper
+│   ├── providers/             # Transfer, download and receive state
+│   ├── routing/               # The screens, their URLs and deep links
+│   ├── services/              # Upload, download, encryption, peer-to-peer
+│   ├── utils/                 # Formatting, file names, links, permissions
+│   └── widgets/               # Small shared pieces of UI
 └── features/
-    ├── file_transfer/     # Sending: picking files, uploading, showing the code
-    └── file_receive/      # Receiving: scanning the code, downloading
+    ├── home/                  # The home screen
+    ├── onboarding/            # The intro screens
+    ├── file_transfer/         # Sending: pick, encrypt, upload, show the code
+    ├── file_receive/          # Receiving: scan, download, decrypt
+    └── recent_transfers/      # The history list
 ```
 
-Each feature is split into three layers: the rules, the data that comes and
-goes, and the screens the user sees.
+Each feature is split into three layers:
+
+* **domain/** — the rules. Plain Dart, no widgets and no network. It defines
+  what a transfer is and what may be done with one.
+* **data/** — the plumbing. It turns the API's replies into the domain's
+  objects and back, and implements the interfaces the domain declares.
+* **presentation/** — what the user sees and touches: the screens, the
+  widgets, and the providers that hold the state.
+
+A screen never talks to the network itself. It asks a use case, the use case
+asks the domain, and the data layer does the talking.
 
 ---
 
 ## Tech stack
 
-* Flutter and Dart
-* Riverpod, for state
-* Dio, for networking
-* file_picker, for choosing files
-* qr_flutter and mobile_scanner, for the codes
-* open_filex, for opening a finished download
+* **State management:** `flutter_riverpod` (the providers hold the state, and
+  `riverpod_generator` writes the repetitive parts)
+* **Routing:** `go_router` (one URL per screen, so a link can open the right
+  one)
+* **HTTP client:** `dio` (custom timeouts, and upload and download progress)
+* **File picking:** `file_picker` (native file and directory selection)
+* **QR generation:** `qr_flutter` (draws the code from the data)
+* **QR scanning:** `mobile_scanner` (camera-based scanning)
+* **Encryption:** `cryptography` and `encrypt` (file encryption and key
+  wrapping)
+* **Peer to peer:** `flutter_webrtc` and `web_socket_channel` (the direct
+  connection, and the short chat that introduces the two devices)
+* **On the device:** `shared_preferences` and `path_provider` (settings,
+  history, and where the files live)
+* **Opening a file:** `open_filex` (opens a finished download in the system
+  viewer)
+* **Sharing:** `share_plus` and `url_launcher` (send a link out, open one)
+* **Configuration:** `flutter_dotenv` (public settings read from a `.env`
+  file)
+* **Identifiers:** `uuid`
 
 ---
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/services/ad_service.dart';
+import '../../../../core/services/transfer_ad_gate.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/file_size_formatter.dart';
 import '../../../../core/widgets/ad_banner_widget.dart';
@@ -214,8 +215,9 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () {
-                          AdService.showRewardedAd(
-                            onRewardGranted: () {
+                          TransferAdGate().start(
+                            p2p: false,
+                            onAllowed: () {
                               notifier.setTransferMode(TransferMode.cloud);
                               notifier.startUpload(
                                 attachToSessionId: widget.attachToSessionId,
@@ -236,8 +238,9 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () {
-                          AdService.showRewardedInterstitialAd(
-                            onRewardGranted: () {
+                          TransferAdGate().start(
+                            p2p: true,
+                            onAllowed: () {
                               notifier.setTransferMode(TransferMode.p2p);
                               notifier.startUpload(
                                 attachToSessionId: widget.attachToSessionId,

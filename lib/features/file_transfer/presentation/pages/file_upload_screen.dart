@@ -214,7 +214,7 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () {
-                          AdService.showRewardedInterstitialAd(
+                          AdService.showRewardedAd(
                             onRewardGranted: () {
                               notifier.setTransferMode(TransferMode.cloud);
                               notifier.startUpload(
@@ -236,7 +236,7 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () {
-                          AdService.showRewardedAd(
+                          AdService.showRewardedInterstitialAd(
                             onRewardGranted: () {
                               notifier.setTransferMode(TransferMode.p2p);
                               notifier.startUpload(

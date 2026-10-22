@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/providers/transfer_providers.dart';
-import '../../../../core/services/ad_service.dart';
+import '../../../../core/services/unlock_credits.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/app_links.dart';
 import '../providers/upload_notifier.dart';
@@ -40,24 +40,25 @@ class SendQrHelper {
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
-  /// Extends the session time to 30 minutes (1800s) after watching a Rewarded Ad.
+  /// Extends the session time to 30 minutes (1800s).
+  ///
+  /// The first extension spends a free credit; once those are gone a Rewarded
+  /// Ad is asked for before the session grows.
   static Future<void> extendSessionTimeWithAd({
     required BuildContext context,
     required ValueNotifier<int> secondsNotifier,
   }) async {
-    await AdService.showRewardedAd(
-      onRewardGranted: () {
-        secondsNotifier.value = 1800;
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Session extended to 30 minutes!'),
-              backgroundColor: AppTheme.secondary,
-            ),
-          );
-        }
-      },
-    );
+    await UnlockCredits().spendExtend(() {
+      secondsNotifier.value = 1800;
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Session extended to 30 minutes!'),
+            backgroundColor: AppTheme.secondary,
+          ),
+        );
+      }
+    });
   }
 
   /// Cancels transfer session and navigates home.

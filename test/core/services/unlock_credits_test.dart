@@ -69,4 +69,40 @@ void main() {
       expect(await AdGate().sizeCredits(), 0);
     });
   });
+
+  group('UnlockCredits extension', () {
+    test('the first extension shows the ad and keeps one credit', () async {
+      final h = build();
+      final didShow =
+          await h.credits.spendExtend(() => h.unlocked.add('extend'));
+
+      expect(didShow, isTrue);
+      expect(h.shown, hasLength(1));
+      expect(await AdGate().extendCredits(), 1);
+    });
+
+    test('the second extension skips the ad', () async {
+      final h = build();
+      await h.credits.spendExtend(() => h.unlocked.add('extend'));
+      final didShow =
+          await h.credits.spendExtend(() => h.unlocked.add('extend'));
+
+      expect(didShow, isFalse);
+      expect(h.shown, hasLength(1));
+      expect(await AdGate().extendCredits(), 0);
+    });
+
+    test('a size credit is not an extension credit', () async {
+      final h = build();
+      await h.credits.spendSize(() => h.unlocked.add('size'));
+
+      final didShow =
+          await h.credits.spendExtend(() => h.unlocked.add('extend'));
+
+      expect(didShow, isTrue);
+      expect(h.shown, hasLength(2));
+      expect(await AdGate().sizeCredits(), 1);
+      expect(await AdGate().extendCredits(), 1);
+    });
+  });
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/services/ad_service.dart';
+import '../../../../core/services/post_send_ad.dart';
 import '../../../../core/services/transfer_ad_gate.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/file_size_formatter.dart';
@@ -30,7 +31,7 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
     final uploadState = ref.watch(uploadProvider);
     final notifier = ref.read(uploadProvider.notifier);
 
-    ref.listen<UploadState>(uploadProvider, (previous, next) {
+    ref.listen<UploadState>(uploadProvider, (previous, next) async {
       // A refused pick never clears the staged files, so its message is a
       // transient snackbar over the selection view rather than the full-screen
       // error page.
@@ -61,6 +62,10 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
       }
       if (next.phase == UploadPhase.completed && next.transfer != null) {
         final key = next.aesKey ?? '';
+        // The post-send interstitial opens the fifteen-minute window that
+        // skips every automatic ad, so the next send goes straight through.
+        await PostSendAd().run();
+        if (!context.mounted) return;
         if (widget.attachToSessionId != null &&
             widget.attachToSessionId!.isNotEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(

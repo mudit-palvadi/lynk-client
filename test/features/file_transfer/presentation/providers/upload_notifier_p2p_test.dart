@@ -213,6 +213,7 @@ void main() {
           required signalingUrl,
           required sessionId,
           String? accessToken,
+          String? aesKey,
           required onFallbackToCloud,
         }) async {
           return fakeSession;

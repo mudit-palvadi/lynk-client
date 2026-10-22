@@ -32,6 +32,7 @@ typedef P2PSenderSessionFactory =
       required Uri signalingUrl,
       required String sessionId,
       String? accessToken,
+      String? aesKey,
       required void Function() onFallbackToCloud,
     });
 
@@ -480,6 +481,7 @@ class UploadNotifier extends _$UploadNotifier {
         signalingUrl: ConfigService.signalingUri(sessionId),
         sessionId: sessionId,
         accessToken: state.transfer?.accessToken,
+        aesKey: aesKey,
         onFallbackToCloud: () {},
       );
       _activeSession = session;

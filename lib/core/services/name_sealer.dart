@@ -1,0 +1,59 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:encrypt/encrypt.dart' as enc;
+
+/// Seals a file name for the version-2 data-channel header (#32).
+///
+/// The name used to travel in clear text in the `hdr` / `eof` text frames, so
+/// anyone holding the DataChannel saw it without the transfer key. It is now
+/// encrypted with the same AES-256-CBC key as the payload (16-byte random IV
+/// prepended), then base64 encoded so it can live inside the JSON frame.
+///
+/// The key is sanitised exactly like `EncryptFileUseCase` and the web's
+/// `sanitizeKey`, so a name sealed on either side opens on the other.
+/// Everything here is synchronous: the receive path is a sync callback.
+class NameSealer {
+  const NameSealer._();
+
+  /// Returns the base64 token for [name], or `null` when [aesKey] is empty.
+  static String? seal(String name, String? aesKey) {
+    if (aesKey == null || aesKey.isEmpty) return null;
+    final iv = enc.IV.fromSecureRandom(16);
+    final sealed = _encrypter(aesKey).encryptBytes(utf8.encode(name), iv: iv);
+    final builder = BytesBuilder(copy: false)
+      ..add(iv.bytes)
+      ..add(sealed.bytes);
+    return base64Encode(builder.takeBytes());
+  }
+
+  /// Opens a token produced by [seal] (or by the web's `sealName`); `null` when
+  /// the token is malformed or sealed with a different key.
+  static String? open(String token, String? aesKey) {
+    if (aesKey == null || aesKey.isEmpty) return null;
+    try {
+      final packed = base64Decode(token);
+      if (packed.length <= 16) return null;
+      final iv = enc.IV(Uint8List.sublistView(packed, 0, 16));
+      final body = enc.Encrypted(Uint8List.sublistView(packed, 16));
+      return _encrypter(aesKey).decrypt(body, iv: iv);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static enc.Encrypter _encrypter(String aesKey) => enc.Encrypter(
+    enc.AES(
+      enc.Key.fromUtf8(_sanitizeKey(aesKey)),
+      mode: enc.AESMode.cbc,
+      padding: 'PKCS7',
+    ),
+  );
+
+  static String _sanitizeKey(String key) {
+    final clean = key.trim();
+    if (clean.length == 32) return clean;
+    if (clean.length > 32) return clean.substring(0, 32);
+    return clean.padRight(32, '0');
+  }
+}

@@ -9,6 +9,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'chunk_sender.dart';
 import 'ice_ladder.dart';
+import 'name_sealer.dart';
 import 'signaling_channel.dart';
 import 'transfer_framer.dart';
 import 'webrtc_peer.dart';
@@ -279,14 +280,21 @@ class P2PFileSession implements P2PSenderSession {
   final Completer<void> _transferDone = Completer<void>();
   final Completer<void> _waitCancelled = Completer<void>();
 
+  /// The transfer key, when this side holds it. Used to seal the file name in
+  /// the data-channel header instead of sending it in clear text (#32).
+  final String? aesKey;
+
+  final Completer<void> _peerHello = Completer<void>();
+
   File? _currentInboundFile;
   RandomAccessFile? _currentSink;
   String? _currentName;
+  String? _currentToken;
   int _currentExpected = 0;
   int _currentWritten = 0;
   Directory? _tempDir;
 
-  P2PFileSession._(this.signaling, this.peer) {
+  P2PFileSession._(this.signaling, this.peer, this.aesKey) {
     coordinator = WebrtcPeerCoordinator(actions: peer);
   }
 
@@ -295,6 +303,7 @@ class P2PFileSession implements P2PSenderSession {
     required PeerRole role,
     required String sessionId,
     String? accessToken,
+    String? aesKey,
     void Function()? onFallbackToCloud,
   }) async {
     final socket = WebSocketChannel.connect(signalingUrl);
@@ -304,7 +313,7 @@ class P2PFileSession implements P2PSenderSession {
       await signaling.sendAuth(accessToken);
     }
     final peer = FlutterWebrtcPeerActions(signaling: signaling);
-    final session = P2PFileSession._(signaling, peer)
+    final session = P2PFileSession._(signaling, peer, aesKey)
       ..onFallbackToCloud = onFallbackToCloud;
 
     final turn = await fetchTurnCredentials(sessionId);
@@ -318,7 +327,17 @@ class P2PFileSession implements P2PSenderSession {
     await peer.init(
       role: role,
       iceServers: iceServers,
-      onDataChannelOpen: (_) => session.coordinator.notifyConnected(),
+      onDataChannelOpen: (_) {
+        if (role == PeerRole.receiver) {
+          // A sender that sees this seals the file name in the header (#32).
+          unawaited(
+            session.peer
+                .sendText(TransferFramer.encodeHello().text!)
+                .catchError((Object _) {}),
+          );
+        }
+        session.coordinator.notifyConnected();
+      },
       onBinaryMessage: session._onBinary,
       onTextMessage: session._onText,
       onLocalCandidate: (candidate) => signaling.send(
@@ -355,12 +374,14 @@ class P2PFileSession implements P2PSenderSession {
     required Uri signalingUrl,
     required String sessionId,
     String? accessToken,
+    String? aesKey,
     required void Function() onFallbackToCloud,
   }) => connect(
     signalingUrl: signalingUrl,
     role: PeerRole.sender,
     sessionId: sessionId,
     accessToken: accessToken,
+    aesKey: aesKey,
     onFallbackToCloud: onFallbackToCloud,
   );
 
@@ -405,6 +426,18 @@ class P2PFileSession implements P2PSenderSession {
       throw StateError('DataChannel is not open');
     }
     final abort = shouldAbort;
+    // The receiver advertises that it can open a sealed name with a `hi`
+    // frame. A peer that never sends one is an older build, so its file name
+    // stays in clear text - that is the only way it can still receive (#32).
+    var peerSealsNames = false;
+    if (aesKey != null && aesKey!.isNotEmpty) {
+      try {
+        await _peerHello.future.timeout(const Duration(seconds: 2));
+        peerSealsNames = true;
+      } on TimeoutException {
+        peerSealsNames = false;
+      }
+    }
     var cumulative = 0;
     for (final file in encryptedFiles) {
       if (abort != null && abort()) {
@@ -412,9 +445,10 @@ class P2PFileSession implements P2PSenderSession {
       }
       final name = file.path.split(Platform.pathSeparator).last;
       final size = await file.length();
+      final token = peerSealsNames ? NameSealer.seal(name, aesKey) : null;
       await peer.sendText(
         TransferFramer.encodeHeader(
-          FramedFileMeta(name: name, size: size),
+          FramedFileMeta(name: name, size: size, token: token),
         ).text!,
       );
       final sender = ChunkSender(
@@ -428,7 +462,9 @@ class P2PFileSession implements P2PSenderSession {
       }
       cumulative += size;
       await peer.sendText(
-        TransferFramer.encodeEof(FramedFileMeta(name: name, size: 0)).text!,
+        TransferFramer.encodeEof(
+          FramedFileMeta(name: name, size: 0, token: token),
+        ).text!,
       );
     }
     await peer.sendText(TransferFramer.encodeDone().text!);
@@ -448,19 +484,40 @@ class P2PFileSession implements P2PSenderSession {
     if (parsed == null) return;
     switch (parsed.kind) {
       case FrameKind.header:
+        final meta = parsed.meta!;
+        final name = meta.token != null
+            ? NameSealer.open(meta.token!, aesKey)
+            : meta.name;
+        if (name == null) {
+          // The name is sealed with a key this side does not hold.
+          if (!_transferDone.isCompleted) {
+            _transferDone.completeError(
+              const SocketException('cannot open the file name'),
+            );
+          }
+          return;
+        }
         _ensureTempDir();
-        _currentName = parsed.meta!.name;
-        _currentExpected = parsed.meta!.size;
+        _currentName = name;
+        _currentToken = meta.token;
+        _currentExpected = meta.size;
         _currentWritten = 0;
         _currentInboundFile = File(
           '${_tempDir!.path}/'
           // The name comes from the peer, so it is reduced to a single safe
           // path segment before it is joined onto the temp directory.
           '${DateTime.now().microsecondsSinceEpoch}_'
-          '${FileNameSanitizer.safeFileName(parsed.meta!.name)}',
+          '${FileNameSanitizer.safeFileName(name)}',
         );
         _currentSink = _currentInboundFile!.openSync(mode: FileMode.write);
+      case FrameKind.hello:
+        if (!_peerHello.isCompleted) _peerHello.complete();
       case FrameKind.eof:
+        final meta = parsed.meta!;
+        final sameFile = meta.token != null
+            ? meta.token == _currentToken
+            : meta.name == _currentName;
+        if (!sameFile) return;
         _currentSink?.closeSync();
         final file = _currentInboundFile;
         final name = _currentName ?? '';
@@ -488,6 +545,7 @@ class P2PFileSession implements P2PSenderSession {
         _currentInboundFile = null;
         _currentSink = null;
         _currentName = null;
+        _currentToken = null;
         _currentWritten = 0;
       case FrameKind.done:
         if (!_transferDone.isCompleted) _transferDone.complete();

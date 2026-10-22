@@ -413,6 +413,7 @@ class DownloadNotifier extends _$DownloadNotifier {
         role: PeerRole.receiver,
         sessionId: state.transfer!.id,
         accessToken: state.transfer!.accessToken,
+        aesKey: key,
       );
 
       state = state.copyWith(

@@ -68,5 +68,41 @@ void main() {
               as Map<String, dynamic>;
       expect(json.keys.toSet(), {'t', 'name', 'size'});
     });
+
+    test('a sealed header carries a token instead of the name (#32)', () {
+      const token = 'c2VhbGVkLXRva2Vu';
+      final frame = TransferFramer.encodeHeader(
+        const FramedFileMeta(name: 'holiday.jpg', size: 4096, token: token),
+      );
+      final json = jsonDecode(frame.text!) as Map<String, dynamic>;
+
+      expect(json.keys.toSet(), {'t', 'v', 'n', 'size'});
+      expect(frame.text, isNot(contains('holiday.jpg')));
+
+      final parsed = TransferFramer.parseText(frame.text!);
+      expect(parsed!.kind, FrameKind.header);
+      expect(parsed.meta!.token, token);
+      expect(parsed.meta!.size, 4096);
+    });
+
+    test('a sealed eof carries the same token shape', () {
+      final parsed = TransferFramer.parseText(
+        TransferFramer.encodeEof(
+          const FramedFileMeta(size: 0, token: 'c2VhbGVkLXRva2Vu'),
+        ).text!,
+      );
+
+      expect(parsed!.kind, FrameKind.eof);
+      expect(parsed.meta!.token, 'c2VhbGVkLXRva2Vu');
+    });
+
+    test('hello advertises the sealed-name version', () {
+      final hello = TransferFramer.encodeHello();
+      expect(jsonDecode(hello.text!), {'t': 'hi', 'v': 2});
+
+      final parsed = TransferFramer.parseText(hello.text!);
+      expect(parsed!.kind, FrameKind.hello);
+      expect(parsed.meta, isNull);
+    });
   });
 }

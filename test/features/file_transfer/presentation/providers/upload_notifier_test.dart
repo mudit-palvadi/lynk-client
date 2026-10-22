@@ -241,4 +241,161 @@ void main() {
       );
     },
   );
+
+  group('UploadNotifier appends picks instead of replacing the selection', () {
+    late FakeFilePickerService fakePicker;
+
+    ProviderContainer makeContainer() {
+      fakePicker = FakeFilePickerService();
+      return ProviderContainer(
+        overrides: [filePickerServiceProvider.overrideWithValue(fakePicker)],
+      );
+    }
+
+    test('a fifth file is added to the four already selected', () async {
+      // The reported bug: four files picked, then one more, and the four
+      // disappeared because the picker result replaced the selection.
+      final container = makeContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(uploadProvider.notifier);
+
+      fakePicker.nextResult = FilePickerResult([
+        fileOf('a.txt', 10),
+        fileOf('b.txt', 10),
+        fileOf('c.txt', 10),
+        fileOf('d.txt', 10),
+      ]);
+      await notifier.pickFiles();
+
+      fakePicker.nextResult = FilePickerResult([fileOf('e.txt', 10)]);
+      await notifier.pickFiles();
+
+      final state = container.read(uploadProvider);
+      expect(state.selectedFiles.map((f) => f.name).toList(), [
+        'a.txt',
+        'b.txt',
+        'c.txt',
+        'd.txt',
+        'e.txt',
+      ]);
+      expect(state.phase, UploadPhase.selecting);
+    });
+
+    test('pickMedia appends to what pickFiles staged', () async {
+      final container = makeContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(uploadProvider.notifier);
+
+      fakePicker.nextResult = FilePickerResult([fileOf('doc.pdf', 10)]);
+      await notifier.pickFiles();
+
+      fakePicker.nextResult = FilePickerResult([fileOf('clip.mp4', 10)]);
+      await notifier.pickMedia();
+
+      expect(
+        container
+            .read(uploadProvider)
+            .selectedFiles
+            .map((f) => f.name)
+            .toList(),
+        ['doc.pdf', 'clip.mp4'],
+      );
+    });
+
+    test('eleven files are refused whole and the staged six stay', () async {
+      final container = makeContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(uploadProvider.notifier);
+
+      fakePicker.nextResult = FilePickerResult([
+        for (var i = 0; i < 6; i++) fileOf('f$i.txt', 10),
+      ]);
+      await notifier.pickFiles();
+
+      fakePicker.nextResult = FilePickerResult([
+        for (var i = 0; i < 5; i++) fileOf('g$i.txt', 10),
+      ]);
+      await notifier.pickFiles();
+
+      final state = container.read(uploadProvider);
+      expect(state.selectedFiles.length, 6);
+      expect(state.selectedFiles.first.name, 'f0.txt');
+      expect(state.phase, UploadPhase.selecting);
+      expect(state.notice, contains('10 files'));
+      expect(state.noticeSeq, 1);
+      expect(state.errorMessage, isNull);
+    });
+
+    test('exactly ten files are accepted', () async {
+      final container = makeContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(uploadProvider.notifier);
+
+      fakePicker.nextResult = FilePickerResult([
+        for (var i = 0; i < 10; i++) fileOf('f$i.txt', 10),
+      ]);
+      await notifier.pickFiles();
+
+      final state = container.read(uploadProvider);
+      expect(state.selectedFiles.length, 10);
+      expect(state.phase, UploadPhase.selecting);
+      expect(state.notice, isNull);
+    });
+
+    test('the byte budget covers the combined selection', () async {
+      // 8 MB + 8 MB is over the 15 MB cloud free tier even though each pick
+      // fits on its own, so the second batch is refused and the first stays.
+      final container = makeContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(uploadProvider.notifier);
+
+      fakePicker.nextResult = FilePickerResult([fileOf('a.bin', 8 * mb)]);
+      await notifier.pickFiles();
+
+      fakePicker.nextResult = FilePickerResult([fileOf('b.bin', 8 * mb)]);
+      await notifier.pickFiles();
+
+      final state = container.read(uploadProvider);
+      expect(state.selectedFiles.map((f) => f.name).toList(), ['a.bin']);
+      expect(state.phase, UploadPhase.selecting);
+      expect(state.notice, contains('15 MB'));
+    });
+
+    test(
+      'an empty selection still raises the failed view and its dialog',
+      () async {
+        // The first pick cannot keep anything, so the unlock flow needs the
+        // failed phase exactly as before.
+        final container = makeContainer();
+        addTearDown(container.dispose);
+        final notifier = container.read(uploadProvider.notifier);
+
+        fakePicker.nextResult = FilePickerResult([fileOf('big.bin', 16 * mb)]);
+        await notifier.pickFiles();
+
+        final state = container.read(uploadProvider);
+        expect(state.phase, UploadPhase.failed);
+        expect(state.errorMessage, contains('Watch an ad to unlock'));
+        expect(notifier.hasRejectedFiles, isTrue);
+      },
+    );
+
+    test('the refused batch is re-run after the unlock', () async {
+      final container = makeContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(uploadProvider.notifier);
+
+      fakePicker.nextResult = FilePickerResult([fileOf('big.bin', 16 * mb)]);
+      await notifier.pickFiles();
+      expect(container.read(uploadProvider).phase, UploadPhase.failed);
+
+      notifier.unlockExtendedSizeLimit();
+      expect(notifier.retryRejectedSelection(), isTrue);
+
+      final state = container.read(uploadProvider);
+      expect(state.selectedFiles.map((f) => f.name).toList(), ['big.bin']);
+      expect(state.phase, UploadPhase.selecting);
+      expect(notifier.hasRejectedFiles, isFalse);
+    });
+  });
 }

@@ -11,6 +11,10 @@ enum TransferMode { p2p, cloud }
 enum P2PSendStage { none, preparing, waitingForReceiver, transferring }
 
 class UploadState extends Equatable {
+  /// How many files one transfer may carry. The byte budget is checked first,
+  /// so a selection that fits the size tier may still be refused by count.
+  static const int maxFiles = 10;
+
   final List<PlatformFile> selectedFiles;
   final Transfer? transfer;
   final String? aesKey;
@@ -20,6 +24,13 @@ class UploadState extends Equatable {
   final int bytesUploaded;
   final UploadPhase phase;
   final String? errorMessage;
+
+  /// A transient message for a refused pick that must not throw away the files
+  /// already staged. [noticeSeq] increments on every new notice so the screen
+  /// fires a snackbar once even when the same text is produced twice.
+  final String? notice;
+  final int noticeSeq;
+
   final bool isSizeLimitUnlocked;
   final TransferMode transferMode;
   final P2PSendStage p2pStage;
@@ -34,6 +45,8 @@ class UploadState extends Equatable {
     this.bytesUploaded = 0,
     this.phase = UploadPhase.idle,
     this.errorMessage,
+    this.notice,
+    this.noticeSeq = 0,
     this.isSizeLimitUnlocked = false,
     this.transferMode = TransferMode.cloud,
     this.p2pStage = P2PSendStage.none,
@@ -48,14 +61,12 @@ class UploadState extends Equatable {
   ///
   /// Both unlocked tiers stay inside the server's 50 MB per-file cap, so every
   /// advertised tier is actually accepted by the API.
-  int get maxTotalSizeFree => transferMode == TransferMode.p2p
-      ? 20 * 1024 * 1024
-      : 15 * 1024 * 1024;
+  int get maxTotalSizeFree =>
+      transferMode == TransferMode.p2p ? 20 * 1024 * 1024 : 15 * 1024 * 1024;
 
   /// Rewarded-ad unlocked tier (bytes), whatever the current unlock state is.
-  int get maxTotalSizeUnlocked => transferMode == TransferMode.p2p
-      ? 50 * 1024 * 1024
-      : 30 * 1024 * 1024;
+  int get maxTotalSizeUnlocked =>
+      transferMode == TransferMode.p2p ? 50 * 1024 * 1024 : 30 * 1024 * 1024;
 
   /// The limit that currently applies (bytes).
   int get maxTotalSize =>
@@ -81,6 +92,8 @@ class UploadState extends Equatable {
     int? bytesUploaded,
     UploadPhase? phase,
     String? errorMessage,
+    String? notice,
+    int? noticeSeq,
     bool? isSizeLimitUnlocked,
     TransferMode? transferMode,
     P2PSendStage? p2pStage,
@@ -95,6 +108,8 @@ class UploadState extends Equatable {
       bytesUploaded: bytesUploaded ?? this.bytesUploaded,
       phase: phase ?? this.phase,
       errorMessage: errorMessage ?? this.errorMessage,
+      notice: notice ?? this.notice,
+      noticeSeq: noticeSeq ?? this.noticeSeq,
       isSizeLimitUnlocked: isSizeLimitUnlocked ?? this.isSizeLimitUnlocked,
       transferMode: transferMode ?? this.transferMode,
       p2pStage: p2pStage ?? this.p2pStage,
@@ -112,6 +127,8 @@ class UploadState extends Equatable {
     bytesUploaded,
     phase,
     errorMessage,
+    notice,
+    noticeSeq,
     isSizeLimitUnlocked,
     transferMode,
     p2pStage,

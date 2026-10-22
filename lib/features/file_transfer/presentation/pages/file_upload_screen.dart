@@ -30,6 +30,17 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
     final notifier = ref.read(uploadProvider.notifier);
 
     ref.listen<UploadState>(uploadProvider, (previous, next) {
+      // A refused pick never clears the staged files, so its message is a
+      // transient snackbar over the selection view rather than the full-screen
+      // error page.
+      if (next.noticeSeq != previous?.noticeSeq && next.notice != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(next.notice!),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+      }
       //  P2P: navigate to the QR screen the moment the session is live --
       // BEFORE any connection exists -- so the receiver has something to
       // scan. Live status (waiting / sending %) renders on SendQrScreen.
@@ -82,7 +93,11 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                     AdService.showRewardedAd(
                       onRewardGranted: () {
                         notifier.unlockExtendedSizeLimit();
-                        notifier.pickFiles();
+                        // The refused files are still remembered: re-run them
+                        // instead of making the user pick them again.
+                        if (!notifier.retryRejectedSelection()) {
+                          notifier.pickFiles();
+                        }
                       },
                     );
                   },
@@ -148,7 +163,7 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '${uploadState.selectedFiles.length} files selected',
+                        '${uploadState.selectedFiles.length} of ${UploadState.maxFiles} files',
                       ),
                       Text(
                         '${FileSizeFormatter.format(uploadState.totalSize)} / ${uploadState.maxTotalSizeMb} MB',
@@ -294,7 +309,13 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                         ),
                         const SizedBox(height: 24),
                         ElevatedButton(
-                          onPressed: () => notifier.pickFiles(),
+                          onPressed: () {
+                            // Start from a clean slate: this view is also
+                            // reached after a failed upload, and appending a
+                            // new pick to a half-sent list would be wrong.
+                            notifier.reset();
+                            notifier.pickFiles();
+                          },
                           child: const Text('Try Again'),
                         ),
                       ],

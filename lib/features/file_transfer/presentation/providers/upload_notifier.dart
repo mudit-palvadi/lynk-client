@@ -47,26 +47,84 @@ Duration p2pAutoFallbackDuration(Ref ref) => const Duration(seconds: 60);
 class UploadNotifier extends _$UploadNotifier {
   CancelToken? _cancelToken;
 
+  /// The last batch a picker handed over that the rules refused, so the
+  /// rewarded-ad unlock can re-run it instead of asking for the files again.
+  List<PlatformFile> _rejectedBatch = const [];
+
   @override
   UploadState build() => const UploadState();
+
+  bool get hasRejectedFiles => _rejectedBatch.isNotEmpty;
 
   Future<void> pickFiles() async {
     final picker = ref.read(filePickerServiceProvider);
     final result = await picker.pickFiles(allowMultiple: true);
     if (result == null || result.files.isEmpty) return;
+    _addPicked(result.files);
+  }
 
-    final files = result.files;
-    if (files.length > 10) {
-      state = state.copyWith(
-        phase: UploadPhase.failed,
-        errorMessage: 'Maximum 10 files per transfer',
-      );
+  Future<void> pickMedia() async {
+    final picker = ref.read(filePickerServiceProvider);
+    final result = await picker.pickMedia(allowMultiple: true);
+    if (result == null || result.files.isEmpty) return;
+    _addPicked(result.files);
+  }
+
+  /// Adds a freshly picked batch to whatever is already staged.
+  ///
+  /// Both rules are checked against the *combined* selection: the byte budget
+  /// first (cloud 15/30 MB, P2P 20/50 MB), then the ten-file cap. A batch that
+  /// breaks either rule is refused whole, so adding a fifth file can never
+  /// throw away the four already on the list.
+  void _addPicked(List<PlatformFile> picked) {
+    final combined = <PlatformFile>[...state.selectedFiles, ...picked];
+
+    final sizeError = _sizeError(combined);
+    final outOfCount = combined.length > UploadState.maxFiles;
+    final String? error =
+        sizeError ??
+        (outOfCount
+            ? 'Maximum ${UploadState.maxFiles} files per transfer'
+                  ' (${state.selectedFiles.length} already selected)'
+            : null);
+
+    if (error != null) {
+      _rejectedBatch = picked;
+      _rejectSelection(error);
       return;
     }
 
-    if (!_validateSizes(files)) return;
+    _rejectedBatch = const [];
+    state = state.copyWith(
+      selectedFiles: combined,
+      phase: UploadPhase.selecting,
+    );
+  }
 
-    state = state.copyWith(selectedFiles: files, phase: UploadPhase.selecting);
+  /// Re-runs the batch that was just refused, after the user unlocked the
+  /// larger tier. Returns false when nothing is remembered.
+  bool retryRejectedSelection() {
+    final batch = _rejectedBatch;
+    if (batch.isEmpty) return false;
+    _rejectedBatch = const [];
+    _addPicked(batch);
+    return true;
+  }
+
+  /// A refusal must not wipe the list: with files already staged the message
+  /// is a transient notice and the selection view stays, and only an empty
+  /// selection falls back to the failed view, which is what raises the
+  /// ad-unlock dialog.
+  void _rejectSelection(String message) {
+    if (state.selectedFiles.isEmpty) {
+      state = state.copyWith(phase: UploadPhase.failed, errorMessage: message);
+      return;
+    }
+    state = state.copyWith(
+      phase: UploadPhase.selecting,
+      notice: message,
+      noticeSeq: state.noticeSeq + 1,
+    );
   }
 
   void unlockExtendedSizeLimit() {
@@ -76,7 +134,9 @@ class UploadNotifier extends _$UploadNotifier {
   /// Enforces the per-mode size tiers against the current unlocked state:
   /// - Cloud/R2: free 15 MB -> unlocked 30 MB
   /// - P2P: free 20 MB -> unlocked 50 MB
-  bool _validateSizes(List<PlatformFile> files) {
+  ///
+  /// Returns the reason the selection is refused, or null when it fits.
+  String? _sizeError(List<PlatformFile> files) {
     final totalSize = files.fold(0, (sum, f) => sum + f.size);
     final maxLimit = state.maxTotalSize;
     final maxMb = state.maxTotalSizeMb;
@@ -84,43 +144,20 @@ class UploadNotifier extends _$UploadNotifier {
     final freeMb = state.maxTotalSizeFreeMb;
 
     if (totalSize > maxLimit) {
-      final msg = state.isSizeLimitUnlocked
+      return state.isSizeLimitUnlocked
           ? 'Total transfer limit is $maxMb MB'
           : 'Free limit is $freeMb MB. Watch an ad to unlock up to $unlockedMb MB!';
-      state = state.copyWith(phase: UploadPhase.failed, errorMessage: msg);
-      return false;
     }
 
     for (var f in files) {
       if (f.size > maxLimit) {
-        final msg = state.isSizeLimitUnlocked
+        return state.isSizeLimitUnlocked
             ? 'File "${f.name}" exceeds $maxMb MB limit'
             : 'File "${f.name}" exceeds the $freeMb MB free limit. Watch an ad to unlock up to $unlockedMb MB!';
-        state = state.copyWith(phase: UploadPhase.failed, errorMessage: msg);
-        return false;
       }
     }
 
-    return true;
-  }
-
-  Future<void> pickMedia() async {
-    final picker = ref.read(filePickerServiceProvider);
-    final result = await picker.pickMedia(allowMultiple: true);
-    if (result == null || result.files.isEmpty) return;
-
-    final files = result.files;
-    if (files.length > 10) {
-      state = state.copyWith(
-        phase: UploadPhase.failed,
-        errorMessage: 'Maximum 10 files per transfer',
-      );
-      return;
-    }
-
-    if (!_validateSizes(files)) return;
-
-    state = state.copyWith(selectedFiles: files, phase: UploadPhase.selecting);
+    return null;
   }
 
   void setTransferMode(TransferMode mode) {
@@ -353,6 +390,7 @@ class UploadNotifier extends _$UploadNotifier {
   void reset() {
     _cancelToken?.cancel();
     _activeSession?.cancelWait();
+    _rejectedBatch = const [];
     state = const UploadState();
   }
 
@@ -502,10 +540,12 @@ class UploadNotifier extends _$UploadNotifier {
     _cancelToken?.cancel();
     forceCloudFallback();
     if (state.transfer != null) {
-      ref.read(transferRepositoryProvider).cancelTransfer(
-        state.transfer!.id,
-        senderSecret: state.transfer!.senderSecret,
-      );
+      ref
+          .read(transferRepositoryProvider)
+          .cancelTransfer(
+            state.transfer!.id,
+            senderSecret: state.transfer!.senderSecret,
+          );
     }
     state = const UploadState(phase: UploadPhase.cancelled);
   }

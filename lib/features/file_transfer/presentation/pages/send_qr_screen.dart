@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import '../../../../core/services/post_send_ad.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/file_size_formatter.dart';
 import '../../../../core/utils/qr_share_helper.dart';
@@ -124,6 +125,15 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
   @override
   Widget build(BuildContext context) {
     final uploadState = ref.watch(uploadProvider);
+    // A direct send finishes here, so the post-send interstitial belongs to
+    // this screen; a cloud send already showed it before routing over.
+    ref.listen<UploadState>(uploadProvider, (previous, next) {
+      if (next.phase == UploadPhase.completed &&
+          next.transferMode == TransferMode.p2p &&
+          previous?.phase != UploadPhase.completed) {
+        PostSendAd().run();
+      }
+    });
     final qrData = SendQrHelper.buildQrData(
       ref: ref,
       transferId: widget.transfer.id,

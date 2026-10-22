@@ -18,6 +18,24 @@ import '../utils/file_name_sanitizer.dart';
 /// Legacy alias kept for callers that only need STUN.
 const List<Map<String, String>> kLynkIceServers = kStunServers;
 
+/// The most a peer may send in one transfer.
+///
+/// The largest device-to-device transfer the app offers is the unlocked
+/// 50 MB tier, plus a little for the per-file encryption overhead (a 16-byte
+/// IV and up to 16 bytes of padding for every file).
+const int maxP2PReceiveBytes = 50 * 1024 * 1024 + 1024;
+
+/// Whether [receivedBytes] may still be accepted.
+///
+/// A peer may not send more than it declared ([declaredBytes]), and no
+/// transfer may be larger than the biggest one the app offers ([maxBytes]).
+bool isWithinReceiveLimit({
+  required int receivedBytes,
+  required int declaredBytes,
+  required int maxBytes,
+}) =>
+    receivedBytes <= declaredBytes && receivedBytes <= maxBytes;
+
 /// Fetches short-lived TURN credentials from the backend. Returns null when
 /// TURN is disabled, unreachable, or the response is malformed -- the caller
 /// then degrades to STUN-only (transfer still succeeds via R2 fallback).
@@ -472,8 +490,38 @@ class P2PFileSession implements P2PSenderSession {
   void _onBinary(Uint8List bytes) {
     final sink = _currentSink;
     if (sink == null) return;
+    // A peer may not send more than it declared, and a transfer may not be
+    // bigger than the largest one the app offers. Without this a peer could
+    // fill the device's disk.
+    if (!isWithinReceiveLimit(
+      receivedBytes: _currentWritten + bytes.length,
+      declaredBytes: _currentExpected,
+      maxBytes: maxP2PReceiveBytes,
+    )) {
+      _abortReceive("the peer sent more data than it declared");
+      return;
+    }
     sink.writeFromSync(bytes);
     _currentWritten += bytes.length;
+  }
+
+  /// Stops a transfer that broke the size rules.
+  void _abortReceive(String reason) {
+    try {
+      _currentSink?.closeSync();
+    } catch (_) {}
+    _currentSink = null;
+    final file = _currentInboundFile;
+    _currentInboundFile = null;
+    try {
+      file?.deleteSync();
+    } catch (_) {}
+    _currentName = null;
+    _currentExpected = 0;
+    _currentWritten = 0;
+    if (!_transferDone.isCompleted) {
+      _transferDone.completeError(SocketException(reason));
+    }
   }
 
   /// Tears down PC, channels, pending files and the whole temp directory.

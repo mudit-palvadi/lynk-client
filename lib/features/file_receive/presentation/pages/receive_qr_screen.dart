@@ -54,8 +54,11 @@ class _ReceiveQrScreenState extends ConsumerState<ReceiveQrScreen> {
       if (next.attachedTransferId != null) {
         final key = next.attachedAesKey ?? '';
         final token = next.attachedAccessToken ?? '';
+        // `via=pairing` tells the download screen that the sender put this
+        // transfer on the server, so there is no direct connection to wait
+        // for.
         context.go(
-          '/download-progress/${next.attachedTransferId}?aesKey=$key&a=$token',
+          '/download-progress/${next.attachedTransferId}?aesKey=$key&a=$token&via=pairing',
         );
       }
     });

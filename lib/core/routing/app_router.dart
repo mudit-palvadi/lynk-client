@@ -243,10 +243,15 @@ GoRouter appRouter(Ref ref) {
           final transferId = state.pathParameters['transferId'] ?? '';
           final aesKey = state.uri.queryParameters['aesKey'] ?? '';
           final accessToken = state.uri.queryParameters['a'] ?? '';
+          // A transfer that came through a pairing session was put on the
+          // server by the sender, so the receiver must not wait for a direct
+          // connection that is never coming.
+          final viaPairing = state.uri.queryParameters['via'] == 'pairing';
           return DownloadProgressScreen(
             transferId: transferId,
             aesKey: aesKey,
             accessToken: accessToken,
+            viaPairing: viaPairing,
           );
         },
       ),

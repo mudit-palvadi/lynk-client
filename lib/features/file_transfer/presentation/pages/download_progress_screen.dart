@@ -10,11 +10,17 @@ class DownloadProgressScreen extends ConsumerStatefulWidget {
   final String transferId;
   final String aesKey;
   final String accessToken;
+
+  /// True when the sender put this transfer on the server because it came
+  /// through a pairing session. There is no direct connection to wait for
+  /// then: the files are on the server.
+  final bool viaPairing;
   const DownloadProgressScreen({
     super.key,
     required this.transferId,
     this.aesKey = '',
     this.accessToken = '',
+    this.viaPairing = false,
   });
 
   @override
@@ -43,7 +49,7 @@ class _DownloadProgressScreenState
     if (_autoStartTriggered) return;
     _autoStartTriggered = true;
 
-    ref.read(downloadProvider.notifier).startReception(aesKey: widget.aesKey);
+    ref.read(downloadProvider.notifier).startReception(aesKey: widget.aesKey, viaPairing: widget.viaPairing);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Download started'),
@@ -229,7 +235,7 @@ class _DownloadProgressScreenState
                           ElevatedButton(
                             onPressed: () {
                               _autoStartTriggered = false;
-                              notifier.startReception(aesKey: widget.aesKey);
+                              notifier.startReception(aesKey: widget.aesKey, viaPairing: widget.viaPairing);
                             },
                             child: const Text('Retry Download'),
                           ),

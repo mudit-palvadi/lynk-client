@@ -352,9 +352,18 @@ class DownloadNotifier extends _$DownloadNotifier {
   /// Receiver entry point: try a direct WebRTC P2P reception first; if the
   /// sender fell back to R2 (or the channel never opens), fall back to the
   /// normal R2 download pipeline automatically.
-  Future<void> startReception({String? aesKey}) async {
+  Future<void> startReception({String? aesKey, bool viaPairing = false}) async {
     if (state.transfer == null) return;
     if (kIsWeb) {
+      await startDownload(aesKey: aesKey);
+      return;
+    }
+
+    // A transfer that arrived through a pairing session was put on the server
+    // by the sender. It is not waiting in the signaling room, so trying the
+    // direct channel would only stall the download before it falls back to
+    // the server anyway.
+    if (viaPairing) {
       await startDownload(aesKey: aesKey);
       return;
     }

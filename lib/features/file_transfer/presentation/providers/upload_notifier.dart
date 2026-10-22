@@ -31,6 +31,7 @@ typedef P2PSenderSessionFactory =
     Future<P2PSenderSession> Function({
       required Uri signalingUrl,
       required String sessionId,
+      String? accessToken,
       required void Function() onFallbackToCloud,
     });
 
@@ -478,6 +479,7 @@ class UploadNotifier extends _$UploadNotifier {
       session = await factory(
         signalingUrl: ConfigService.signalingUri(sessionId),
         sessionId: sessionId,
+        accessToken: state.transfer?.accessToken,
         onFallbackToCloud: () {},
       );
       _activeSession = session;

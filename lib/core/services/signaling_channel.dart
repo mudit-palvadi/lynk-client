@@ -47,6 +47,15 @@ class SignalingChannel {
     _socket.add(jsonEncode(message.toJson()));
   }
 
+  /// Sends the room credential as the first frame (#32).
+  ///
+  /// The backend reads it before the socket joins a room, so it must go out
+  /// ahead of any offer or candidate.
+  Future<void> sendAuth(String token) async {
+    if (_closed) return;
+    _socket.add(jsonEncode({'type': 'auth', 'token': token}));
+  }
+
   Future<void> close() async {
     if (_closed) return;
     _closed = true;

@@ -107,5 +107,24 @@ void main() {
 
       expect(socket.closed, isTrue);
     });
+
+    test('sendAuth writes the room token as the first frame', () async {
+      final socket = FakeSocket();
+      final channel = SignalingChannel(socket);
+
+      await channel.sendAuth('token-1');
+
+      expect(socket.sent.single, '{"type":"auth","token":"token-1"}');
+    });
+
+    test('sendAuth is a no-op once the channel is closed', () async {
+      final socket = FakeSocket();
+      final channel = SignalingChannel(socket);
+
+      await channel.close();
+      await channel.sendAuth('token-1');
+
+      expect(socket.sent, isEmpty);
+    });
   });
 }

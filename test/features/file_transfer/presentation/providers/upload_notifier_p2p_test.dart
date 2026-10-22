@@ -212,6 +212,7 @@ void main() {
         p2pSessionFactoryProvider.overrideWithValue(({
           required signalingUrl,
           required sessionId,
+          String? accessToken,
           required onFallbackToCloud,
         }) async {
           return fakeSession;

@@ -412,6 +412,7 @@ class DownloadNotifier extends _$DownloadNotifier {
         signalingUrl: _signalingUri(state.transfer!.id),
         role: PeerRole.receiver,
         sessionId: state.transfer!.id,
+        accessToken: state.transfer!.accessToken,
       );
 
       state = state.copyWith(

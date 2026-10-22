@@ -294,10 +294,15 @@ class P2PFileSession implements P2PSenderSession {
     required Uri signalingUrl,
     required PeerRole role,
     required String sessionId,
+    String? accessToken,
     void Function()? onFallbackToCloud,
   }) async {
     final socket = WebSocketChannel.connect(signalingUrl);
     final signaling = SignalingChannel(WebSocketChannelAdapter(socket));
+    if (accessToken != null && accessToken.isNotEmpty) {
+      // The room refuses a socket that does not present this token first (#32).
+      await signaling.sendAuth(accessToken);
+    }
     final peer = FlutterWebrtcPeerActions(signaling: signaling);
     final session = P2PFileSession._(signaling, peer)
       ..onFallbackToCloud = onFallbackToCloud;
@@ -349,11 +354,13 @@ class P2PFileSession implements P2PSenderSession {
   static Future<P2PFileSession> connectAsSender({
     required Uri signalingUrl,
     required String sessionId,
+    String? accessToken,
     required void Function() onFallbackToCloud,
   }) => connect(
     signalingUrl: signalingUrl,
     role: PeerRole.sender,
     sessionId: sessionId,
+    accessToken: accessToken,
     onFallbackToCloud: onFallbackToCloud,
   );
 

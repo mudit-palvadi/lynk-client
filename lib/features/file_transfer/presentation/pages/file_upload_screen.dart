@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/services/ad_service.dart';
+import '../../../../core/services/ad_gate.dart';
 import '../../../../core/services/post_send_ad.dart';
 import '../../../../core/services/transfer_ad_gate.dart';
+import '../../../../core/services/unlock_credits.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/file_size_formatter.dart';
 import '../../../../core/widgets/ad_banner_widget.dart';
@@ -82,6 +83,8 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
           next.errorMessage != null) {
         final msg = next.errorMessage!;
         if (msg.contains('Watch an ad to unlock')) {
+          final credits = await AdGate().sizeCredits();
+          if (!context.mounted) return;
           showDialog(
             context: context,
             builder: (ctx) => AlertDialog(
@@ -96,19 +99,21 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                 ElevatedButton.icon(
                   onPressed: () {
                     Navigator.pop(ctx);
-                    AdService.showRewardedAd(
-                      onRewardGranted: () {
-                        notifier.unlockExtendedSizeLimit();
-                        // The refused files are still remembered: re-run them
-                        // instead of making the user pick them again.
-                        if (!notifier.retryRejectedSelection()) {
-                          notifier.pickFiles();
-                        }
-                      },
-                    );
+                    UnlockCredits().spendSize(() {
+                      notifier.unlockExtendedSizeLimit();
+                      // The refused files are still remembered: re-run them
+                      // instead of making the user pick them again.
+                      if (!notifier.retryRejectedSelection()) {
+                        notifier.pickFiles();
+                      }
+                    });
                   },
-                  icon: const Icon(Icons.card_giftcard),
-                  label: const Text('Watch Ad & Unlock'),
+                  icon: Icon(
+                    credits > 0 ? Icons.lock_open : Icons.card_giftcard,
+                  ),
+                  label: Text(
+                    credits > 0 ? 'Unlock' : 'Watch Ad & Unlock',
+                  ),
                 ),
               ],
             ),

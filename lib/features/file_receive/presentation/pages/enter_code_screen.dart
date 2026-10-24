@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/providers/code_receiver_notifier.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/ad_banner_widget.dart';
+import '../../../../core/widgets/scrollable_fill.dart';
 
 /// Receives a transfer by typing the six-digit code the sender shows.
 class EnterCodeScreen extends ConsumerStatefulWidget {
@@ -60,99 +61,94 @@ class _EnterCodeScreenState extends ConsumerState<EnterCodeScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Enter a Code')),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              const Spacer(),
-              const Icon(
-                Icons.dialpad,
-                size: 64,
-                color: AppTheme.primary,
+        // The field autofocuses, so the keyboard is open on the first frame
+        // and the body is shorter than the screen.
+        child: ScrollableFill(
+          children: [
+            const Spacer(),
+            const Icon(Icons.dialpad, size: 64, color: AppTheme.primary),
+            const SizedBox(height: 16),
+            const Text(
+              'Type the 6-digit code',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'The sender shows it next to the QR code.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppTheme.textSecondary),
+            ),
+            const SizedBox(height: 32),
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              enabled: !state.isBusy,
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              maxLength: 6,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              style: const TextStyle(
+                fontSize: 36,
+                letterSpacing: 14,
+                fontWeight: FontWeight.bold,
               ),
-              const SizedBox(height: 16),
-              const Text(
-                'Type the 6-digit code',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'The sender shows it next to the QR code.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppTheme.textSecondary),
-              ),
-              const SizedBox(height: 32),
-              TextField(
-                controller: _controller,
-                autofocus: true,
-                enabled: !state.isBusy,
-                keyboardType: TextInputType.number,
-                textAlign: TextAlign.center,
-                maxLength: 6,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                style: const TextStyle(
+              decoration: InputDecoration(
+                counterText: '',
+                hintText: '000000',
+                hintStyle: TextStyle(
                   fontSize: 36,
                   letterSpacing: 14,
-                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textSecondary.withValues(alpha: 0.4),
                 ),
-                decoration: InputDecoration(
-                  counterText: '',
-                  hintText: '000000',
-                  hintStyle: TextStyle(
-                    fontSize: 36,
-                    letterSpacing: 14,
-                    color: AppTheme.textSecondary.withValues(alpha: 0.4),
-                  ),
-                  filled: true,
-                  fillColor: AppTheme.cardBg,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+                filled: true,
+                fillColor: AppTheme.cardBg,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                onChanged: (_) => setState(() {}),
-                onSubmitted: (_) => _submit(),
               ),
-              const SizedBox(height: 24),
-              if (state.errorMessage != null) ...[
-                Text(
-                  state.errorMessage!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppTheme.error),
-                ),
-                const SizedBox(height: 16),
-              ],
-              if (state.isBusy) ...[
-                const CircularProgressIndicator(),
-                const SizedBox(height: 12),
-                Text(
-                  state.isJoining
-                      ? 'Checking the code...'
-                      : 'Waiting for the sender to share the key...',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppTheme.textSecondary),
-                ),
-                const SizedBox(height: 16),
-                OutlinedButton(
-                  onPressed: () =>
-                      ref.read(codeReceiverProvider.notifier).cancel(),
-                  child: const Text('Use a Different Code'),
-                ),
-              ] else
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _isComplete ? _submit : null,
-                    icon: const Icon(Icons.download),
-                    label: const Text('Receive Files'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
+              onChanged: (_) => setState(() {}),
+              onSubmitted: (_) => _submit(),
+            ),
+            const SizedBox(height: 24),
+            if (state.errorMessage != null) ...[
+              Text(
+                state.errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppTheme.error),
+              ),
+              const SizedBox(height: 16),
+            ],
+            if (state.isBusy) ...[
+              const CircularProgressIndicator(),
+              const SizedBox(height: 12),
+              Text(
+                state.isJoining
+                    ? 'Checking the code...'
+                    : 'Waiting for the sender to share the key...',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppTheme.textSecondary),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton(
+                onPressed: () =>
+                    ref.read(codeReceiverProvider.notifier).cancel(),
+                child: const Text('Use a Different Code'),
+              ),
+            ] else
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _isComplete ? _submit : null,
+                  icon: const Icon(Icons.download),
+                  label: const Text('Receive Files'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
                 ),
-              const Spacer(),
-              const AdBannerWidget(),
-            ],
-          ),
+              ),
+            const Spacer(),
+            const AdBannerWidget(),
+          ],
         ),
       ),
     );

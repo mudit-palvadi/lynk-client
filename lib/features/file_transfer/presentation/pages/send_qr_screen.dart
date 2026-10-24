@@ -8,6 +8,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/file_size_formatter.dart';
 import '../../../../core/utils/qr_share_helper.dart';
 import '../../../../core/widgets/ad_banner_widget.dart';
+import '../../../../core/widgets/scrollable_fill.dart';
 import '../../domain/entities/transfer.dart';
 import '../helpers/send_qr_helper.dart';
 import '../providers/sender_code_notifier.dart';
@@ -152,10 +153,7 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
       return Text(
         codeState.errorMessage ?? 'The code is unavailable.',
         textAlign: TextAlign.center,
-        style: const TextStyle(
-          color: AppTheme.textSecondary,
-          fontSize: 12,
-        ),
+        style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
       );
     }
 
@@ -233,19 +231,24 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
           ),
         ),
         body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              children: [
-                const Spacer(),
-                RepaintBoundary(
-                  key: _qrKey,
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+          // The QR, code, expiry and three actions are taller than a short
+          // phone's body, which used to clip the Cancel Session button.
+          child: ScrollableFill(
+            children: [
+              const Spacer(),
+              RepaintBoundary(
+                key: _qrKey,
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  // A fixed box keeps the QR out of the intrinsic measurement:
+                  // qr_flutter builds a LayoutBuilder, which cannot report
+                  // intrinsics, and ScrollableFill asks for them.
+                  child: SizedBox.square(
+                    dimension: 220,
                     child: QrImageView(
                       data: qrData,
                       version: QrVersions.auto,
@@ -254,103 +257,102 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Scan with Lynk App to Download',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                _buildCodeSection(codeState),
-                const SizedBox(height: 12),
-                ValueListenableBuilder<int>(
-                  valueListenable: _secondsRemainingNotifier,
-                  builder: (context, seconds, child) {
-                    return Column(
-                      children: [
-                        Text(
-                          'Expires in ${SendQrHelper.formatRemainingTime(seconds)}',
-                          style: const TextStyle(
-                            color: AppTheme.secondary,
-                            fontWeight: FontWeight.bold,
-                          ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Scan with Lynk App to Download',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              _buildCodeSection(codeState),
+              const SizedBox(height: 12),
+              ValueListenableBuilder<int>(
+                valueListenable: _secondsRemainingNotifier,
+                builder: (context, seconds, child) {
+                  return Column(
+                    children: [
+                      Text(
+                        'Expires in ${SendQrHelper.formatRemainingTime(seconds)}',
+                        style: const TextStyle(
+                          color: AppTheme.secondary,
+                          fontWeight: FontWeight.bold,
                         ),
-                        if (seconds < 1500) ...[
-                          const SizedBox(height: 4),
-                          TextButton.icon(
-                            onPressed: () =>
-                                SendQrHelper.extendSessionTimeWithAd(
-                                  context: context,
-                                  secondsNotifier: _secondsRemainingNotifier,
-                                ),
-                            icon: const Icon(
-                              Icons.timer_outlined,
-                              size: 16,
+                      ),
+                      if (seconds < 1500) ...[
+                        const SizedBox(height: 4),
+                        TextButton.icon(
+                          onPressed: () => SendQrHelper.extendSessionTimeWithAd(
+                            context: context,
+                            secondsNotifier: _secondsRemainingNotifier,
+                          ),
+                          icon: const Icon(
+                            Icons.timer_outlined,
+                            size: 16,
+                            color: AppTheme.primary,
+                          ),
+                          label: const Text(
+                            'Extend Session to 30 Mins (Watch Ad)',
+                            style: TextStyle(
+                              fontSize: 13,
                               color: AppTheme.primary,
                             ),
-                            label: const Text(
-                              'Extend Session to 30 Mins (Watch Ad)',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: AppTheme.primary,
-                              ),
-                            ),
                           ),
-                        ],
+                        ),
                       ],
-                    );
-                  },
-                ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '${widget.transfer.totalFiles} files · ${FileSizeFormatter.format(widget.transfer.totalSize)}',
+                style: const TextStyle(color: AppTheme.textSecondary),
+              ),
+              if (uploadState.transferMode == TransferMode.p2p) ...[
                 const SizedBox(height: 16),
-                Text(
-                  '${widget.transfer.totalFiles} files · ${FileSizeFormatter.format(widget.transfer.totalSize)}',
-                  style: const TextStyle(color: AppTheme.textSecondary),
-                ),
-                if (uploadState.transferMode == TransferMode.p2p) ...[
-                  const SizedBox(height: 16),
-                  _buildP2pStatus(uploadState),
-                ],
-                const Spacer(),
-                OutlinedButton.icon(
-                  onPressed: () {
-                    context.push(
-                      '/scan-qr?attachTransferId=${widget.transfer.id}',
-                    );
-                  },
-                  icon: const Icon(Icons.qr_code_scanner),
-                  label: const Text("Scan Receiver's Code"),
-                ),
-                const SizedBox(height: 10),
-                OutlinedButton.icon(
-                  onPressed: () => QrShareHelper.captureAndShareQr(
-                    qrKey: _qrKey,
-                    transferId: widget.transfer.id,
-                  ),
-                  icon: const Icon(Icons.share),
-                  label: const Text('Share QR Image'),
-                ),
-                const SizedBox(height: 12),
-                ElevatedButton(
-                  onPressed: () {
-                    if (uploadState.p2pStage != P2PSendStage.none ||
-                        uploadState.phase == UploadPhase.uploading) {
-                      ref.read(uploadProvider.notifier).cancelUpload();
-                    }
-                    ref.read(senderCodeProvider.notifier).stop();
-                    SendQrHelper.cancelSessionAndGoHome(
-                      context: context,
-                      ref: ref,
-                      transferId: widget.transfer.id,
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.error,
-                  ),
-                  child: const Text('Cancel Session'),
-                ),
-                const SizedBox(height: 16),
-                const AdBannerWidget(),
+                _buildP2pStatus(uploadState),
               ],
-            ),
+              const Spacer(),
+              OutlinedButton.icon(
+                onPressed: () {
+                  context.push(
+                    '/scan-qr?attachTransferId=${widget.transfer.id}',
+                  );
+                },
+                icon: const Icon(Icons.qr_code_scanner),
+                label: const Text("Scan Receiver's Code"),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: () => QrShareHelper.captureAndShareQr(
+                  qrKey: _qrKey,
+                  transferId: widget.transfer.id,
+                ),
+                icon: const Icon(Icons.share),
+                label: const Text('Share QR Image'),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: () {
+                  if (uploadState.p2pStage != P2PSendStage.none ||
+                      uploadState.phase == UploadPhase.uploading) {
+                    ref.read(uploadProvider.notifier).cancelUpload();
+                  }
+                  ref.read(senderCodeProvider.notifier).stop();
+                  SendQrHelper.cancelSessionAndGoHome(
+                    context: context,
+                    ref: ref,
+                    transferId: widget.transfer.id,
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.error,
+                ),
+                child: const Text('Cancel Session'),
+              ),
+              const SizedBox(height: 16),
+              const AdBannerWidget(),
+            ],
           ),
         ),
       ),

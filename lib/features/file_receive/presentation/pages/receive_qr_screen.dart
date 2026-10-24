@@ -7,6 +7,7 @@ import '../../../../core/providers/receiver_notifier.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/app_links.dart';
 import '../../../../core/widgets/ad_banner_widget.dart';
+import '../../../../core/widgets/scrollable_fill.dart';
 import '../helpers/receive_qr_helper.dart';
 
 class ReceiveQrScreen extends ConsumerStatefulWidget {
@@ -66,18 +67,23 @@ class _ReceiveQrScreenState extends ConsumerState<ReceiveQrScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Receive Files')),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            children: [
-              const Spacer(),
-              if (state.session != null) ...[
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+        // A short screen or large text pushed the Cancel Session button below
+        // the body, with nothing to scroll.
+        child: ScrollableFill(
+          children: [
+            const Spacer(),
+            if (state.session != null) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                // A fixed box keeps the QR out of the intrinsic measurement:
+                // qr_flutter builds a LayoutBuilder, which cannot report
+                // intrinsics, and ScrollableFill asks for them.
+                child: SizedBox.square(
+                  dimension: 220,
                   child: QrImageView(
                     data:
                         '${AppLinks.deepLinkBase}/receive/${state.session!.id}#pk=${state.receiverPublicKeyB64 ?? ''}',
@@ -86,85 +92,81 @@ class _ReceiveQrScreenState extends ConsumerState<ReceiveQrScreen> {
                     backgroundColor: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Scan with Sender Device',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                ValueListenableBuilder<int>(
-                  valueListenable: _secondsRemainingNotifier,
-                  builder: (context, seconds, child) {
-                    return Text(
-                      'Session expires in ${ReceiveQrHelper.formatTime(seconds)}',
-                      style: const TextStyle(
-                        color: AppTheme.secondary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 16),
-                const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Scan with Sender Device',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              ValueListenableBuilder<int>(
+                valueListenable: _secondsRemainingNotifier,
+                builder: (context, seconds, child) {
+                  return Text(
+                    'Session expires in ${ReceiveQrHelper.formatTime(seconds)}',
+                    style: const TextStyle(
+                      color: AppTheme.secondary,
+                      fontWeight: FontWeight.bold,
                     ),
-                    SizedBox(width: 8),
-                    Text(
-                      'Waiting for sender to connect...',
-                      style: TextStyle(color: AppTheme.textSecondary),
-                    ),
-                  ],
-                ),
-              ] else if (state.errorMessage != null) ...[
-                const Icon(
-                  Icons.error_outline,
-                  size: 60,
-                  color: AppTheme.error,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  state.errorMessage!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: () {
-                    ref.read(receiverProvider.notifier).createSession();
-                    _startTimer();
-                  },
-                  child: const Text('Retry Session'),
-                ),
-              ] else ...[
-                const CircularProgressIndicator(),
-                const SizedBox(height: 16),
-                const Text(
-                  'Generating receive session...',
-                  style: TextStyle(color: AppTheme.textSecondary),
-                ),
-              ],
-              const Spacer(),
-              OutlinedButton(
-                onPressed: () =>
-                    ReceiveQrHelper.cancelSessionAndPop(context, ref),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppTheme.error,
-                  side: const BorderSide(color: AppTheme.error),
-                ),
-                child: const Text('Cancel Session'),
+                  );
+                },
               ),
               const SizedBox(height: 16),
-              const AdBannerWidget(),
+              const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    'Waiting for sender to connect...',
+                    style: TextStyle(color: AppTheme.textSecondary),
+                  ),
+                ],
+              ),
+            ] else if (state.errorMessage != null) ...[
+              const Icon(Icons.error_outline, size: 60, color: AppTheme.error),
+              const SizedBox(height: 16),
+              Text(
+                state.errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () {
+                  ref.read(receiverProvider.notifier).createSession();
+                  _startTimer();
+                },
+                child: const Text('Retry Session'),
+              ),
+            ] else ...[
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              const Text(
+                'Generating receive session...',
+                style: TextStyle(color: AppTheme.textSecondary),
+              ),
             ],
-          ),
+            const Spacer(),
+            OutlinedButton(
+              onPressed: () =>
+                  ReceiveQrHelper.cancelSessionAndPop(context, ref),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTheme.error,
+                side: const BorderSide(color: AppTheme.error),
+              ),
+              child: const Text('Cancel Session'),
+            ),
+            const SizedBox(height: 16),
+            const AdBannerWidget(),
+          ],
         ),
       ),
     );

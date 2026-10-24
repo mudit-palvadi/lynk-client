@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches the tile in store_assets/png/app_icon_512.png. The adaptive
+         foreground carries the glow; the background is the flat tile colour so
+         launcher masks never crop into a visible edge. -->
+    <color name="ic_launcher_background">#0A0A0A</color>
+</resources>

@@ -6,6 +6,7 @@ typedef KeyWrapper = Future<String> Function({
   required String aesKey,
   required String receiverPublicKeyB64,
   required String sessionId,
+  String? accessToken,
 });
 
 /// Where a sender pairing stands.
@@ -21,6 +22,8 @@ class SenderPairing {
     required this.dataSource,
     required this.transferId,
     required this.aesKey,
+    this.accessToken,
+    this.mode = 'cloud',
     KeyWrapper? wrapKey,
   }) : _wrap = wrapKey ?? _defaultWrap;
 
@@ -28,16 +31,26 @@ class SenderPairing {
     required String aesKey,
     required String receiverPublicKeyB64,
     required String sessionId,
+    String? accessToken,
   }) =>
       KeyWrapService().wrapKey(
         aesKey: aesKey,
         receiverPublicKeyB64: receiverPublicKeyB64,
         sessionId: sessionId,
+        accessToken: accessToken,
       );
 
   final SenderSessionRemoteDataSource dataSource;
   final String transferId;
   final String aesKey;
+
+  /// Travelling inside the wrapped payload, so the receiver can download the
+  /// files from storage after the code is used.
+  final String? accessToken;
+
+  /// "cloud" or "p2p", so the receiver knows what to wait for.
+  final String mode;
+
   final KeyWrapper _wrap;
 
   String? sessionId;
@@ -82,11 +95,13 @@ class SenderPairing {
         aesKey: aesKey,
         receiverPublicKeyB64: receiverPk,
         sessionId: id,
+        accessToken: accessToken,
       );
       await dataSource.attachKey(
         sessionId: id,
         transferId: transferId,
         wrappedKey: wrapped,
+        mode: mode,
       );
       status = SenderPairingStatus.attached;
       return false;

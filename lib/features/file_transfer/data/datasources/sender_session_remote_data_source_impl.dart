@@ -24,12 +24,14 @@ class SenderSessionRemoteDataSourceImpl
     required String sessionId,
     required String transferId,
     required String wrappedKey,
+    required String mode,
   }) async {
     await dio.post(
       'sender-sessions/$sessionId/attach',
       data: {
         'transfer_id': transferId,
         'wrapped_key': wrappedKey,
+        'mode': mode,
       },
     );
   }

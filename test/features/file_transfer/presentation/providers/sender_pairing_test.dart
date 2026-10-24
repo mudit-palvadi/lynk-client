@@ -18,6 +18,7 @@ class _FakeDataSource implements SenderSessionRemoteDataSource {
   String? attachedSession;
   String? attachedTransfer;
   String? attachedKey;
+  String? attachedMode;
 
   @override
   Future<SenderSessionModel> createSession() async {
@@ -36,28 +37,35 @@ class _FakeDataSource implements SenderSessionRemoteDataSource {
     required String sessionId,
     required String transferId,
     required String wrappedKey,
+    required String mode,
   }) async {
     if (attachFails) throw Exception('nope');
     attachedSession = sessionId;
     attachedTransfer = transferId;
     attachedKey = wrappedKey;
+    attachedMode = mode;
   }
 }
 
 void main() {
   late _FakeDataSource data;
   late List<String> wrappedFor;
+  late List<String?> wrappedTokens;
 
   SenderPairing build() => SenderPairing(
         dataSource: data,
         transferId: 'transfer-1',
         aesKey: 'key',
+        accessToken: 'token-1',
+        mode: 'p2p',
         wrapKey: ({
           required aesKey,
           required receiverPublicKeyB64,
           required sessionId,
+          accessToken,
         }) async {
           wrappedFor.add(receiverPublicKeyB64);
+          wrappedTokens.add(accessToken);
           return 'wrapped::$sessionId';
         },
       );
@@ -65,6 +73,7 @@ void main() {
   setUp(() {
     data = _FakeDataSource();
     wrappedFor = [];
+    wrappedTokens = [];
   });
 
   group('SenderPairing', () {
@@ -110,9 +119,11 @@ void main() {
       expect(await pairing.poll(), isFalse);
       expect(pairing.isAttached, isTrue);
       expect(wrappedFor, ['pk-1']);
+      expect(wrappedTokens, ['token-1']);
       expect(data.attachedSession, 'session-1');
       expect(data.attachedTransfer, 'transfer-1');
       expect(data.attachedKey, 'wrapped::session-1');
+      expect(data.attachedMode, 'p2p');
     });
 
     test('an attach that fails is reported', () async {

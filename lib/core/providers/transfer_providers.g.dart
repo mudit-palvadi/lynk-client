@@ -9,6 +9,57 @@ part of 'transfer_providers.dart';
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
 
+@ProviderFor(senderSessionRemoteDataSource)
+final senderSessionRemoteDataSourceProvider =
+    SenderSessionRemoteDataSourceProvider._();
+
+final class SenderSessionRemoteDataSourceProvider
+    extends
+        $FunctionalProvider<
+          SenderSessionRemoteDataSource,
+          SenderSessionRemoteDataSource,
+          SenderSessionRemoteDataSource
+        >
+    with $Provider<SenderSessionRemoteDataSource> {
+  SenderSessionRemoteDataSourceProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'senderSessionRemoteDataSourceProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$senderSessionRemoteDataSourceHash();
+
+  @$internal
+  @override
+  $ProviderElement<SenderSessionRemoteDataSource> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  SenderSessionRemoteDataSource create(Ref ref) {
+    return senderSessionRemoteDataSource(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(SenderSessionRemoteDataSource value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<SenderSessionRemoteDataSource>(
+        value,
+      ),
+    );
+  }
+}
+
+String _$senderSessionRemoteDataSourceHash() =>
+    r'8a29010a61687abd38e002a7ef5bd44e41e14693';
+
 @ProviderFor(transferRemoteDataSource)
 final transferRemoteDataSourceProvider = TransferRemoteDataSourceProvider._();
 

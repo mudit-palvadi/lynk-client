@@ -10,6 +10,7 @@ import '../../../../core/utils/qr_share_helper.dart';
 import '../../../../core/widgets/ad_banner_widget.dart';
 import '../../domain/entities/transfer.dart';
 import '../helpers/send_qr_helper.dart';
+import '../providers/sender_code_notifier.dart';
 import '../providers/upload_notifier.dart';
 import '../providers/upload_state.dart';
 
@@ -26,6 +27,8 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
   late final ValueNotifier<int> _secondsRemainingNotifier;
   Timer? _timer;
   final GlobalKey _qrKey = GlobalKey();
+  SenderCodeNotifier? _codeNotifier;
+  TransferMode _mode = TransferMode.cloud;
 
   @override
   void initState() {
@@ -42,12 +45,33 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
         _timer?.cancel();
       }
     });
+
+    // Minting the code touches a provider, which must not happen during the
+    // widget build itself.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startCode());
+  }
+
+  void _startCode() {
+    if (!mounted) return;
+    _mode = ref.read(uploadProvider).transferMode;
+    _codeNotifier = ref.read(senderCodeProvider.notifier);
+    _codeNotifier!.ensureStarted(
+      transferId: widget.transfer.id,
+      aesKey: widget.aesKey.isNotEmpty
+          ? widget.aesKey
+          : (ref.read(uploadProvider).aesKey ?? ''),
+      accessToken: widget.transfer.accessToken,
+      mode: _mode,
+    );
   }
 
   @override
   void dispose() {
     _timer?.cancel();
     _secondsRemainingNotifier.dispose();
+    // A direct send only works while its screen is open, so its code dies
+    // with the screen. A cloud send keeps waiting in the background.
+    if (_mode == TransferMode.p2p) _codeNotifier?.stop();
     super.dispose();
   }
 
@@ -122,9 +146,62 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
     return const SizedBox.shrink();
   }
 
+  Widget _buildCodeSection(SenderCodeState codeState) {
+    if (codeState.phase == SenderCodePhase.failed ||
+        codeState.phase == SenderCodePhase.expired) {
+      return Text(
+        codeState.errorMessage ?? 'The code is unavailable.',
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: AppTheme.textSecondary,
+          fontSize: 12,
+        ),
+      );
+    }
+
+    final code = codeState.code;
+    if (code == null || code.isEmpty) {
+      return const Text(
+        'Creating a 6-digit code…',
+        style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+      );
+    }
+
+    return Column(
+      children: [
+        const Text(
+          'Or type this code in the app',
+          style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          code.split('').join(' '),
+          style: const TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 2,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          codeState.isAttached
+              ? 'Receiver joined — the files are unlocked.'
+              : 'Waiting for the receiver…',
+          style: TextStyle(
+            color: codeState.isAttached
+                ? AppTheme.secondary
+                : AppTheme.textSecondary,
+            fontSize: 12,
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final uploadState = ref.watch(uploadProvider);
+    final codeState = ref.watch(senderCodeProvider);
     // A direct send finishes here, so the post-send interstitial belongs to
     // this screen; a cloud send already showed it before routing over.
     ref.listen<UploadState>(uploadProvider, (previous, next) {
@@ -183,6 +260,8 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
+                _buildCodeSection(codeState),
+                const SizedBox(height: 12),
                 ValueListenableBuilder<int>(
                   valueListenable: _secondsRemainingNotifier,
                   builder: (context, seconds, child) {
@@ -256,6 +335,7 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
                         uploadState.phase == UploadPhase.uploading) {
                       ref.read(uploadProvider.notifier).cancelUpload();
                     }
+                    ref.read(senderCodeProvider.notifier).stop();
                     SendQrHelper.cancelSessionAndGoHome(
                       context: context,
                       ref: ref,

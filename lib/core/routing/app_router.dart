@@ -1,5 +1,6 @@
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import '../../features/file_receive/presentation/pages/enter_code_screen.dart';
 import '../../features/file_receive/presentation/pages/receive_qr_screen.dart';
 import '../../features/file_transfer/domain/entities/transfer.dart';
 import '../../features/file_transfer/presentation/pages/download_progress_screen.dart';
@@ -236,6 +237,10 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: '/receive-qr',
         builder: (context, state) => const ReceiveQrScreen(),
+      ),
+      GoRoute(
+        path: '/receive-code',
+        builder: (context, state) => const EnterCodeScreen(),
       ),
       GoRoute(
         path: '/download-progress/:transferId',

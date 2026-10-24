@@ -178,6 +178,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               const SizedBox(height: 16),
               _ActionCard(
                 icon: Icons.qr_code_2,
+                title: 'Enter a Code',
+                subtitle: 'Type the 6-digit code from the sender',
+                onTap: () => context.push('/receive-code'),
+              ),
+              const SizedBox(height: 16),
+              _ActionCard(
+                icon: Icons.qr_code_2,
                 title: 'Receive Files',
                 subtitle: 'Generate a receive session QR code',
                 onTap: () => context.push('/receive-qr'),

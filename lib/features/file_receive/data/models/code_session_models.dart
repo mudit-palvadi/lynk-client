@@ -26,18 +26,24 @@ class ReceiverCodeJoinModel {
 class ReceiverCodeKeyModel {
   final String transferId;
   final String wrappedKey;
+  final String mode;
   final int expiresIn;
 
   const ReceiverCodeKeyModel({
     required this.transferId,
     required this.wrappedKey,
+    this.mode = 'cloud',
     required this.expiresIn,
   });
+
+  /// True when the sender is streaming directly from its device.
+  bool get isP2p => mode == 'p2p';
 
   factory ReceiverCodeKeyModel.fromJson(Map<String, dynamic> json) {
     return ReceiverCodeKeyModel(
       transferId: json['transfer_id'] as String,
       wrappedKey: json['wrapped_key'] as String,
+      mode: json['mode'] as String? ?? 'cloud',
       expiresIn: (json['expires_in'] as num?)?.toInt() ?? 0,
     );
   }

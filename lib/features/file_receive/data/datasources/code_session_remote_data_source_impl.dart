@@ -21,10 +21,18 @@ class CodeSessionRemoteDataSourceImpl implements CodeSessionRemoteDataSource {
   }
 
   @override
-  Future<ReceiverCodeKeyModel> collectKey(String sessionId) async {
-    final response = await dio.get('sender-sessions/$sessionId/key');
-    return ReceiverCodeKeyModel.fromJson(
-      response.data as Map<String, dynamic>,
-    );
+  Future<ReceiverCodeKeyModel?> collectKey(String sessionId) async {
+    try {
+      final response = await dio.get('sender-sessions/$sessionId/key');
+      return ReceiverCodeKeyModel.fromJson(
+        response.data as Map<String, dynamic>,
+      );
+    } on DioException catch (e) {
+      // 409 means the sender has not wrapped the key yet, which is the normal
+      // state while the receiver is still waiting. Any other status is a real
+      // failure and belongs to the caller.
+      if (e.response?.statusCode == 409) return null;
+      rethrow;
+    }
   }
 }

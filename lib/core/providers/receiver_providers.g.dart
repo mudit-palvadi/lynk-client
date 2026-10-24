@@ -57,6 +57,55 @@ final class ReceiverRemoteDataSourceProvider
 String _$receiverRemoteDataSourceHash() =>
     r'fcce86b3200f736a204c74ad61349932454e0b2b';
 
+@ProviderFor(codeSessionRemoteDataSource)
+final codeSessionRemoteDataSourceProvider =
+    CodeSessionRemoteDataSourceProvider._();
+
+final class CodeSessionRemoteDataSourceProvider
+    extends
+        $FunctionalProvider<
+          CodeSessionRemoteDataSource,
+          CodeSessionRemoteDataSource,
+          CodeSessionRemoteDataSource
+        >
+    with $Provider<CodeSessionRemoteDataSource> {
+  CodeSessionRemoteDataSourceProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'codeSessionRemoteDataSourceProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$codeSessionRemoteDataSourceHash();
+
+  @$internal
+  @override
+  $ProviderElement<CodeSessionRemoteDataSource> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  CodeSessionRemoteDataSource create(Ref ref) {
+    return codeSessionRemoteDataSource(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(CodeSessionRemoteDataSource value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<CodeSessionRemoteDataSource>(value),
+    );
+  }
+}
+
+String _$codeSessionRemoteDataSourceHash() =>
+    r'5b2c4adbef169f1e9444d06aa5d0350e0d576f30';
+
 @ProviderFor(receiverRepository)
 final receiverRepositoryProvider = ReceiverRepositoryProvider._();
 

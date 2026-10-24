@@ -8,5 +8,6 @@ abstract class CodeSessionRemoteDataSource {
     required String receiverPk,
   });
 
-  Future<ReceiverCodeKeyModel> collectKey(String sessionId);
+  /// The wrapped key, or null while the sender has not attached it yet.
+  Future<ReceiverCodeKeyModel?> collectKey(String sessionId);
 }

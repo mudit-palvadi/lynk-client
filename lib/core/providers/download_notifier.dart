@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import '../services/download_folder_service.dart';
 import '../services/download_service.dart';
 import '../services/flutter_webrtc_p2p_session.dart';
 import '../services/webrtc_peer.dart';
@@ -223,15 +225,7 @@ class DownloadNotifier extends _$DownloadNotifier {
 
     Directory? saveDir;
     if (!kIsWeb) {
-      if (Platform.isAndroid) {
-        final lynkPublicDir = Directory('/storage/emulated/0/Download/Lynk');
-        if (!await lynkPublicDir.exists()) {
-          await lynkPublicDir.create(recursive: true);
-        }
-        saveDir = lynkPublicDir;
-      } else {
-        saveDir = await getApplicationDocumentsDirectory();
-      }
+      saveDir = await _stagingDirectory();
     }
 
     final downloadedPaths = <String>[];
@@ -308,7 +302,11 @@ class DownloadNotifier extends _$DownloadNotifier {
             );
           }
 
-          downloadedPaths.add(savePath);
+          final delivered = await _deliverToUser(
+            savePath,
+            FileNameSanitizer.safeFileName(item.name),
+          );
+          downloadedPaths.add(delivered);
         }
 
         cumulativeBytes += item.size;
@@ -344,9 +342,57 @@ class DownloadNotifier extends _$DownloadNotifier {
   }
 
   Future<void> openFile(String path) async {
-    if (!kIsWeb) {
-      await OpenFilex.open(path);
+    if (kIsWeb) return;
+    // A file that went into the user's folder is a document URI, so it has to
+    // be opened through the same grant that wrote it.
+    if (path.startsWith('content://')) {
+      await DownloadFolderService().open(path);
+      return;
     }
+    await OpenFilex.open(path);
+  }
+
+  /// Where encrypted bytes land before they are decrypted.
+  ///
+  /// On Android this is app cache: the finished file is then copied into the
+  /// folder the user chose, because scoped storage does not allow writing to a
+  /// public path directly.
+  Future<Directory> _stagingDirectory() async {
+    if (Platform.isAndroid) return getTemporaryDirectory();
+    return getApplicationDocumentsDirectory();
+  }
+
+  /// Hands a decrypted file to the user.
+  ///
+  /// The native side writes it into the folder the user picked and returns a
+  /// document URI. Without a chosen folder the file goes to the app's own
+  /// external directory, which a file manager can open and which needs no
+  /// storage permission.
+  Future<String> _deliverToUser(String localPath, String fileName) async {
+    if (kIsWeb || !Platform.isAndroid) return localPath;
+
+    String? published;
+    try {
+      published = await DownloadFolderService().publish(
+        sourcePath: localPath,
+        fileName: fileName,
+      );
+    } on PlatformException {
+      published = null;
+    }
+    if (published != null) {
+      await File(localPath).delete();
+      return published;
+    }
+
+    final external = await getExternalStorageDirectory();
+    if (external == null) return localPath;
+    final folder = Directory('${external.path}/Lynk');
+    await folder.create(recursive: true);
+    final delivered = File('${folder.path}/$fileName');
+    await File(localPath).copy(delivered.path);
+    await File(localPath).delete();
+    return delivered.path;
   }
 
   /// Receiver entry point: try a direct WebRTC P2P reception first; if the
@@ -398,15 +444,7 @@ class DownloadNotifier extends _$DownloadNotifier {
     final decryptedPaths = <String>[];
     Directory? saveDir;
     try {
-      if (Platform.isAndroid) {
-        final lynkPublicDir = Directory('/storage/emulated/0/Download/Lynk');
-        if (!await lynkPublicDir.exists()) {
-          await lynkPublicDir.create(recursive: true);
-        }
-        saveDir = lynkPublicDir;
-      } else {
-        saveDir = await getApplicationDocumentsDirectory();
-      }
+      saveDir = await _stagingDirectory();
 
       session = await P2PFileSession.connect(
         signalingUrl: _signalingUri(state.transfer!.id),
@@ -428,6 +466,7 @@ class DownloadNotifier extends _$DownloadNotifier {
       };
 
       int filesDone = 0;
+      final receivedNames = <String>[];
       final expectedFiles = state.transfer!.totalFiles > 0
           ? state.transfer!.totalFiles
           : 1;
@@ -435,8 +474,8 @@ class DownloadNotifier extends _$DownloadNotifier {
         try {
           // The name came straight from the peer, with no server in the
           // middle to vouch for it.
-          final savePath =
-              '${saveDir!.path}/${FileNameSanitizer.safeFileName(received.name)}';
+          final safeName = FileNameSanitizer.safeFileName(received.name);
+          final savePath = '${saveDir!.path}/$safeName';
           await ref
               .read(decryptFileUseCaseProvider)
               .execute(
@@ -445,7 +484,9 @@ class DownloadNotifier extends _$DownloadNotifier {
                 outputPath: savePath,
               );
           await received.file.delete();
-          decryptedPaths.add(savePath);
+          final delivered = await _deliverToUser(savePath, safeName);
+          decryptedPaths.add(delivered);
+          receivedNames.add(safeName);
           filesDone++;
           state = state.copyWith(
             currentFileIndex: filesDone - 1,
@@ -484,9 +525,7 @@ class DownloadNotifier extends _$DownloadNotifier {
             RecentTransferRecordModel(
               id: state.transfer?.id ?? '',
               type: RecentTransferType.received,
-              fileNames: decryptedPaths
-                  .map((p) => p.split(Platform.pathSeparator).last)
-                  .toList(),
+              fileNames: receivedNames,
               totalSize: state.transfer!.totalSize,
               timestamp: DateTime.now(),
               status: 'completed (p2p)',

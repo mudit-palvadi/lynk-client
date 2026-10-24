@@ -3,7 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:open_filex/open_filex.dart';
+import '../../../../core/providers/download_notifier.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/file_size_formatter.dart';
 import '../../../file_transfer/presentation/providers/upload_notifier.dart';
@@ -158,7 +158,10 @@ class RecentTransfersWidget extends ConsumerWidget {
             )
           else if (item.filePaths != null && item.filePaths!.isNotEmpty)
             OutlinedButton.icon(
-              onPressed: () => OpenFilex.open(item.filePaths!.first),
+              // A file written into the user's folder is a document URI, so
+              // it opens through the grant rather than a path.
+              onPressed: () =>
+                  ref.read(downloadProvider.notifier).openFile(item.filePaths!.first),
               icon: const Icon(Icons.folder_open, size: 14),
               label: const Text('Open', style: TextStyle(fontSize: 12)),
               style: OutlinedButton.styleFrom(

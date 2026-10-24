@@ -11,6 +11,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../features/file_transfer/presentation/providers/upload_notifier.dart';
 import '../../../../features/file_transfer/presentation/providers/upload_state.dart';
 import 'package:client/features/recent_transfers/presentation/widgets/recent_transfers_widget.dart';
+import '../widgets/download_folder_tile.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -247,6 +248,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ],
               const SizedBox(height: 24),
               const RecentTransfersWidget(),
+              const SizedBox(height: 16),
+              const DownloadFolderTile(),
               const SizedBox(height: 24),
               Center(
                 child: GestureDetector(

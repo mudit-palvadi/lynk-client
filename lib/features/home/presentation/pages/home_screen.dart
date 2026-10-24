@@ -177,7 +177,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               const SizedBox(height: 16),
               _ActionCard(
-                icon: Icons.qr_code_2,
+                icon: Icons.dialpad,
                 title: 'Enter a Code',
                 subtitle: 'Type the 6-digit code from the sender',
                 onTap: () => context.push('/receive-code'),

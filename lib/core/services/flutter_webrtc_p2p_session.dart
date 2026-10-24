@@ -40,8 +40,15 @@ bool isWithinReceiveLimit({
 /// Fetches short-lived TURN credentials from the backend. Returns null when
 /// TURN is disabled, unreachable, or the response is malformed -- the caller
 /// then degrades to STUN-only (transfer still succeeds via R2 fallback).
+///
+/// The endpoint requires the transfer access token, so a caller that holds one
+/// must pass it: TURN credentials are the relay's bandwidth budget (#47).
 Future<({List<String> urls, String username, String credential})?>
-fetchTurnCredentials(String sessionId, {Dio? dio}) async {
+fetchTurnCredentials(
+  String sessionId, {
+  String? accessToken,
+  Dio? dio,
+}) async {
   try {
     final base =
         dotenv.env['API_BASE_URL'] ?? 'https://api.lynkshare.app/api/v1/';
@@ -49,6 +56,10 @@ fetchTurnCredentials(String sessionId, {Dio? dio}) async {
     final resp = await client.getUri(
       Uri.parse(base).resolve('transfers/$sessionId/turn-credentials'),
       options: Options(
+        headers: {
+          if (accessToken != null && accessToken.isNotEmpty)
+            'X-Lynk-Access-Token': accessToken,
+        },
         sendTimeout: const Duration(seconds: 5),
         receiveTimeout: const Duration(seconds: 5),
       ),
@@ -316,7 +327,7 @@ class P2PFileSession implements P2PSenderSession {
     final session = P2PFileSession._(signaling, peer, aesKey)
       ..onFallbackToCloud = onFallbackToCloud;
 
-    final turn = await fetchTurnCredentials(sessionId);
+    final turn = await fetchTurnCredentials(sessionId, accessToken: accessToken);
     final iceServers = buildIceServers(
       turnEnabled: turn != null,
       urls: turn?.urls ?? const [],

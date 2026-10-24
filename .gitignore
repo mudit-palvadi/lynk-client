@@ -46,6 +46,8 @@ app.*.map.json
 # Gradle build output, including the problems report, which embeds absolute
 # developer paths and changes on every build.
 /android/build/
+# Kotlin's compiler session cache, written next to the Gradle build.
+/android/.kotlin/
 
 .env
 # Play Store upload signing

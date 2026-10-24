@@ -23,4 +23,15 @@ plugins {
     id("org.jetbrains.kotlin.android") version "2.3.20" apply false
 }
 
+// flutter_webrtc depends on its audio-switch helper by commit hash, which is
+// only published on JitPack. Repositories declared per project are ignored
+// under this build's settings, so the extra one has to live here.
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url = uri("https://jitpack.io") }
+    }
+}
+
 include(":app")

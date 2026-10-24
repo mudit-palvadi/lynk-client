@@ -366,8 +366,8 @@ class DownloadNotifier extends _$DownloadNotifier {
   ///
   /// The native side writes it into the folder the user picked and returns a
   /// document URI. Without a chosen folder the file goes to the app's own
-  /// external directory, which a file manager can open and which needs no
-  /// storage permission.
+  /// external directory, which needs no storage permission but is not part of
+  /// the user's visible Downloads; the folder tile is how that is fixed.
   Future<String> _deliverToUser(String localPath, String fileName) async {
     if (kIsWeb || !Platform.isAndroid) return localPath;
 

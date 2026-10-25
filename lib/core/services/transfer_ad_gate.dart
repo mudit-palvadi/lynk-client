@@ -9,7 +9,8 @@ typedef AutomaticAdShower =
 
 /// Decides whether a transfer button needs an ad.
 ///
-/// While the free window is open the action runs straight away; otherwise the
+/// While the free window is open the action runs straight away. A fresh
+/// install's first transfer is also free and opens that window; after that the
 /// matching ad is shown and the action waits for the reward. A rewarded view
 /// opens the window, so the next transfer inside it is free. An early dismiss
 /// neither starts the transfer nor opens the window; an SDK failure does both,
@@ -41,6 +42,11 @@ class TransferAdGate {
   }) async {
     if (await _gate.isFreeWindowOpen()) {
       onAllowed();
+      return;
+    }
+    if (await _gate.consumeFirstTransfer()) {
+      onAllowed();
+      unawaited(_gate.openFreeWindow());
       return;
     }
 

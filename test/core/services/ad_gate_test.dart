@@ -94,4 +94,19 @@ void main() {
       expect(await g.sizeCredits(), AdGate.creditsPerView);
     });
   });
+
+  group('AdGate first transfer', () {
+    test('is free once per install', () async {
+      final g = gate();
+
+      expect(await g.consumeFirstTransfer(), isTrue);
+      expect(await g.consumeFirstTransfer(), isFalse);
+    });
+
+    test('survives a restart', () async {
+      await gate().consumeFirstTransfer();
+
+      expect(await gate().consumeFirstTransfer(), isFalse);
+    });
+  });
 }

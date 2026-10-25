@@ -4,9 +4,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///
 /// Two independent rules live here:
 ///
-/// * An automatic ad (the interstitial shown after a send, or the gate on the
-///   two transfer buttons) opens a [window] during which automatic ads are not
-///   shown again.
+/// * An automatic ad (the gate on the two transfer buttons) opens a [window]
+///   during which automatic ads are not shown again.
+/// * The first transfer on a fresh install is free and opens the same window.
 /// * The user-initiated unlocks ("Unlock larger files", "Extend session") are
 ///   never skipped by that window. Watching one of those earns
 ///   [creditsPerView] free uses of that specific unlock instead, so the user is
@@ -28,6 +28,7 @@ class AdGate {
   static const int creditsPerView = 2;
 
   static const String _freeUntilKey = 'ads_free_until_ms';
+  static const String _firstTransferKey = 'ads_first_transfer_used';
   static const String _sizeCreditsKey = 'ads_size_credits';
   static const String _extendCreditsKey = 'ads_extend_credits';
 
@@ -44,6 +45,17 @@ class AdGate {
     final prefs = await SharedPreferences.getInstance();
     final until = _now().add(window).millisecondsSinceEpoch;
     await prefs.setInt(_freeUntilKey, until);
+  }
+
+  /// Claims this install's free first transfer.
+  ///
+  /// Returns true once, then false. The flag is written before the caller
+  /// starts the transfer, so two quick taps cannot both claim it.
+  Future<bool> consumeFirstTransfer() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_firstTransferKey) ?? false) return false;
+    await prefs.setBool(_firstTransferKey, true);
+    return true;
   }
 
   /// How many free "Unlock larger files" uses are left.

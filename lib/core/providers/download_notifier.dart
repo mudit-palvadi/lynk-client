@@ -28,6 +28,22 @@ part 'download_notifier.g.dart';
 @riverpod
 DownloadService downloadService(Ref ref) => DownloadService();
 
+/// Same injectable connection boundary as the sender, without native WebRTC
+/// or real signaling sockets in receiver tests.
+typedef P2PReceiverSessionFactory =
+    Future<P2PFileSession> Function({
+      required Uri signalingUrl,
+      required PeerRole role,
+      required String sessionId,
+      String? accessToken,
+      String? aesKey,
+      void Function()? onFallbackToCloud,
+    });
+
+@riverpod
+P2PReceiverSessionFactory p2pReceiverSessionFactory(Ref ref) =>
+    P2PFileSession.connect;
+
 @Riverpod(keepAlive: true)
 class DownloadNotifier extends _$DownloadNotifier {
   CancelToken? _cancelToken;
@@ -39,10 +55,7 @@ class DownloadNotifier extends _$DownloadNotifier {
     String transferId, {
     String accessToken = '',
   }) async {
-    state = DownloadState(
-      phase: DownloadPhase.idle,
-      accessToken: accessToken,
-    );
+    state = DownloadState(phase: DownloadPhase.idle, accessToken: accessToken);
     final repo = ref.read(transferRepositoryProvider);
     final result = await repo.getTransferMetadata(
       transferId,
@@ -446,7 +459,7 @@ class DownloadNotifier extends _$DownloadNotifier {
     try {
       saveDir = await _stagingDirectory();
 
-      session = await P2PFileSession.connect(
+      session = await ref.read(p2pReceiverSessionFactoryProvider)(
         signalingUrl: _signalingUri(state.transfer!.id),
         role: PeerRole.receiver,
         sessionId: state.transfer!.id,
@@ -470,6 +483,17 @@ class DownloadNotifier extends _$DownloadNotifier {
       final expectedFiles = state.transfer!.totalFiles > 0
           ? state.transfer!.totalFiles
           : 1;
+      var transportDone = false;
+      void completeWhenDelivered() {
+        // DataChannel "done" can arrive while the last decryption or save
+        // is still awaiting I/O. Neither event alone finishes reception.
+        if (!outcome.isCompleted &&
+            transportDone &&
+            filesDone == expectedFiles) {
+          outcome.complete(true);
+        }
+      }
+
       final sub = session.onFileReceived.listen((received) async {
         try {
           // The name came straight from the peer, with no server in the
@@ -493,6 +517,7 @@ class DownloadNotifier extends _$DownloadNotifier {
             currentFileProgress: 1.0,
             overallProgress: (filesDone / expectedFiles).clamp(0.0, 1.0),
           );
+          completeWhenDelivered();
         } catch (_) {
           if (!outcome.isCompleted) outcome.complete(false);
         }
@@ -501,9 +526,8 @@ class DownloadNotifier extends _$DownloadNotifier {
       unawaited(
         session.transferDone
             .then((_) {
-              if (!outcome.isCompleted && decryptedPaths.isNotEmpty) {
-                outcome.complete(true);
-              }
+              transportDone = true;
+              completeWhenDelivered();
             })
             .catchError((Object _) {
               if (!outcome.isCompleted) outcome.complete(false);

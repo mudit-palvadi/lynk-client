@@ -51,6 +51,54 @@ final class DownloadServiceProvider
 
 String _$downloadServiceHash() => r'a1930802bcd8cd2cdfc4b544a9275d75ee647997';
 
+@ProviderFor(p2pReceiverSessionFactory)
+final p2pReceiverSessionFactoryProvider = P2pReceiverSessionFactoryProvider._();
+
+final class P2pReceiverSessionFactoryProvider
+    extends
+        $FunctionalProvider<
+          P2PReceiverSessionFactory,
+          P2PReceiverSessionFactory,
+          P2PReceiverSessionFactory
+        >
+    with $Provider<P2PReceiverSessionFactory> {
+  P2pReceiverSessionFactoryProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'p2pReceiverSessionFactoryProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$p2pReceiverSessionFactoryHash();
+
+  @$internal
+  @override
+  $ProviderElement<P2PReceiverSessionFactory> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  P2PReceiverSessionFactory create(Ref ref) {
+    return p2pReceiverSessionFactory(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(P2PReceiverSessionFactory value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<P2PReceiverSessionFactory>(value),
+    );
+  }
+}
+
+String _$p2pReceiverSessionFactoryHash() =>
+    r'7360bbd00b30992d73ec35d97854c4a9698873af';
+
 @ProviderFor(DownloadNotifier)
 final downloadProvider = DownloadNotifierProvider._();
 
@@ -83,7 +131,7 @@ final class DownloadNotifierProvider
   }
 }
 
-String _$downloadNotifierHash() => r'c60587ef155b9f607eeacaa268910b8da07a5bba';
+String _$downloadNotifierHash() => r'b4a394e4f28e0a70e395ea8b0b36886f85f27aa7';
 
 abstract class _$DownloadNotifier extends $Notifier<DownloadState> {
   DownloadState build();

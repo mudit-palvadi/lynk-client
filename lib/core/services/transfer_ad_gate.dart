@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:client/core/services/ad_gate.dart';
 import 'package:client/core/services/ad_service.dart';
 
@@ -8,8 +10,10 @@ typedef AutomaticAdShower =
 /// Decides whether a transfer button needs an ad.
 ///
 /// While the free window is open the action runs straight away; otherwise the
-/// matching ad is shown and the action waits for the reward. Reading the
-/// window is all that happens here - the post-send ad is what opens it.
+/// matching ad is shown and the action waits for the reward. A rewarded view
+/// opens the window, so the next transfer inside it is free. An early dismiss
+/// neither starts the transfer nor opens the window; an SDK failure does both,
+/// because a broken ad must not block a send.
 class TransferAdGate {
   TransferAdGate({
     AdGate? gate,
@@ -39,7 +43,27 @@ class TransferAdGate {
       onAllowed();
       return;
     }
+
+    var allowed = false;
+    void allow() {
+      if (allowed) return;
+      allowed = true;
+      onAllowed();
+    }
+
     final show = p2p ? _showP2pAd : _showCloudAd;
-    await show(onRewardGranted: onAllowed);
+    try {
+      await show(
+        onRewardGranted: () {
+          allow();
+          unawaited(_gate.openFreeWindow());
+        },
+      );
+    } catch (_) {
+      // A missing or broken ad must not stop the transfer, and the next send
+      // must not be asked to pay for the same failure.
+      allow();
+      await _gate.openFreeWindow();
+    }
   }
 }

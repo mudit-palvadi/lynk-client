@@ -59,7 +59,6 @@ void main() async {
     debugPrint('Dotenv initialization warning: $e');
   }
   await AdService.init();
-  AdService.preloadInterstitialAd();
 
   final prefs = await SharedPreferences.getInstance();
 

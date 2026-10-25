@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/services/ad_gate.dart';
-import '../../../../core/services/post_send_ad.dart';
 import '../../../../core/services/transfer_ad_gate.dart';
 import '../../../../core/services/unlock_credits.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -63,10 +62,6 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
       }
       if (next.phase == UploadPhase.completed && next.transfer != null) {
         final key = next.aesKey ?? '';
-        // The post-send interstitial opens the fifteen-minute window that
-        // skips every automatic ad, so the next send goes straight through.
-        await PostSendAd().run();
-        if (!context.mounted) return;
         if (widget.attachToSessionId != null &&
             widget.attachToSessionId!.isNotEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(

@@ -76,7 +76,6 @@ class AdService {
     }
     try {
       await MobileAds.instance.initialize();
-      preloadInterstitialAd();
       loadRewardedAd();
       loadRewardedInterstitialAd();
     } catch (e) {

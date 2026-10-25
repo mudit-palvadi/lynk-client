@@ -7,16 +7,19 @@ class _Recorder {
   _Recorder({this.autoReward = true});
 
   final bool autoReward;
+  bool throwError = false;
   final List<String> calls = <String>[];
 
   Future<bool> cloud({required void Function() onRewardGranted}) async {
     calls.add('cloud');
+    if (throwError) throw StateError('ad failed');
     if (autoReward) onRewardGranted();
     return true;
   }
 
   Future<bool> p2p({required void Function() onRewardGranted}) async {
     calls.add('p2p');
+    if (throwError) throw StateError('ad failed');
     if (autoReward) onRewardGranted();
     return true;
   }
@@ -63,6 +66,7 @@ void main() {
 
     expect(recorder.calls, <String>['cloud']);
     expect(allowed, isTrue);
+    expect(await gate().isFreeWindowOpen(), isTrue);
   });
 
   test('uses the p2p ad on the direct button', () async {
@@ -75,6 +79,7 @@ void main() {
     ).start(p2p: true, onAllowed: () {});
 
     expect(recorder.calls, <String>['p2p']);
+    expect(await gate().isFreeWindowOpen(), isTrue);
   });
 
   test('waits for the reward before running the action', () async {
@@ -89,6 +94,7 @@ void main() {
 
     expect(recorder.calls, <String>['cloud']);
     expect(allowed, isFalse);
+    expect(await gate().isFreeWindowOpen(), isFalse);
   });
 
   test('shows the ad again once the window has passed', () async {
@@ -104,5 +110,20 @@ void main() {
     ).start(p2p: false, onAllowed: () {});
 
     expect(recorder.calls, <String>['cloud']);
+  });
+
+  test('a thrown ad still allows the send and opens the window', () async {
+    final recorder = _Recorder()..throwError = true;
+    var allowed = false;
+
+    await TransferAdGate(
+      gate: gate(),
+      showCloudAd: recorder.cloud,
+      showP2pAd: recorder.p2p,
+    ).start(p2p: false, onAllowed: () => allowed = true);
+
+    expect(recorder.calls, <String>['cloud']);
+    expect(allowed, isTrue);
+    expect(await gate().isFreeWindowOpen(), isTrue);
   });
 }

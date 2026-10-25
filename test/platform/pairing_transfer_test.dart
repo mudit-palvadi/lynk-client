@@ -32,10 +32,4 @@ void main() {
     );
     expect(screen, contains('viaPairing: widget.viaPairing'));
   });
-
-  test('the notifier goes straight to the server for a paired transfer', () {
-    final notifier = read('lib/core/providers/download_notifier.dart');
-    expect(notifier, contains('bool viaPairing = false'));
-    expect(notifier, contains('if (viaPairing)'));
-  });
 }

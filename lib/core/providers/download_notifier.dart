@@ -47,14 +47,27 @@ P2PReceiverSessionFactory p2pReceiverSessionFactory(Ref ref) =>
 @Riverpod(keepAlive: true)
 class DownloadNotifier extends _$DownloadNotifier {
   CancelToken? _cancelToken;
+  int _receiveGeneration = 0;
+  int? _activeReceive;
+  void Function()? _cancelP2PReceive;
 
   @override
-  DownloadState build() => const DownloadState();
+  DownloadState build() {
+    ref.onDispose(_invalidateReception);
+    return const DownloadState();
+  }
+
+  void _invalidateReception() {
+    _receiveGeneration++;
+    _cancelP2PReceive?.call();
+    _activeReceive = null;
+  }
 
   Future<void> loadTransferPreview(
     String transferId, {
     String accessToken = '',
   }) async {
+    _invalidateReception();
     state = DownloadState(phase: DownloadPhase.idle, accessToken: accessToken);
     final repo = ref.read(transferRepositoryProvider);
     final result = await repo.getTransferMetadata(
@@ -412,24 +425,24 @@ class DownloadNotifier extends _$DownloadNotifier {
   /// sender fell back to R2 (or the channel never opens), fall back to the
   /// normal R2 download pipeline automatically.
   Future<void> startReception({String? aesKey, bool viaPairing = false}) async {
-    if (state.transfer == null) return;
-    if (kIsWeb) {
-      await startDownload(aesKey: aesKey);
-      return;
-    }
-
-    // A transfer that arrived through a pairing session was put on the server
-    // by the sender. It is not waiting in the signaling room, so trying the
-    // direct channel would only stall the download before it falls back to
-    // the server anyway.
-    if (viaPairing) {
-      await startDownload(aesKey: aesKey);
-      return;
-    }
-
-    final received = await _tryP2PReceive(aesKey: aesKey);
-    if (!received) {
-      await startDownload(aesKey: aesKey);
+    if (state.transfer == null || _activeReceive == _receiveGeneration) return;
+    final generation = _receiveGeneration;
+    _activeReceive = generation;
+    try {
+      // Metadata is authoritative even if a previously collected code still
+      // says P2P. Pairing sessions are always cloud-only.
+      if (kIsWeb ||
+          viaPairing ||
+          state.transfer!.status == TransferStatus.ready) {
+        await startDownload(aesKey: aesKey);
+        return;
+      }
+      final received = await _tryP2PReceive(generation, aesKey: aesKey);
+      if (!received && generation == _receiveGeneration) {
+        await startDownload(aesKey: aesKey);
+      }
+    } finally {
+      if (_activeReceive == generation) _activeReceive = null;
     }
   }
 
@@ -449,23 +462,80 @@ class DownloadNotifier extends _$DownloadNotifier {
   /// Listens on the signaling room as the WebRTC receiver, decrypts each
   /// inbound encrypted file and returns `true` when the whole transfer
   /// arrived over the DataChannel.
-  Future<bool> _tryP2PReceive({String? aesKey}) async {
+  Future<bool> _tryP2PReceive(int generation, {String? aesKey}) async {
     String? key = (aesKey != null && aesKey.isNotEmpty) ? aesKey : state.aesKey;
     if (key == null || key.isEmpty || state.transfer == null) return false;
 
     P2PFileSession? session;
+    StreamSubscription<ReceivedFile>? sub;
+    Timer? readinessTimer;
+    final outcome = Completer<bool>();
+    final transfer = state.transfer!;
+    final accessToken = state.accessToken;
+    final elapsed = Stopwatch()..start();
+    var active = true;
+    var directStarted = false;
+    bool isCurrent() => active && generation == _receiveGeneration;
+    void fallBack() {
+      if (!outcome.isCompleted) outcome.complete(false);
+    }
+
+    _cancelP2PReceive = fallBack;
+
+    Future<void> pollCloudReadiness() async {
+      if (!isCurrent() || outcome.isCompleted) return;
+      if (session?.isOpen == true) directStarted = true;
+      if (directStarted || elapsed.elapsed >= readyTimeout) return;
+      final result = await ref
+          .read(transferRepositoryProvider)
+          .getTransferMetadata(transfer.id, accessToken: accessToken);
+      if (!isCurrent() || outcome.isCompleted) return;
+      // Recheck after the HTTP await: opening the channel wins this race.
+      if (session?.isOpen == true) directStarted = true;
+      if (directStarted) return;
+      if (result.isSuccess && result.value!.status == TransferStatus.ready) {
+        state = state.copyWith(transfer: result.value!);
+        fallBack();
+      } else {
+        readinessTimer = Timer(readyPollInterval, pollCloudReadiness);
+      }
+    }
+
     final decryptedPaths = <String>[];
     Directory? saveDir;
     try {
       saveDir = await _stagingDirectory();
-
-      session = await ref.read(p2pReceiverSessionFactoryProvider)(
-        signalingUrl: _signalingUri(state.transfer!.id),
-        role: PeerRole.receiver,
-        sessionId: state.transfer!.id,
-        accessToken: state.transfer!.accessToken,
-        aesKey: key,
+      if (!isCurrent()) return false;
+      readinessTimer = Timer(readyPollInterval, pollCloudReadiness);
+      final connected = Completer<P2PFileSession?>();
+      // A slow TURN lookup/peer initialization must not hold up cloud handover.
+      // Dispose a connection that finishes after another outcome has won.
+      unawaited(
+        ref
+            .read(p2pReceiverSessionFactoryProvider)(
+              signalingUrl: _signalingUri(transfer.id),
+              role: PeerRole.receiver,
+              sessionId: transfer.id,
+              accessToken: accessToken,
+              aesKey: key,
+            )
+            .then((created) async {
+              if (!isCurrent() || outcome.isCompleted) {
+                await created.dispose();
+                return;
+              }
+              session = created;
+              connected.complete(created);
+            })
+            .catchError((Object _) {
+              fallBack();
+            }),
       );
+      final receiver = await Future.any([
+        connected.future,
+        outcome.future.then<P2PFileSession?>((_) => null),
+      ]);
+      if (receiver == null || !isCurrent()) return false;
 
       state = state.copyWith(
         phase: DownloadPhase.downloading,
@@ -473,10 +543,7 @@ class DownloadNotifier extends _$DownloadNotifier {
         overallProgress: 0.0,
       );
 
-      final outcome = Completer<bool>();
-      session.onFallbackToCloud = () {
-        if (!outcome.isCompleted) outcome.complete(false);
-      };
+      receiver.onFallbackToCloud = fallBack;
 
       int filesDone = 0;
       final receivedNames = <String>[];
@@ -487,14 +554,18 @@ class DownloadNotifier extends _$DownloadNotifier {
       void completeWhenDelivered() {
         // DataChannel "done" can arrive while the last decryption or save
         // is still awaiting I/O. Neither event alone finishes reception.
-        if (!outcome.isCompleted &&
+        if (isCurrent() &&
+            !outcome.isCompleted &&
             transportDone &&
             filesDone == expectedFiles) {
           outcome.complete(true);
         }
       }
 
-      final sub = session.onFileReceived.listen((received) async {
+      sub = receiver.onFileReceived.listen((received) async {
+        if (!isCurrent() || outcome.isCompleted) return;
+        directStarted = true;
+        readinessTimer?.cancel();
         try {
           // The name came straight from the peer, with no server in the
           // middle to vouch for it.
@@ -507,8 +578,11 @@ class DownloadNotifier extends _$DownloadNotifier {
                 aesKey32Bytes: key,
                 outputPath: savePath,
               );
+          if (!isCurrent() || outcome.isCompleted) return;
           await received.file.delete();
+          if (!isCurrent() || outcome.isCompleted) return;
           final delivered = await _deliverToUser(savePath, safeName);
+          if (!isCurrent() || outcome.isCompleted) return;
           decryptedPaths.add(delivered);
           receivedNames.add(safeName);
           filesDone++;
@@ -524,7 +598,7 @@ class DownloadNotifier extends _$DownloadNotifier {
       });
 
       unawaited(
-        session.transferDone
+        receiver.transferDone
             .then((_) {
               transportDone = true;
               completeWhenDelivered();
@@ -536,7 +610,7 @@ class DownloadNotifier extends _$DownloadNotifier {
 
       final ok = await outcome.future;
       await sub.cancel();
-      if (!ok || decryptedPaths.isEmpty) return false;
+      if (!ok || !isCurrent() || decryptedPaths.isEmpty) return false;
 
       state = state.copyWith(
         phase: DownloadPhase.completed,
@@ -560,11 +634,16 @@ class DownloadNotifier extends _$DownloadNotifier {
     } catch (_) {
       return false;
     } finally {
+      active = false;
+      readinessTimer?.cancel();
+      await sub?.cancel();
+      if (identical(_cancelP2PReceive, fallBack)) _cancelP2PReceive = null;
       await session?.dispose();
     }
   }
 
   void cancelDownload() {
+    _invalidateReception();
     _cancelToken?.cancel();
     state = state.copyWith(phase: DownloadPhase.cancelled);
   }

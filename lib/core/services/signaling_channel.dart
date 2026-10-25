@@ -21,10 +21,11 @@ class SignalingChannel {
   final WebSocketLike _socket;
   final StreamController<SignalingMessage> _messages =
       StreamController<SignalingMessage>.broadcast();
+  late final StreamSubscription<dynamic> _incoming;
   bool _closed = false;
 
   SignalingChannel(WebSocketLike socket) : _socket = socket {
-    _socket.stream.listen(
+    _incoming = _socket.stream.listen(
       (frame) {
         if (_messages.isClosed) return;
         final message = frame is String
@@ -37,6 +38,13 @@ class SignalingChannel {
         if (!_messages.isClosed) _messages.close();
       },
     );
+    // Room history can arrive while TURN lookup and peer init are awaiting.
+    // A broadcast controller drops events without listeners, so hold the raw
+    // subscription until the coordinator is ready instead of losing the offer.
+    _incoming.pause();
+    _messages.onListen = () {
+      if (_incoming.isPaused) _incoming.resume();
+    };
   }
 
   /// Parsed incoming signaling messages.
@@ -59,6 +67,9 @@ class SignalingChannel {
   Future<void> close() async {
     if (_closed) return;
     _closed = true;
+    // Cancel even if no consumer ever subscribed; closing a paused socket
+    // must not wait for its buffered frames to be consumed.
+    await _incoming.cancel();
     await _socket.close();
     if (!_messages.isClosed) await _messages.close();
   }

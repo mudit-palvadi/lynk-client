@@ -129,6 +129,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ];
   }
 
+  void _openUpload() {
+    // A finished or cancelled transfer leaves the provider in a terminal
+    // phase, and the upload screen has no body for those phases. Clear it
+    // before opening so "Send Files" always starts on the selection view.
+    final phase = ref.read(uploadProvider).phase;
+    if (phase == UploadPhase.completed || phase == UploadPhase.cancelled) {
+      ref.read(uploadProvider.notifier).reset();
+    }
+    context.push('/upload');
+  }
+
   @override
   Widget build(BuildContext context) {
     final uploadState = ref.watch(uploadProvider);
@@ -214,7 +225,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     icon: Icons.upload_file,
                     title: 'Send Files',
                     subtitle: 'Upload and share files via QR or direct link',
-                    onTap: () => context.push('/upload'),
+                    onTap: _openUpload,
                   ),
                   const SizedBox(height: 16),
                   _ActionCard(

@@ -12,9 +12,10 @@ typedef AutomaticAdShower =
 /// While the free window is open the action runs straight away. A fresh
 /// install's first transfer is also free and opens that window; after that the
 /// matching ad is shown and the action waits for the reward. A rewarded view
-/// opens the window, so the next transfer inside it is free. An early dismiss
-/// neither starts the transfer nor opens the window; an SDK failure does both,
-/// because a broken ad must not block a send.
+/// opens the window, so the next transfer inside it is free. A selection that
+/// already paid the size unlock does not pay the transfer gate again. An early
+/// dismiss neither starts the transfer nor opens the window; an SDK failure
+/// does both, because a broken ad must not block a send.
 class TransferAdGate {
   TransferAdGate({
     AdGate? gate,
@@ -38,9 +39,17 @@ class TransferAdGate {
   /// cloud (rewarded video) or P2P (rewarded interstitial) ad.
   Future<void> start({
     required bool p2p,
+    bool sizeUnlockAlreadyPaid = false,
     required void Function() onAllowed,
   }) async {
     if (await _gate.isFreeWindowOpen()) {
+      onAllowed();
+      return;
+    }
+    // A selection that already paid the size unlock must not pay again here.
+    // This is a credit-paid unlock (an ad-paid one already opened the window
+    // above), so it does not grant the 15 minutes itself.
+    if (sizeUnlockAlreadyPaid) {
       onAllowed();
       return;
     }

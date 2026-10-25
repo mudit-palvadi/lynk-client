@@ -222,6 +222,10 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                         onPressed: () {
                           TransferAdGate().start(
                             p2p: false,
+                            sizeUnlockAlreadyPaid:
+                                uploadState.isSizeLimitUnlocked &&
+                                uploadState.rawTotalSize >
+                                    uploadState.maxTotalSizeFree,
                             onAllowed: () {
                               notifier.setTransferMode(TransferMode.cloud);
                               notifier.startUpload(
@@ -245,6 +249,10 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                         onPressed: () {
                           TransferAdGate().start(
                             p2p: true,
+                            sizeUnlockAlreadyPaid:
+                                uploadState.isSizeLimitUnlocked &&
+                                uploadState.rawTotalSize >
+                                    uploadState.maxTotalSizeFree,
                             onAllowed: () {
                               notifier.setTransferMode(TransferMode.p2p);
                               notifier.startUpload(

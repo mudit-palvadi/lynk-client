@@ -147,4 +147,25 @@ void main() {
     expect(allowed, isTrue);
     expect(await gate().isFreeWindowOpen(), isTrue);
   });
+
+  test('a paid size unlock skips the transfer ad', () async {
+    final recorder = _Recorder();
+    var allowed = false;
+
+    await TransferAdGate(
+      gate: gate(),
+      showCloudAd: recorder.cloud,
+      showP2pAd: recorder.p2p,
+    ).start(
+      p2p: false,
+      sizeUnlockAlreadyPaid: true,
+      onAllowed: () => allowed = true,
+    );
+
+    expect(recorder.calls, isEmpty);
+    expect(allowed, isTrue);
+    // The bypass is not the first-transfer pass, so the flag survives.
+    expect(await gate().consumeFirstTransfer(), isTrue);
+    expect(await gate().isFreeWindowOpen(), isFalse);
+  });
 }

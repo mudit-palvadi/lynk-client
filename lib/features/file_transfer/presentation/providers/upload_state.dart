@@ -55,6 +55,9 @@ class UploadState extends Equatable {
   int get totalSize =>
       selectedFiles.fold(0, (sum, f) => sum + ((f.size ~/ 16) + 1) * 16 + 16);
 
+  /// The selected bytes before encryption padding.
+  int get rawTotalSize => selectedFiles.fold(0, (sum, f) => sum + f.size);
+
   /// Size tiers (bytes):
   /// - Cloud/R2: free = 15 MB, rewarded-ad unlocked = 30 MB
   /// - P2P:      free = 20 MB, rewarded-ad unlocked = 50 MB

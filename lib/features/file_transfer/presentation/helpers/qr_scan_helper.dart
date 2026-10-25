@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../../core/providers/receiver_providers.dart';
 import '../../../../core/routing/send_link_capability.dart';
+import '../../../../core/routing/transfer_route_args.dart';
 import '../../../../core/services/key_wrap_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../providers/upload_notifier.dart';
@@ -20,7 +21,8 @@ class QrScanHelper {
     if (uri.scheme == 'lynk') {
       if (uri.host == 'send' && uri.pathSegments.isNotEmpty) {
         transferId = uri.pathSegments.first;
-      } else if (uri.pathSegments.length >= 2 && uri.pathSegments[0] == 'send') {
+      } else if (uri.pathSegments.length >= 2 &&
+          uri.pathSegments[0] == 'send') {
         transferId = uri.pathSegments[1];
       }
     } else if (uri.scheme == 'https' || uri.scheme == 'http') {
@@ -140,12 +142,12 @@ class QrScanHelper {
       final id = extracted['transferId']!;
       final aesKey = extracted['aesKey'] ?? '';
       final accessToken = extracted['accessToken'] ?? '';
-      final tokenQuery = accessToken.isEmpty
-          ? ''
-          : '&a=${Uri.encodeQueryComponent(accessToken)}';
-      context.go(
-        '/download-progress/$id?aesKey=${Uri.encodeQueryComponent(aesKey)}$tokenQuery',
+      final args = DownloadArguments(
+        transferId: id,
+        aesKey: aesKey,
+        accessToken: accessToken,
       );
+      context.go(args.location, extra: args);
       return true;
     }
 
@@ -172,7 +174,8 @@ class QrScanHelper {
       if (json is Map<String, dynamic>) {
         if (json.containsKey('transfer_id') && json['transfer_id'] is String) {
           final transferId = json['transfer_id'] as String;
-          context.go('/download-progress/$transferId');
+          final args = DownloadArguments(transferId: transferId, aesKey: '');
+          context.go(args.location, extra: args);
           return true;
         } else if (json.containsKey('session_id') &&
             json['session_id'] is String) {

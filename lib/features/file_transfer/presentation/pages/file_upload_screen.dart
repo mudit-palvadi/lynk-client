@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/routing/transfer_route_args.dart';
 import '../../../../core/services/ad_gate.dart';
 import '../../../../core/services/transfer_ad_gate.dart';
 import '../../../../core/services/unlock_credits.dart';
@@ -57,7 +58,10 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
           !_p2pScreenPushed) {
         _p2pScreenPushed = true;
         final key = next.aesKey ?? '';
-        context.go('/send-qr?aesKey=$key', extra: next.transfer!);
+        context.go(
+          '/send-qr',
+          extra: SendQrArguments(transfer: next.transfer!, aesKey: key),
+        );
         return;
       }
       if (next.phase == UploadPhase.completed && next.transfer != null) {
@@ -72,7 +76,10 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
           );
           context.go('/home');
         } else {
-          context.go('/send-qr?aesKey=$key', extra: next.transfer!);
+          context.go(
+            '/send-qr',
+            extra: SendQrArguments(transfer: next.transfer!, aesKey: key),
+          );
         }
       } else if (next.phase == UploadPhase.failed &&
           next.errorMessage != null) {
@@ -106,9 +113,7 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                   icon: Icon(
                     credits > 0 ? Icons.lock_open : Icons.card_giftcard,
                   ),
-                  label: Text(
-                    credits > 0 ? 'Unlock' : 'Watch Ad & Unlock',
-                  ),
+                  label: Text(credits > 0 ? 'Unlock' : 'Watch Ad & Unlock'),
                 ),
               ],
             ),

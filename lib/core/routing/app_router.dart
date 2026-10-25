@@ -2,7 +2,6 @@ import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../features/file_receive/presentation/pages/enter_code_screen.dart';
 import '../../features/file_receive/presentation/pages/receive_qr_screen.dart';
-import '../../features/file_transfer/domain/entities/transfer.dart';
 import '../../features/file_transfer/presentation/pages/download_progress_screen.dart';
 import '../../features/file_transfer/presentation/pages/file_upload_screen.dart';
 import '../../features/file_transfer/presentation/pages/qr_scan_screen.dart';
@@ -13,6 +12,7 @@ import '../../features/onboarding/presentation/providers/onboarding_provider.dar
 import '../widgets/not_found_screen.dart';
 import 'pending_deep_link.dart';
 import 'send_link_capability.dart';
+import 'transfer_route_args.dart';
 
 part 'app_router.g.dart';
 
@@ -173,8 +173,7 @@ GoRouter appRouter(Ref ref) {
     // they expect to open.
     initialLocation: pendingLink ?? (hasOnboarded ? '/home' : '/onboarding'),
     overridePlatformDefaultLocation: pendingLink != null,
-    errorBuilder: (context, state) =>
-        NotFoundScreen(path: state.uri.toString()),
+    errorBuilder: (context, state) => NotFoundScreen(path: state.uri.path),
     redirect: (context, state) {
       // `lynk://` links arrive as scheme://host/path, which no route can
       // match. Rewrite them to the canonical path before any gate logic so
@@ -221,9 +220,14 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: '/send-qr',
         builder: (context, state) {
-          final transfer = state.extra as Transfer;
-          final aesKey = state.uri.queryParameters['aesKey'] ?? '';
-          return SendQrScreen(transfer: transfer, aesKey: aesKey);
+          final args = state.extra;
+          if (args is! SendQrArguments ||
+              !args.isValid ||
+              state.uri.hasQuery ||
+              state.uri.hasFragment) {
+            return NotFoundScreen(path: state.uri.path);
+          }
+          return SendQrScreen(transfer: args.transfer, aesKey: args.aesKey);
         },
       ),
       GoRoute(
@@ -246,17 +250,18 @@ GoRouter appRouter(Ref ref) {
         path: '/download-progress/:transferId',
         builder: (context, state) {
           final transferId = state.pathParameters['transferId'] ?? '';
-          final aesKey = state.uri.queryParameters['aesKey'] ?? '';
-          final accessToken = state.uri.queryParameters['a'] ?? '';
-          // A transfer that came through a pairing session was put on the
-          // server by the sender, so the receiver must not wait for a direct
-          // connection that is never coming.
-          final viaPairing = state.uri.queryParameters['via'] == 'pairing';
+          final args = state.extra;
+          if (args is! DownloadArguments ||
+              !args.matches(transferId) ||
+              state.uri.hasQuery ||
+              state.uri.hasFragment) {
+            return NotFoundScreen(path: state.uri.path);
+          }
           return DownloadProgressScreen(
             transferId: transferId,
-            aesKey: aesKey,
-            accessToken: accessToken,
-            viaPairing: viaPairing,
+            aesKey: args.aesKey,
+            accessToken: args.accessToken,
+            viaPairing: args.viaPairing,
           );
         },
       ),

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/routing/transfer_route_args.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../../../core/providers/download_notifier.dart';
 import '../../../../core/providers/download_state.dart';
@@ -169,8 +170,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       onTap: () {
                         final key = uploadState.aesKey ?? '';
                         context.push(
-                          '/send-qr?aesKey=$key',
-                          extra: uploadState.transfer!,
+                          '/send-qr',
+                          extra: SendQrArguments(
+                            transfer: uploadState.transfer!,
+                            aesKey: key,
+                          ),
                         );
                       },
                       borderRadius: BorderRadius.circular(16),
@@ -257,9 +261,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         if (downloadState.transfer != null) {
                           final key = downloadState.aesKey ?? '';
                           final token = downloadState.accessToken ?? '';
-                          context.push(
-                            '/download-progress/${downloadState.transfer!.id}?aesKey=$key&a=$token',
+                          final args = DownloadArguments(
+                            transferId: downloadState.transfer!.id,
+                            aesKey: key,
+                            accessToken: token,
                           );
+                          context.push(args.location, extra: args);
                         }
                       },
                       borderRadius: BorderRadius.circular(16),

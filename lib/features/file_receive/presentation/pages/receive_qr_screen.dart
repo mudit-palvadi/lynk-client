@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../../../core/providers/receiver_notifier.dart';
+import '../../../../core/routing/transfer_route_args.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/app_links.dart';
 import '../../../../core/widgets/ad_banner_widget.dart';
@@ -55,12 +56,16 @@ class _ReceiveQrScreenState extends ConsumerState<ReceiveQrScreen> {
       if (next.attachedTransferId != null) {
         final key = next.attachedAesKey ?? '';
         final token = next.attachedAccessToken ?? '';
-        // `via=pairing` tells the download screen that the sender put this
+        // The pairing flag tells the download screen that the sender put this
         // transfer on the server, so there is no direct connection to wait
         // for.
-        context.go(
-          '/download-progress/${next.attachedTransferId}?aesKey=$key&a=$token&via=pairing',
+        final args = DownloadArguments(
+          transferId: next.attachedTransferId!,
+          aesKey: key,
+          accessToken: token,
+          viaPairing: true,
         );
+        context.go(args.location, extra: args);
       }
     });
 

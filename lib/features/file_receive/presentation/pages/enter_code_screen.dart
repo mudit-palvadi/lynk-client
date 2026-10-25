@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/providers/code_receiver_notifier.dart';
+import '../../../../core/routing/transfer_route_args.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/ad_banner_widget.dart';
 import '../../../../core/widgets/scrollable_fill.dart';
@@ -42,20 +43,16 @@ class _EnterCodeScreenState extends ConsumerState<EnterCodeScreen> {
       if (transferId == null || next.isReady == (previous?.isReady ?? false)) {
         return;
       }
-      final query = <String, String>{
-        'aesKey': next.aesKey ?? '',
-        'a': next.accessToken ?? '',
+      final args = DownloadArguments(
+        transferId: transferId,
+        aesKey: next.aesKey ?? '',
+        accessToken: next.accessToken ?? '',
         // A cloud sender uploaded before the code was used, so the direct
         // channel is not worth waiting for. A direct sender is still holding
         // the files and the share screen open.
-        if (next.viaPairing) 'via': 'pairing',
-      };
-      context.go(
-        Uri(
-          path: '/download-progress/$transferId',
-          queryParameters: query,
-        ).toString(),
+        viaPairing: next.viaPairing,
       );
+      context.go(args.location, extra: args);
     });
 
     return Scaffold(

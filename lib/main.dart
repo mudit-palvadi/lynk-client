@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'core/routing/app_router.dart';
 import 'core/services/ad_service.dart';
 import 'core/theme/app_theme.dart';
+import 'core/widgets/app_update_gate.dart';
 import 'features/onboarding/presentation/providers/onboarding_provider.dart';
 
 void main() async {
@@ -72,6 +73,14 @@ void main() async {
 
 class LynkApp extends ConsumerWidget {
   const LynkApp({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) =>
+      const AppUpdateGate(child: _RoutedApp());
+}
+
+class _RoutedApp extends ConsumerWidget {
+  const _RoutedApp();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

@@ -137,4 +137,27 @@ class TransferRepositoryImpl implements TransferRepository {
       return Result.failure(ServerFailure(e.toString()));
     }
   }
+
+  @override
+  Future<Result<void>> extendTransfer(
+    String transferId, {
+    String? senderSecret,
+  }) async {
+    try {
+      await remoteDataSource.extendTransfer(
+        transferId,
+        senderSecret: senderSecret,
+      );
+      return Result.success(null);
+    } on DioException catch (e) {
+      return Result.failure(
+        ServerFailure(
+          _errorMessage(e.response?.data, 'Failed extending transfer'),
+          statusCode: e.response?.statusCode,
+        ),
+      );
+    } catch (e) {
+      return Result.failure(ServerFailure(e.toString()));
+    }
+  }
 }

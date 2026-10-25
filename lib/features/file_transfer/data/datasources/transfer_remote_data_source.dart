@@ -22,4 +22,6 @@ abstract class TransferRemoteDataSource {
   });
 
   Future<void> cancelTransfer(String transferId, {String? senderSecret});
+
+  Future<void> extendTransfer(String transferId, {String? senderSecret});
 }

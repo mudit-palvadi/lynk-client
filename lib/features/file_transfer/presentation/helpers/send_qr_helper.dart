@@ -40,25 +40,49 @@ class SendQrHelper {
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
-  /// Extends the session time to 30 minutes (1800s).
+  /// Extends the session to 30 minutes (1800s), on the server as well.
   ///
   /// The first extension spends a free credit; once those are gone a Rewarded
-  /// Ad is asked for before the session grows.
+  /// Ad is asked for. The timer only moves after the backend accepted the
+  /// extension, so a failed request cannot make the screen promise 30 minutes
+  /// for a session that Redis still expires in 10.
   static Future<void> extendSessionTimeWithAd({
     required BuildContext context,
+    required WidgetRef ref,
+    required String transferId,
     required ValueNotifier<int> secondsNotifier,
+    UnlockCredits? unlockCredits,
   }) async {
-    await UnlockCredits().spendExtend(() {
-      secondsNotifier.value = 1800;
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Session extended to 30 minutes!'),
-            backgroundColor: AppTheme.secondary,
-          ),
-        );
-      }
+    var unlocked = false;
+    await (unlockCredits ?? UnlockCredits()).spendExtend(() {
+      unlocked = true;
     });
+    if (!unlocked) return;
+
+    final secret = ref.read(uploadProvider).transfer?.senderSecret;
+    final result = await ref
+        .read(transferRepositoryProvider)
+        .extendTransfer(transferId, senderSecret: secret);
+    if (!context.mounted) return;
+    if (result.isFailure) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.failure?.message ?? 'Could not extend the session.',
+          ),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+      return;
+    }
+
+    secondsNotifier.value = 1800;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Session extended to 30 minutes!'),
+        backgroundColor: AppTheme.secondary,
+      ),
+    );
   }
 
   /// Cancels transfer session and navigates home.

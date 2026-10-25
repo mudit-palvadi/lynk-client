@@ -278,11 +278,17 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      if (seconds < 1500) ...[
+                      if (seconds > 0 &&
+                          seconds < 1500 &&
+                          !(uploadState.transferMode == TransferMode.p2p &&
+                              uploadState.p2pStage ==
+                                  P2PSendStage.transferring)) ...[
                         const SizedBox(height: 4),
                         TextButton.icon(
                           onPressed: () => SendQrHelper.extendSessionTimeWithAd(
                             context: context,
+                            ref: ref,
+                            transferId: widget.transfer.id,
                             secondsNotifier: _secondsRemainingNotifier,
                           ),
                           icon: const Icon(

@@ -109,6 +109,14 @@ class FakeTransferRepository implements TransferRepository {
   }) async {
     return Result.success(null);
   }
+
+  @override
+  Future<Result<void>> extendTransfer(
+    String transferId, {
+    String? senderSecret,
+  }) async {
+    return Result.success(null);
+  }
 }
 
 /// Scriptable fake of the sender-side WebRTC session.

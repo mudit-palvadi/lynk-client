@@ -22,6 +22,10 @@ class MockTransferRemoteDataSource implements TransferRemoteDataSource {
   int? cancelStatusCode;
   String cancelError = 'Transfer not found';
 
+  /// When set, `extendTransfer` answers with this status and detail.
+  int? extendStatusCode;
+  String extendError = 'Transfer not found';
+
   @override
   Future<TransferModel> createTransfer(List<FileItemModel> files) async {
     if (shouldThrowDioException) {
@@ -125,6 +129,23 @@ class MockTransferRemoteDataSource implements TransferRemoteDataSource {
       throw DioException(requestOptions: RequestOptions(path: '/cancel'));
     }
   }
+
+  @override
+  Future<void> extendTransfer(String transferId, {String? senderSecret}) async {
+    if (extendStatusCode != null) {
+      throw DioException(
+        requestOptions: RequestOptions(path: '/extend'),
+        response: Response(
+          requestOptions: RequestOptions(path: '/extend'),
+          statusCode: extendStatusCode!,
+          data: {'detail': extendError},
+        ),
+      );
+    }
+    if (shouldThrowDioException) {
+      throw DioException(requestOptions: RequestOptions(path: '/extend'));
+    }
+  }
 }
 
 void main() {
@@ -214,6 +235,26 @@ void main() {
         mockDataSource.cancelError = 'Transfer not found';
 
         final result = await repository.cancelTransfer('tx_mock_123');
+        expect(result.isFailure, isTrue);
+        expect(result.failure?.message, 'Transfer not found');
+        expect((result.failure! as ServerFailure).statusCode, 404);
+        expect(result.failure?.message, isNot(contains('DioException')));
+      },
+    );
+
+    test('extendTransfer succeeds', () async {
+      final result = await repository.extendTransfer('tx_mock_123');
+
+      expect(result.isSuccess, isTrue);
+    });
+
+    test(
+      'extendTransfer reports the server message and the status code',
+      () async {
+        mockDataSource.extendStatusCode = 404;
+        mockDataSource.extendError = 'Transfer not found';
+
+        final result = await repository.extendTransfer('tx_mock_123');
         expect(result.isFailure, isTrue);
         expect(result.failure?.message, 'Transfer not found');
         expect((result.failure! as ServerFailure).statusCode, 404);

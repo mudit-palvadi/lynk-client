@@ -65,6 +65,14 @@ class TransferRemoteDataSourceImpl implements TransferRemoteDataSource {
       options: Options(headers: _secretHeader('X-Lynk-Sender-Secret', senderSecret)),
     );
   }
+
+  @override
+  Future<void> extendTransfer(String transferId, {String? senderSecret}) async {
+    await dio.post(
+      'transfers/$transferId/extend',
+      options: Options(headers: _secretHeader('X-Lynk-Sender-Secret', senderSecret)),
+    );
+  }
 }
 
 Map<String, String>? _secretHeader(String name, String? value) {

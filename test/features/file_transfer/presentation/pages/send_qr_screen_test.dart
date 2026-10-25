@@ -31,6 +31,9 @@ class _FakeSenderCodeNotifier extends SenderCodeNotifier {
     String? accessToken,
     required TransferMode mode,
   }) async {}
+
+  @override
+  void stop() {}
 }
 
 void main() {
@@ -86,6 +89,88 @@ void main() {
     expect(cancel.bottom, lessThanOrEqualTo(640));
 
     // Let the screen's one-second timer be cancelled before the test ends.
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('the extend button is hidden while a direct transfer is running', (
+    tester,
+  ) async {
+    final transfer = Transfer(
+      id: 'transfer-1',
+      status: TransferStatus.ready,
+      totalFiles: 1,
+      totalSize: 1024,
+      createdAt: DateTime.now(),
+      files: const [],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          uploadProvider.overrideWith(
+            () => _FakeUploadNotifier(
+              UploadState(
+                transfer: transfer,
+                transferMode: TransferMode.p2p,
+                p2pStage: P2PSendStage.transferring,
+              ),
+            ),
+          ),
+          senderCodeProvider.overrideWith(_FakeSenderCodeNotifier.new),
+        ],
+        child: MaterialApp(
+          home: SendQrScreen(transfer: transfer, aesKey: 'k' * 32),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      find.text('Extend Session to 30 Mins (Watch Ad)'),
+      findsNothing,
+    );
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('the extend button is offered while waiting for the receiver', (
+    tester,
+  ) async {
+    final transfer = Transfer(
+      id: 'transfer-1',
+      status: TransferStatus.ready,
+      totalFiles: 1,
+      totalSize: 1024,
+      createdAt: DateTime.now(),
+      files: const [],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          uploadProvider.overrideWith(
+            () => _FakeUploadNotifier(
+              UploadState(
+                transfer: transfer,
+                transferMode: TransferMode.p2p,
+                p2pStage: P2PSendStage.waitingForReceiver,
+              ),
+            ),
+          ),
+          senderCodeProvider.overrideWith(_FakeSenderCodeNotifier.new),
+        ],
+        child: MaterialApp(
+          home: SendQrScreen(transfer: transfer, aesKey: 'k' * 32),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      find.text('Extend Session to 30 Mins (Watch Ad)'),
+      findsOneWidget,
+    );
+
     await tester.pumpWidget(const SizedBox());
   });
 }

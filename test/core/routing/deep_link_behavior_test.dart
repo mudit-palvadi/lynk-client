@@ -296,4 +296,10 @@ class _OfflineTransferRepository implements TransferRepository {
     String transferId, {
     String? senderSecret,
   }) async => Result.failure(const NetworkFailure('offline'));
+
+  @override
+  Future<Result<void>> extendTransfer(
+    String transferId, {
+    String? senderSecret,
+  }) async => Result.failure(const NetworkFailure('offline'));
 }

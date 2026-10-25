@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/providers/download_notifier.dart';
 import '../../../../core/providers/download_state.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../../../../core/widgets/ad_banner_widget.dart';
 
 class DownloadProgressScreen extends ConsumerStatefulWidget {
   final String transferId;
@@ -249,8 +248,6 @@ class _DownloadProgressScreenState
                     ),
                   ),
                 ],
-                const SizedBox(height: 16),
-                const AdBannerWidget(),
               ],
             ),
           ),

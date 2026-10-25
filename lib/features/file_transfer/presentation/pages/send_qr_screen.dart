@@ -6,7 +6,6 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/file_size_formatter.dart';
 import '../../../../core/utils/qr_share_helper.dart';
-import '../../../../core/widgets/ad_banner_widget.dart';
 import '../../../../core/widgets/scrollable_fill.dart';
 import '../../domain/entities/transfer.dart';
 import '../helpers/send_qr_helper.dart';
@@ -346,8 +345,6 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
                 ),
                 child: const Text('Cancel Session'),
               ),
-              const SizedBox(height: 16),
-              const AdBannerWidget(),
             ],
           ),
         ),

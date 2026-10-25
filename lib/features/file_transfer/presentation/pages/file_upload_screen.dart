@@ -339,8 +339,11 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                   ),
                 ),
               ],
-              const SizedBox(height: 16),
-              const AdBannerWidget(),
+              if (uploadState.phase == UploadPhase.idle ||
+                  uploadState.phase == UploadPhase.selecting) ...[
+                const SizedBox(height: 16),
+                const AdBannerWidget(),
+              ],
             ],
           ),
         ),

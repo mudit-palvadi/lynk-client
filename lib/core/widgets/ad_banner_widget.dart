@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import '../services/ad_gate.dart';
 import '../services/ad_service.dart';
 
 class AdBannerWidget extends StatefulWidget {
@@ -22,7 +23,7 @@ class _AdBannerWidgetState extends State<AdBannerWidget> {
 
   Future<void> _checkAndLoadAd() async {
     final show = await AdService.shouldShowAds();
-    if (!show) {
+    if (!show || await AdGate().isFreeWindowOpen()) {
       if (mounted) setState(() => _showAds = false);
       return;
     }

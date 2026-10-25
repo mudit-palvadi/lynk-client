@@ -3,6 +3,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:client/core/services/ad_gate.dart';
 
 void main() {
+  test('the default window is fifteen minutes', () {
+    expect(AdGate().window, const Duration(minutes: 15));
+  });
   late DateTime clock;
 
   AdGate gate() => AdGate(now: () => clock);

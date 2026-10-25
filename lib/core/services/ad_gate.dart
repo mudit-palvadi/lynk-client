@@ -17,8 +17,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 class AdGate {
   AdGate({
     DateTime Function()? now,
-    this.window = const Duration(minutes: 15),
+    this.window = defaultWindow,
   }) : _now = now ?? DateTime.now;
+
+  /// The automatic-ad window. A device run can shorten it with
+  /// `--dart-define=AD_WINDOW_SECONDS=120`; a normal build keeps 15 minutes.
+  static const int _windowSeconds =
+      int.fromEnvironment('AD_WINDOW_SECONDS', defaultValue: 900);
+
+  /// The window used unless a caller passes its own.
+  static const Duration defaultWindow = Duration(seconds: _windowSeconds);
 
   final DateTime Function() _now;
 

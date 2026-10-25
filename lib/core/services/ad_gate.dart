@@ -7,10 +7,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// * An automatic ad (the gate on the two transfer buttons) opens a [window]
 ///   during which automatic ads are not shown again.
 /// * The first transfer on a fresh install is free and opens the same window.
-/// * The user-initiated unlocks ("Unlock larger files", "Extend session") are
-///   never skipped by that window. Watching one of those earns
-///   [creditsPerView] free uses of that specific unlock instead, so the user is
-///   not asked to watch the same ad again a moment after watching it.
+/// * The window also covers the user-initiated unlocks ("Unlock larger files",
+///   "Extend session"): while it is open they are free and spend no credit.
+///   Watching an unlock ad opens the same window, so it is not followed by a
+///   second ad on the transfer button. Outside the window one view still earns
+///   [creditsPerView] free uses of that specific unlock.
 ///
 /// The state is local and survives a restart, because the user earned it.
 class AdGate {

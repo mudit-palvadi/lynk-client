@@ -10,8 +10,9 @@ import 'package:encrypt/encrypt.dart' as enc;
 /// encrypted with the same AES-256-CBC key as the payload (16-byte random IV
 /// prepended), then base64 encoded so it can live inside the JSON frame.
 ///
-/// The key is sanitised exactly like `EncryptFileUseCase` and the web's
-/// `sanitizeKey`, so a name sealed on either side opens on the other.
+/// The key must be exactly 32 UTF-8 bytes, the format the app issues. A
+/// shorter or longer key is rejected rather than padded, so two different
+/// strings can never open the same sealed name (#46).
 /// Everything here is synchronous: the receive path is a sync callback.
 class NameSealer {
   const NameSealer._();
@@ -44,16 +45,21 @@ class NameSealer {
 
   static enc.Encrypter _encrypter(String aesKey) => enc.Encrypter(
     enc.AES(
-      enc.Key.fromUtf8(_sanitizeKey(aesKey)),
+      enc.Key.fromUtf8(_requireKey(aesKey)),
       mode: enc.AESMode.cbc,
       padding: 'PKCS7',
     ),
   );
 
-  static String _sanitizeKey(String key) {
+  static String _requireKey(String key) {
     final clean = key.trim();
-    if (clean.length == 32) return clean;
-    if (clean.length > 32) return clean.substring(0, 32);
-    return clean.padRight(32, '0');
+    if (utf8.encode(clean).length != 32) {
+      throw ArgumentError.value(
+        key,
+        'aesKey',
+        'an AES-256 key must be exactly 32 bytes',
+      );
+    }
+    return clean;
   }
 }

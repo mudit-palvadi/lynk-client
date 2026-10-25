@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
@@ -7,11 +8,21 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 part 'encrypt_file_use_case.g.dart';
 
 class EncryptFileUseCase {
-  static String _sanitizeKey(String key) {
+  /// Returns the key unchanged, or throws when it is not a 32-byte AES key.
+  ///
+  /// Padding or truncating a key silently maps two different strings to the
+  /// same AES key (#46), so a wrong key can still "work". The key is used as
+  /// UTF-8, so the byte length is what has to be 32, not just the characters.
+  static String _requireKey(String key) {
     final clean = key.trim();
-    if (clean.length == 32) return clean;
-    if (clean.length > 32) return clean.substring(0, 32);
-    return clean.padRight(32, '0');
+    if (utf8.encode(clean).length != 32) {
+      throw ArgumentError.value(
+        key,
+        'aesKey32Bytes',
+        'an AES-256 key must be exactly 32 bytes',
+      );
+    }
+    return clean;
   }
 
   /// Encrypts an input file using AES-256-CBC with chunked streaming.
@@ -24,7 +35,7 @@ class EncryptFileUseCase {
   }) async {
     final inputPath = inputFile.path;
     final outputPath = '$inputPath.enc';
-    final keyStr = _sanitizeKey(aesKey32Bytes);
+    final keyStr = _requireKey(aesKey32Bytes);
 
     await Isolate.run(() async {
       final key = enc.Key.fromUtf8(keyStr);
@@ -91,7 +102,7 @@ class EncryptFileUseCase {
     required Uint8List inputBytes,
     required String aesKey32Bytes,
   }) {
-    final keyStr = _sanitizeKey(aesKey32Bytes);
+    final keyStr = _requireKey(aesKey32Bytes);
     final key = enc.Key.fromUtf8(keyStr);
     final iv = enc.IV.fromSecureRandom(16);
 

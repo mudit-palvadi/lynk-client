@@ -50,7 +50,7 @@ void main() {
     );
 
     test(
-      'execute automatically sanitizes and handles keys with whitespace or non-32 lengths',
+      'execute accepts a valid key with surrounding whitespace',
       () async {
         final paddedKey = '  $aesKey  ';
         final result = await decryptUseCase.execute(
@@ -63,6 +63,31 @@ void main() {
         expect(result.readAsStringSync(), testContent);
       },
     );
+
+    test('execute rejects a key that is not 32 bytes (#46)', () async {
+      await expectLater(
+        decryptUseCase.execute(
+          encryptedFile: encryptedFile,
+          aesKey32Bytes: 'short',
+          outputPath: decryptedFile.path,
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('executeBytes rejects a key that is not 32 bytes (#46)', () {
+      final encryptedBytes = encryptUseCase.executeBytes(
+        inputBytes: Uint8List.fromList([1, 2, 3]),
+        aesKey32Bytes: aesKey,
+      );
+      expect(
+        () => decryptUseCase.executeBytes(
+          encryptedBytes: encryptedBytes,
+          aesKey32Bytes: 'short',
+        ),
+        throwsArgumentError,
+      );
+    });
 
     test(
       'execute streams and decrypts multi-megabyte large files correctly across 1MB chunk boundaries',

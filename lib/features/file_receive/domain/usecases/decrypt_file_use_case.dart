@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
@@ -7,11 +8,21 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 part 'decrypt_file_use_case.g.dart';
 
 class DecryptFileUseCase {
-  static String _sanitizeKey(String key) {
+  /// Returns the key unchanged, or throws when it is not a 32-byte AES key.
+  ///
+  /// The old code padded or truncated the key, so two different strings could
+  /// decrypt with the same AES key (#46). The key is used as UTF-8, so the
+  /// byte length is what has to be 32.
+  static String _requireKey(String key) {
     final clean = key.trim();
-    if (clean.length == 32) return clean;
-    if (clean.length > 32) return clean.substring(0, 32);
-    return clean.padRight(32, '0');
+    if (utf8.encode(clean).length != 32) {
+      throw ArgumentError.value(
+        key,
+        'aesKey32Bytes',
+        'an AES-256 key must be exactly 32 bytes',
+      );
+    }
+    return clean;
   }
 
   /// Decrypts an encrypted file using AES-256-CBC with chunked streaming.
@@ -24,7 +35,7 @@ class DecryptFileUseCase {
     required String outputPath,
   }) async {
     final encPath = encryptedFile.path;
-    final keyStr = _sanitizeKey(aesKey32Bytes);
+    final keyStr = _requireKey(aesKey32Bytes);
 
     await Isolate.run(() async {
       final inFile = File(encPath);
@@ -123,7 +134,7 @@ class DecryptFileUseCase {
       );
     }
 
-    final keyStr = _sanitizeKey(aesKey32Bytes);
+    final keyStr = _requireKey(aesKey32Bytes);
     final ivBytes = encryptedBytes.sublist(0, 16);
     final ciphertext = encryptedBytes.sublist(16);
 

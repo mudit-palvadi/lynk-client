@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:client/features/file_transfer/domain/usecases/encrypt_file_use_case.dart';
 
@@ -47,5 +48,23 @@ void main() {
         expect(ciphertextBytes, isNot(equals(plainTextBytes)));
       },
     );
+
+    test('execute rejects a key that is not 32 bytes (#46)', () async {
+      await expectLater(
+        useCase.execute(inputFile: tempFile, aesKey32Bytes: 'short'),
+        throwsArgumentError,
+      );
+      expect(File('${tempFile.path}.enc').existsSync(), false);
+    });
+
+    test('executeBytes rejects a key that is not 32 bytes (#46)', () {
+      expect(
+        () => useCase.executeBytes(
+          inputBytes: Uint8List.fromList([1, 2, 3]),
+          aesKey32Bytes: '${aesKey}0',
+        ),
+        throwsArgumentError,
+      );
+    });
   });
 }

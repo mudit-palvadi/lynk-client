@@ -23,11 +23,21 @@ void main() {
       expect(NameSealer.open(second!, key), 'a.txt');
     });
 
-    test('a name sealed on the web opens with the same key rules', () {
-      // The web's sanitizeKey pads a short key with '0' the same way.
-      final token = NameSealer.seal('report.pdf', 'short-key');
+    test('rejects a key that is not 32 bytes (#46)', () {
+      // The old rule padded a short key with '0', so 'short-key' and
+      // 'short-key000...' sealed the same way.
+      expect(() => NameSealer.seal('report.pdf', 'short-key'), throwsArgumentError);
+      expect(() => NameSealer.seal('report.pdf', '$key extra'), throwsArgumentError);
+      // 32 characters, but 64 UTF-8 bytes.
+      expect(() => NameSealer.seal('report.pdf', 'é' * 32), throwsArgumentError);
+      // A key the wrong length opens nothing rather than guessing.
+      expect(NameSealer.open('AAAA', 'short-key'), isNull);
+    });
 
-      expect(NameSealer.open(token!, 'short-key'), 'report.pdf');
+    test('accepts a valid key with surrounding whitespace', () {
+      final token = NameSealer.seal('report.pdf', '  $key  ');
+
+      expect(NameSealer.open(token!, key), 'report.pdf');
     });
 
     test('another key never reveals the name', () {

@@ -46,8 +46,9 @@ void main() {
 
     expect(find.byType(HomeScreen), findsOneWidget);
     expect(find.text('Send Files'), findsOneWidget);
-    expect(find.text('Scan QR Code'), findsOneWidget);
-    expect(find.text('Receive Files'), findsOneWidget);
+    expect(find.text('Send'), findsOneWidget);
+    expect(find.text('Receive'), findsOneWidget);
+    expect(find.text('Activity'), findsOneWidget);
   });
 
   testWidgets('Send Files starts clean after a completed transfer', (

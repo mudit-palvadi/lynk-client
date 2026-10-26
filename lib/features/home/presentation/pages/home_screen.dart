@@ -1,20 +1,19 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/routing/transfer_route_args.dart';
-import 'package:package_info_plus/package_info_plus.dart';
+
 import '../../../../core/providers/download_notifier.dart';
 import '../../../../core/providers/download_state.dart';
-import '../../../../core/services/config_service.dart';
-import '../../../../core/utils/permission_helper.dart';
+import '../../../../core/routing/transfer_route_args.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../../../../features/file_transfer/presentation/providers/upload_notifier.dart';
-import '../../../../features/file_transfer/presentation/providers/upload_state.dart';
-import 'package:client/features/recent_transfers/presentation/widgets/recent_transfers_widget.dart';
+import '../../../../core/utils/permission_helper.dart';
+import '../../../file_transfer/presentation/providers/upload_notifier.dart';
+import '../../../file_transfer/presentation/providers/upload_state.dart';
 import '../../../onboarding/presentation/providers/home_tutorial_provider.dart';
 import '../../../onboarding/presentation/widgets/home_coach_marks.dart';
-import '../widgets/download_folder_tile.dart';
+import '../../../recent_transfers/presentation/providers/recent_transfers_notifier.dart';
+import '../../../recent_transfers/presentation/widgets/recent_transfers_widget.dart';
+import '../providers/home_navigation_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -24,116 +23,22 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  int _tapCount = 0;
-  String _versionLabel = '';
-
-  // Targets for the one-time walkthrough.
-  final GlobalKey _sendKey = GlobalKey();
-  final GlobalKey _scanKey = GlobalKey();
-  final GlobalKey _codeKey = GlobalKey();
-  final GlobalKey _folderKey = GlobalKey();
+  final _sendKey = GlobalKey();
+  final _receiveKey = GlobalKey();
+  final _activityKey = GlobalKey();
+  final _settingsKey = GlobalKey();
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      PermissionHelper.requestAllPermissions();
-      PackageInfo.fromPlatform().then((info) {
-        if (mounted) {
-          setState(
-            () => _versionLabel = 'v${info.version}+${info.buildNumber}',
-          );
-        }
-      });
+      if (mounted) {
+        PermissionHelper.requestAllPermissions();
+      }
     });
   }
 
-  void _onVersionTap() {
-    // The diagnostic-key gesture is a developer affordance. It is compiled
-    // out of release builds so no released APK advertises a bypass dialog.
-    if (!kDebugMode) {
-      return;
-    }
-    _tapCount++;
-    if (_tapCount == 7) {
-      _tapCount = 0;
-      _showPasscodeDialog();
-    }
-  }
-
-  void _showPasscodeDialog() {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.cardBg,
-        title: const Text('System Diagnostic Key'),
-        content: TextField(
-          controller: controller,
-          obscureText: true,
-          decoration: const InputDecoration(hintText: 'Enter config payload'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final success = await ConfigService.applyConfigurationKey(
-                controller.text,
-              );
-              if (success && context.mounted) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('System configuration updated.'),
-                  ),
-                );
-              }
-            },
-            child: const Text('Submit'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// The four things the home screen can do, in the order they are shown.
-  List<HomeCoachMarkStep> _tutorialSteps() {
-    return [
-      HomeCoachMarkStep(
-        targetKey: _sendKey,
-        title: 'Send a file',
-        description:
-            'Pick files, then show the QR code or read out the six-digit code to the other person.',
-      ),
-      HomeCoachMarkStep(
-        targetKey: _scanKey,
-        title: 'Scan to receive',
-        description:
-            'Point the camera at the sender\'s QR code to start the download.',
-      ),
-      HomeCoachMarkStep(
-        targetKey: _codeKey,
-        title: 'Or type a code',
-        description:
-            'When you are not side by side, type the six digits the sender shows.',
-      ),
-      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android)
-        HomeCoachMarkStep(
-          targetKey: _folderKey,
-          title: 'Choose where files land',
-          description:
-              'Received files are saved in this folder. The system picker asks once and remembers your choice.',
-        ),
-    ];
-  }
-
   void _openUpload() {
-    // A finished or cancelled transfer leaves the provider in a terminal
-    // phase, and the upload screen has no body for those phases. Clear it
-    // before opening so "Send Files" always starts on the selection view.
     final phase = ref.read(uploadProvider).phase;
     if (phase == UploadPhase.completed || phase == UploadPhase.cancelled) {
       ref.read(uploadProvider.notifier).reset();
@@ -141,215 +46,358 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     context.push('/upload');
   }
 
+  List<HomeCoachMarkStep> _tutorialSteps() => [
+    HomeCoachMarkStep(
+      targetKey: _sendKey,
+      title: 'Send a file',
+      description:
+          'Choose files, then share a QR or six-digit code with the receiver.',
+    ),
+    HomeCoachMarkStep(
+      targetKey: _receiveKey,
+      title: 'Three ways to receive',
+      description:
+          'Scan the sender’s QR, enter their code, or show your own receiving QR for them to scan.',
+    ),
+    HomeCoachMarkStep(
+      targetKey: _activityKey,
+      title: 'Find your transfers',
+      description: 'Open received files or send something again from Activity.',
+    ),
+    HomeCoachMarkStep(
+      targetKey: _settingsKey,
+      title: 'Choose where files land',
+      description:
+          'Your download folder is in Settings. Receiving help is always available on the Receive tab.',
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
-    final uploadState = ref.watch(uploadProvider);
-    final downloadState = ref.watch(downloadProvider);
+    final destination = ref.watch(homeNavigationProvider);
+    final upload = ref.watch(uploadProvider);
+    final download = ref.watch(downloadProvider);
     final showTutorial = !ref.watch(homeTutorialProvider);
-    final steps = _tutorialSteps();
 
-    return Scaffold(
-      body: Stack(
-        children: [
-          SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'lynk',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.headlineMedium?.copyWith(letterSpacing: 2),
-                  ),
-                  const SizedBox(height: 24),
-                  if (uploadState.phase == UploadPhase.completed &&
-                      uploadState.transfer != null) ...[
-                    InkWell(
-                      onTap: () {
-                        final key = uploadState.aesKey ?? '';
-                        context.push(
-                          '/send-qr',
-                          extra: SendQrArguments(
-                            transfer: uploadState.transfer!,
-                            aesKey: key,
+    return Stack(
+      children: [
+        Scaffold(
+          bottomNavigationBar: NavigationBar(
+            selectedIndex: destination.index,
+            onDestinationSelected: (index) => ref
+                .read(homeNavigationProvider.notifier)
+                .select(HomeDestination.values[index]),
+            backgroundColor: AppTheme.darkBg,
+            indicatorColor: AppTheme.primary.withValues(alpha: 0.22),
+            destinations: [
+              const NavigationDestination(
+                icon: Icon(Icons.arrow_upward_rounded),
+                label: 'Send',
+              ),
+              NavigationDestination(
+                key: _receiveKey,
+                icon: const Icon(Icons.arrow_downward_rounded),
+                label: 'Receive',
+              ),
+              NavigationDestination(
+                key: _activityKey,
+                icon: const Icon(Icons.history_rounded),
+                label: 'Activity',
+              ),
+            ],
+          ),
+          body: SafeArea(
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: SingleChildScrollView(
+                  key: ValueKey(destination),
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.link_rounded,
+                            color: AppTheme.primary,
+                            size: 30,
                           ),
-                        );
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'lynk',
+                              style: Theme.of(context).textTheme.headlineMedium,
+                            ),
+                          ),
+                          IconButton(
+                            key: _settingsKey,
+                            tooltip: 'Settings',
+                            onPressed: () => context.push('/settings'),
+                            icon: const Icon(Icons.settings_outlined),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      if (upload.phase == UploadPhase.completed &&
+                          upload.transfer != null) ...[
+                        _ActionCard(
+                          icon: Icons.qr_code_rounded,
+                          title: 'Active Transfer Session',
+                          subtitle: 'Tap to show QR code again',
+                          onTap: () => context.push(
+                            '/send-qr',
+                            extra: SendQrArguments(
+                              transfer: upload.transfer!,
+                              aesKey: upload.aesKey ?? '',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      if (download.phase == DownloadPhase.downloading &&
+                          download.transfer != null) ...[
+                        _ActionCard(
+                          icon: Icons.downloading_rounded,
+                          title:
+                              'Downloading: ${(download.overallProgress * 100).toStringAsFixed(0)}%',
+                          subtitle: 'Tap to return to your transfer',
+                          onTap: () {
+                            final args = DownloadArguments(
+                              transferId: download.transfer!.id,
+                              aesKey: download.aesKey ?? '',
+                              accessToken: download.accessToken ?? '',
+                            );
+                            context.push(args.location, extra: args);
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      ...switch (destination) {
+                        HomeDestination.send => _sendContent(context),
+                        HomeDestination.receive => _receiveContent(context),
+                        HomeDestination.activity => [const _ActivityContent()],
                       },
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: AppTheme.secondary.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppTheme.secondary),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.flash_on,
-                              color: AppTheme.secondary,
-                            ),
-                            const SizedBox(width: 12),
-                            const Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Active Transfer Session',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: AppTheme.secondary,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Tap to show QR code again',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: AppTheme.textSecondary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const Icon(
-                              Icons.arrow_forward_ios,
-                              size: 14,
-                              color: AppTheme.secondary,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                  _ActionCard(
-                    key: _sendKey,
-                    icon: Icons.upload_file,
-                    title: 'Send Files',
-                    subtitle: 'Upload and share files via QR or direct link',
-                    onTap: _openUpload,
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                  _ActionCard(
-                    key: _scanKey,
-                    icon: Icons.qr_code_scanner,
-                    title: 'Scan QR Code',
-                    subtitle: 'Scan a sender or receiver QR code',
-                    onTap: () => context.push('/scan-qr'),
-                  ),
-                  const SizedBox(height: 16),
-                  _ActionCard(
-                    key: _codeKey,
-                    icon: Icons.dialpad,
-                    title: 'Enter a Code',
-                    subtitle: 'Type the 6-digit code from the sender',
-                    onTap: () => context.push('/receive-code'),
-                  ),
-                  const SizedBox(height: 16),
-                  _ActionCard(
-                    icon: Icons.qr_code_2,
-                    title: 'Receive Files',
-                    subtitle: 'Generate a receive session QR code',
-                    onTap: () => context.push('/receive-qr'),
-                  ),
-                  if (downloadState.phase == DownloadPhase.downloading) ...[
-                    const SizedBox(height: 12),
-                    InkWell(
-                      onTap: () {
-                        if (downloadState.transfer != null) {
-                          final key = downloadState.aesKey ?? '';
-                          final token = downloadState.accessToken ?? '';
-                          final args = DownloadArguments(
-                            transferId: downloadState.transfer!.id,
-                            aesKey: key,
-                            accessToken: token,
-                          );
-                          context.push(args.location, extra: args);
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppTheme.primary.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppTheme.primary),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                const Icon(
-                                  Icons.downloading,
-                                  color: AppTheme.primary,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    'Downloading: ${(downloadState.overallProgress * 100).toStringAsFixed(0)}%',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: AppTheme.primary,
-                                    ),
-                                  ),
-                                ),
-                                const Icon(
-                                  Icons.arrow_forward_ios,
-                                  size: 14,
-                                  color: AppTheme.primary,
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            LinearProgressIndicator(
-                              value: downloadState.overallProgress,
-                              backgroundColor: AppTheme.cardBg,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                  const RecentTransfersWidget(),
-                  const SizedBox(height: 16),
-                  KeyedSubtree(
-                    key: _folderKey,
-                    child: const DownloadFolderTile(),
-                  ),
-                  const SizedBox(height: 24),
-                  Center(
-                    child: GestureDetector(
-                      onTap: _onVersionTap,
-                      child: Text(
-                        _versionLabel,
-                        style: const TextStyle(
-                          color: AppTheme.textSecondary,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
+                ),
               ),
             ),
           ),
-          if (showTutorial)
-            Positioned.fill(
-              child: HomeCoachMarks(steps: steps, onFinished: _finishTutorial),
+        ),
+        if (showTutorial)
+          Positioned.fill(
+            child: HomeCoachMarks(
+              steps: _tutorialSteps(),
+              onFinished: () =>
+                  ref.read(homeTutorialProvider.notifier).complete(),
             ),
+          ),
+      ],
+    );
+  }
+
+  List<Widget> _sendContent(BuildContext context) => [
+    Text(
+      'A little closer.\nWith every share.',
+      style: Theme.of(context).textTheme.headlineMedium,
+    ),
+    const SizedBox(height: 12),
+    const Text(
+      'Choose files, then share a QR or six-digit code. No account needed.',
+    ),
+    const SizedBox(height: 28),
+    Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppTheme.primary.withValues(alpha: 0.16),
+            AppTheme.secondary.withValues(alpha: 0.08),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        children: [
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _DeviceBadge(icon: Icons.phone_android_rounded, label: 'You'),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20),
+                child: Icon(
+                  Icons.arrow_forward_rounded,
+                  color: AppTheme.secondary,
+                ),
+              ),
+              _DeviceBadge(icon: Icons.devices_rounded, label: 'Receiver'),
+            ],
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            key: _sendKey,
+            onPressed: _openUpload,
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Send Files'),
+          ),
+          const SizedBox(height: 12),
+          const Text('Pick • Review • Share', textAlign: TextAlign.center),
+        ],
+      ),
+    ),
+    const SizedBox(height: 24),
+    _ActionCard(
+      icon: Icons.qr_code_scanner_rounded,
+      title: 'Receiver has a QR?',
+      subtitle: 'Scan their receiving QR, then choose your files.',
+      onTap: () => context.push('/scan-qr'),
+    ),
+  ];
+
+  List<Widget> _receiveContent(BuildContext context) => [
+    Text(
+      'Ready to receive?',
+      style: Theme.of(context).textTheme.headlineMedium,
+    ),
+    const SizedBox(height: 8),
+    const Text('Start with what the sender has shared with you.'),
+    const SizedBox(height: 24),
+    _ActionCard(
+      icon: Icons.qr_code_scanner_rounded,
+      title: 'Scan sender’s QR',
+      subtitle: 'They show the QR. You scan it.',
+      onTap: () => context.push('/scan-qr'),
+    ),
+    const SizedBox(height: 12),
+    _ActionCard(
+      icon: Icons.dialpad_rounded,
+      title: 'Enter code',
+      subtitle: 'Type the six digits shown on the sender’s screen.',
+      onTap: () => context.push('/receive-code'),
+    ),
+    const Padding(
+      padding: EdgeInsets.symmetric(vertical: 20),
+      child: Text('Or let the sender connect to you'),
+    ),
+    _ActionCard(
+      icon: Icons.qr_code_2_rounded,
+      title: 'Show my receiving QR',
+      subtitle: 'The sender scans your QR, then chooses files to send to you.',
+      accent: AppTheme.secondary,
+      onTap: () => context.push('/receive-qr'),
+    ),
+    const SizedBox(height: 16),
+    TextButton.icon(
+      onPressed: () => _showReceivingHelp(context),
+      icon: const Icon(Icons.help_outline_rounded),
+      label: const Text('How receiving works'),
+    ),
+  ];
+
+  void _showReceivingHelp(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Two screens. One connection.'),
+        content: const SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Their QR, your camera',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'If the sender has chosen files, scan their sharing QR or enter their six-digit code.',
+              ),
+              SizedBox(height: 24),
+              Text(
+                'Your QR, their camera',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Show your receiving QR. The sender scans it in LynkShare, chooses files and sends. Your download starts automatically when the files are ready. Keep this screen open, and only share the QR with someone you trust.',
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Got it'),
+          ),
         ],
       ),
     );
   }
+}
 
-  void _finishTutorial() {
-    ref.read(homeTutorialProvider.notifier).complete();
+class _ActivityContent extends ConsumerWidget {
+  const _ActivityContent();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final recent = ref.watch(recentTransfersProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Your activity',
+          style: Theme.of(context).textTheme.headlineMedium,
+        ),
+        const SizedBox(height: 8),
+        const Text('Find received files and things you’ve shared.'),
+        const SizedBox(height: 24),
+        if (recent.asData?.value.isEmpty ?? false)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 32),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.history_rounded,
+                  size: 48,
+                  color: AppTheme.textSecondary,
+                ),
+                SizedBox(height: 16),
+                Text('Your transfers will appear here.'),
+              ],
+            ),
+          )
+        else
+          const RecentTransfersWidget(),
+      ],
+    );
   }
+}
+
+class _DeviceBadge extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  const _DeviceBadge({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) => Flexible(
+    child: Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppTheme.darkBg,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Icon(icon, color: AppTheme.primary, size: 32),
+        ),
+        const SizedBox(height: 8),
+        Text(label, textAlign: TextAlign.center),
+      ],
+    ),
+  );
 }
 
 class _ActionCard extends StatelessWidget {
@@ -357,44 +405,58 @@ class _ActionCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final Color accent;
 
   const _ActionCard({
-    super.key,
     required this.icon,
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.accent = AppTheme.primary,
   });
 
   @override
-  Widget build(BuildContext context) {
-    return InkWell(
+  Widget build(BuildContext context) => Material(
+    color: AppTheme.cardBg,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(20),
+      side: BorderSide(color: accent.withValues(alpha: 0.25)),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: AppTheme.cardBg,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFF2E364F), width: 1),
-        ),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
         child: Row(
           children: [
-            Icon(icon, size: 40, color: AppTheme.primary),
-            const SizedBox(width: 16),
+            Icon(icon, color: accent, size: 28),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 4),
-                  Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(subtitle),
                 ],
               ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(
+              Icons.arrow_forward_rounded,
+              size: 18,
+              color: AppTheme.textSecondary,
             ),
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
 }

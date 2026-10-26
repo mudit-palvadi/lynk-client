@@ -7,6 +7,7 @@ import '../../features/file_transfer/presentation/pages/file_upload_screen.dart'
 import '../../features/file_transfer/presentation/pages/qr_scan_screen.dart';
 import '../../features/file_transfer/presentation/pages/send_qr_screen.dart';
 import '../../features/home/presentation/pages/home_screen.dart';
+import '../../features/home/presentation/pages/home_settings_screen.dart';
 import '../../features/onboarding/presentation/pages/onboarding_screen.dart';
 import '../../features/onboarding/presentation/providers/onboarding_provider.dart';
 import '../widgets/not_found_screen.dart';
@@ -205,6 +206,10 @@ GoRouter appRouter(Ref ref) {
         builder: (context, state) => const OnboardingScreen(),
       ),
       GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
+      GoRoute(
+        path: '/settings',
+        builder: (context, state) => const HomeSettingsScreen(),
+      ),
       GoRoute(
         path: '/upload',
         builder: (context, state) {

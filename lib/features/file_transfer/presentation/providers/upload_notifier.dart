@@ -578,6 +578,7 @@ class UploadNotifier extends _$UploadNotifier {
 
       await session.sendFiles(
         tempEncrypted,
+        names: [for (final f in selectedFiles) f.name],
         shouldAbort: () => !_isCurrent(attempt),
         onProgress: (sent) {
           if (!_isCurrent(attempt)) return;

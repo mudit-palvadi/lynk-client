@@ -36,6 +36,70 @@ bool isWithinReceiveLimit({
   required int maxBytes,
 }) => receivedBytes <= declaredBytes && receivedBytes <= maxBytes;
 
+/// How long an open channel may stay silent before the receive is given up.
+///
+/// The sender encrypts everything before the channel opens and then streams
+/// without pausing, so a gap this long means the link is gone (#52).
+const Duration p2pReceiveIdleTimeout = Duration(seconds: 30);
+
+/// Whether a data channel in [state] can no longer carry the transfer.
+bool isDeadChannelState(RTCDataChannelState? state) =>
+    state == RTCDataChannelState.RTCDataChannelClosing ||
+    state == RTCDataChannelState.RTCDataChannelClosed;
+
+/// Whether a peer connection in [state] can no longer carry the transfer.
+///
+/// `disconnected` can still recover, so it is left to the idle timeout.
+bool isDeadConnectionState(RTCPeerConnectionState? state) =>
+    state == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
+    state == RTCPeerConnectionState.RTCPeerConnectionStateClosed;
+
+/// Ends a receive whose link died after the channel opened (#52).
+///
+/// The connect fuse only covers the handshake. Once the channel is open,
+/// a closed channel, a failed connection or a silent channel must each end
+/// the receive, or the receiver waits forever and never reaches the R2 copy.
+class ReceiveWatchdog {
+  ReceiveWatchdog({required this.idleTimeout, required this.onLost});
+
+  final Duration idleTimeout;
+  final void Function(String reason) onLost;
+  Timer? _timer;
+  bool _armed = false;
+  bool _stopped = false;
+
+  /// Starts the idle timer. Called once the channel is open.
+  void start() {
+    if (_stopped) return;
+    _armed = true;
+    _reset();
+  }
+
+  /// Records a frame from the peer.
+  void activity() {
+    if (_armed && !_stopped) _reset();
+  }
+
+  /// Reports a closed channel or a failed connection.
+  void lost(String reason) {
+    if (!_armed || _stopped) return;
+    stop();
+    onLost(reason);
+  }
+
+  /// Stops watching: the transfer finished or the session is gone.
+  void stop() {
+    _stopped = true;
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  void _reset() {
+    _timer?.cancel();
+    _timer = Timer(idleTimeout, () => lost('the peer went silent'));
+  }
+}
+
 /// Fetches short-lived TURN credentials from the backend. Returns null when
 /// TURN is disabled, unreachable, or the response is malformed -- the caller
 /// then degrades to STUN-only (transfer still succeeds via R2 fallback).
@@ -99,8 +163,12 @@ abstract class P2PSenderSession {
   /// Breaks a pending [waitUntilOpen] immediately (user chose cloud / cancel).
   void cancelWait();
 
+  /// [names] are the names the receiver saves under, one per file. Without
+  /// them the header falls back to the file's own name, which for an
+  /// encrypted temp file still carries `.enc` (#53).
   Future<void> sendFiles(
     List<File> files, {
+    List<String>? names,
     void Function(int totalBytesSent)? onProgress,
     bool Function()? shouldAbort,
   });
@@ -128,6 +196,7 @@ class FlutterWebrtcPeerActions implements PeerActions {
   final RemoteCandidateQueue _inbound = RemoteCandidateQueue();
   RTCPeerConnection? _pc;
   RTCDataChannel? _dataChannel;
+  void Function(String reason)? _onTransportLost;
 
   FlutterWebrtcPeerActions({required this.signaling});
 
@@ -139,11 +208,19 @@ class FlutterWebrtcPeerActions implements PeerActions {
     required void Function(RTCDataChannel channel) onDataChannelOpen,
     required void Function(Uint8List bytes) onBinaryMessage,
     required void Function(String text) onTextMessage,
+    void Function(String reason)? onTransportLost,
   }) async {
+    _onTransportLost = onTransportLost;
     final pc = await createPeerConnection({
       'iceServers': iceServers,
       'sdpSemantics': 'unified-plan',
     });
+
+    pc.onConnectionState = (state) {
+      if (isDeadConnectionState(state)) {
+        _onTransportLost?.call('the peer connection ${state.name}');
+      }
+    };
 
     pc.onIceCandidate = (candidate) {
       if (candidate.candidate == null) return;
@@ -215,7 +292,12 @@ class FlutterWebrtcPeerActions implements PeerActions {
       onOpen(channel);
     }
 
-    channel.stateChangeStream.listen((_) => notifyOpen());
+    channel.stateChangeStream.listen((state) {
+      notifyOpen();
+      if (opened && isDeadChannelState(state)) {
+        _onTransportLost?.call('the data channel closed');
+      }
+    });
     // The open event is broadcast and is not replayed. A channel that is
     // already open when this listener attaches would otherwise never notify.
     notifyOpen();
@@ -298,6 +380,7 @@ class FlutterWebrtcPeerActions implements PeerActions {
   }
 
   Future<void> dispose() async {
+    _onTransportLost = null;
     await _dataChannel?.close();
     await _pc?.close();
     _pc = null;
@@ -336,9 +419,23 @@ class P2PFileSession implements P2PSenderSession {
   int _currentExpected = 0;
   int _currentWritten = 0;
   Directory? _tempDir;
+  bool _transportLost = false;
+  late final ReceiveWatchdog _watchdog;
 
   P2PFileSession._(this.signaling, this.peer, this.aesKey) {
     coordinator = WebrtcPeerCoordinator(actions: peer);
+    _watchdog = ReceiveWatchdog(
+      idleTimeout: p2pReceiveIdleTimeout,
+      onLost: _failTransport,
+    );
+  }
+
+  /// Ends the transfer because the link is gone; the caller falls back to R2.
+  void _failTransport(String reason) {
+    _transportLost = true;
+    if (!_transferDone.isCompleted) {
+      _transferDone.completeError(SocketException(reason));
+    }
   }
 
   static Future<P2PFileSession> connect({
@@ -375,6 +472,7 @@ class P2PFileSession implements P2PSenderSession {
       iceServers: iceServers,
       onDataChannelOpen: (_) {
         if (role == PeerRole.receiver) {
+          session._watchdog.start();
           // A sender that sees this seals the file name in the header (#32).
           unawaited(
             session.peer
@@ -386,6 +484,11 @@ class P2PFileSession implements P2PSenderSession {
       },
       onBinaryMessage: session._onBinary,
       onTextMessage: session._onText,
+      // The sender hears nothing back while it streams, so only the receiver
+      // runs the idle timer. A sender still stops on a dead link.
+      onTransportLost: role == PeerRole.receiver
+          ? session._watchdog.lost
+          : session._failTransport,
     );
 
     signaling.messages.listen(session.coordinator.handleMessage);
@@ -433,7 +536,7 @@ class P2PFileSession implements P2PSenderSession {
       if (_waitCancelled.isCompleted) {
         throw const SocketException('P2P wait cancelled');
       }
-      if (hasFailed) {
+      if (hasFailed || _transportLost) {
         throw TimeoutException('P2P connection failed');
       }
       if (DateTime.now().isAfter(deadline)) {
@@ -455,13 +558,17 @@ class P2PFileSession implements P2PSenderSession {
   @override
   Future<void> sendFiles(
     List<File> encryptedFiles, {
+    List<String>? names,
     void Function(int totalBytesSent)? onProgress,
     bool Function()? shouldAbort,
   }) async {
     if (!peer.isChannelOpen) {
       throw StateError('DataChannel is not open');
     }
-    final abort = shouldAbort;
+    if (names != null && names.length != encryptedFiles.length) {
+      throw ArgumentError('one name is needed for each file');
+    }
+    bool abort() => _transportLost || (shouldAbort?.call() ?? false);
     // The receiver advertises that it can open a sealed name with a `hi`
     // frame. A peer that never sends one is an older build, so its file name
     // stays in clear text - that is the only way it can still receive (#32).
@@ -475,11 +582,12 @@ class P2PFileSession implements P2PSenderSession {
       }
     }
     var cumulative = 0;
-    for (final file in encryptedFiles) {
-      if (abort != null && abort()) {
+    for (var i = 0; i < encryptedFiles.length; i++) {
+      final file = encryptedFiles[i];
+      if (abort()) {
         throw const SocketException('P2P send aborted');
       }
-      final name = file.path.split(Platform.pathSeparator).last;
+      final name = names?[i] ?? file.path.split(Platform.pathSeparator).last;
       final size = await file.length();
       final token = peerSealsNames ? NameSealer.seal(name, aesKey) : null;
       await peer.sendText(
@@ -491,7 +599,7 @@ class P2PFileSession implements P2PSenderSession {
         bufferedAmount: () => peer.bufferedAmount,
         send: peer.sendBinary,
         onProgress: (fileSent) => onProgress?.call(cumulative + fileSent),
-        shouldAbort: shouldAbort,
+        shouldAbort: abort,
       );
       await for (final chunkBytes in file.openRead()) {
         await sender.sendAll(Uint8List.fromList(chunkBytes));
@@ -516,6 +624,7 @@ class P2PFileSession implements P2PSenderSession {
   }
 
   void _onText(String text) {
+    _watchdog.activity();
     final parsed = TransferFramer.parseText(text);
     if (parsed == null) return;
     switch (parsed.kind) {
@@ -584,11 +693,13 @@ class P2PFileSession implements P2PSenderSession {
         _currentToken = null;
         _currentWritten = 0;
       case FrameKind.done:
+        _watchdog.stop();
         if (!_transferDone.isCompleted) _transferDone.complete();
     }
   }
 
   void _onBinary(Uint8List bytes) {
+    _watchdog.activity();
     final sink = _currentSink;
     if (sink == null) return;
     // A peer may not send more than it declared, and a transfer may not be
@@ -628,6 +739,7 @@ class P2PFileSession implements P2PSenderSession {
   /// Tears down PC, channels, pending files and the whole temp directory.
   @override
   Future<void> dispose() async {
+    _watchdog.stop();
     cancelWait();
     try {
       await _currentSink?.close();

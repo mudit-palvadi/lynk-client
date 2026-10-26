@@ -134,6 +134,7 @@ class FakeSenderSession implements P2PSenderSession {
   bool disposed = false;
   int sendCalls = 0;
   List<File>? lastFiles;
+  List<String>? lastNames;
   bool waitCancelled = false;
   bool failSend = false;
 
@@ -165,11 +166,13 @@ class FakeSenderSession implements P2PSenderSession {
   @override
   Future<void> sendFiles(
     List<File> files, {
+    List<String>? names,
     void Function(int totalBytesSent)? onProgress,
     bool Function()? shouldAbort,
   }) async {
     sendCalls++;
     lastFiles = files;
+    lastNames = names;
     onSend?.call();
     if (failSend) {
       throw const SocketException('channel died mid-transfer');
@@ -285,6 +288,46 @@ void main() {
       expect(fakeSession.sendCalls, 1);
       expect(fakeSession.disposed, isTrue);
     });
+
+    test(
+      'the header carries the picked name, not the .enc temp name',
+      () async {
+        final container = await makeContainer();
+        final notifier = container.read(uploadProvider.notifier);
+        notifier.setTransferMode(TransferMode.p2p);
+
+        final srcA = tempFileOf('photo.jpg', 2 * 1024);
+        final srcB = tempFileOf('notes.txt', 1024);
+        addTearDown(() {
+          srcA.deleteSync();
+          srcB.deleteSync();
+        });
+        notifier.setFilesForTesting([
+          PlatformFile(
+            name: 'photo.jpg',
+            size: srcA.lengthSync(),
+            path: srcA.path,
+          ),
+          PlatformFile(
+            name: 'notes.txt',
+            size: srcB.lengthSync(),
+            path: srcB.path,
+          ),
+        ]);
+
+        final ok = await notifier.runP2PSession(
+          sessionId: 'room-names',
+          aesKey: 'k' * 32,
+        );
+
+        expect(ok, isTrue);
+        expect(
+          fakeSession.lastFiles!.map((f) => f.path),
+          everyElement(endsWith('.enc')),
+        );
+        expect(fakeSession.lastNames, ['photo.jpg', 'notes.txt']);
+      },
+    );
 
     test('reports monotonic streamed percentage', () async {
       final container = await makeContainer();
@@ -432,41 +475,38 @@ void main() {
   group('history records the files that were sent', () {
     setUp(() => fakeSession = FakeSenderSession());
 
-    test(
-      'a selection cleared while the transfer is running still records the '
-      'original file names',
-      () async {
-        // A transfer that finishes after the selection was cleared used to be
-        // written with no file names at all, and the history list could not
-        // show such a record - one bad entry took the whole list down.
-        final container = await makeContainer();
-        final notifier = container.read(uploadProvider.notifier);
-        notifier.setTransferMode(TransferMode.p2p);
+    test('a selection cleared while the transfer is running still records the '
+        'original file names', () async {
+      // A transfer that finishes after the selection was cleared used to be
+      // written with no file names at all, and the history list could not
+      // show such a record - one bad entry took the whole list down.
+      final container = await makeContainer();
+      final notifier = container.read(uploadProvider.notifier);
+      notifier.setTransferMode(TransferMode.p2p);
 
-        final src = tempFileOf('keep.bin', 4 * 1024);
-        addTearDown(src.deleteSync);
-        notifier.setFilesForTesting([
-          PlatformFile(name: 'keep.bin', size: src.lengthSync(), path: src.path),
-        ]);
+      final src = tempFileOf('keep.bin', 4 * 1024);
+      addTearDown(src.deleteSync);
+      notifier.setFilesForTesting([
+        PlatformFile(name: 'keep.bin', size: src.lengthSync(), path: src.path),
+      ]);
 
-        // The selection is emptied while the bytes are already going out.
-        fakeSession.onSend = () => notifier.setFilesForTesting([]);
+      // The selection is emptied while the bytes are already going out.
+      fakeSession.onSend = () => notifier.setFilesForTesting([]);
 
-        final ok = await notifier.runP2PSession(
-          sessionId: 'room-snap',
-          aesKey: 'k' * 32,
-        );
-        expect(ok, isTrue);
+      final ok = await notifier.runP2PSession(
+        sessionId: 'room-snap',
+        aesKey: 'k' * 32,
+      );
+      expect(ok, isTrue);
 
-        final records = await _waitForRecord(container, 'room-snap');
-        final mine = records.firstWhere((r) => r.id == 'room-snap');
-        expect(mine.fileNames, ['keep.bin']);
-        // The size is the encrypted one (padding plus the IV), and it has to
-        // be the size of the files that were sent, not the size of a
-        // selection that no longer exists.
-        expect(mine.totalSize, ((4 * 1024 ~/ 16) + 1) * 16 + 16);
-      },
-    );
+      final records = await _waitForRecord(container, 'room-snap');
+      final mine = records.firstWhere((r) => r.id == 'room-snap');
+      expect(mine.fileNames, ['keep.bin']);
+      // The size is the encrypted one (padding plus the IV), and it has to
+      // be the size of the files that were sent, not the size of a
+      // selection that no longer exists.
+      expect(mine.totalSize, ((4 * 1024 ~/ 16) + 1) * 16 + 16);
+    });
   });
 }
 

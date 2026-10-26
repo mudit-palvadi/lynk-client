@@ -314,6 +314,7 @@ class _HeldSender implements P2PSenderSession {
   @override
   Future<void> sendFiles(
     List<File> files, {
+    List<String>? names,
     void Function(int)? onProgress,
     bool Function()? shouldAbort,
   }) async {

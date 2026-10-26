@@ -37,20 +37,25 @@ class SignalingMessage {
   factory SignalingMessage.fromJson(Map<String, dynamic> json) {
     switch (json['type']) {
       case 'offer':
-        return SignalingMessage(
-          type: SignalingMessageType.offer,
-          sdp: json['sdp'] as String?,
-        );
       case 'answer':
+        final sdp = json['sdp'];
+        if (sdp is! String || sdp.trim().isEmpty) {
+          return const SignalingMessage(type: SignalingMessageType.error);
+        }
         return SignalingMessage(
-          type: SignalingMessageType.answer,
-          sdp: json['sdp'] as String?,
+          type: json['type'] == 'offer'
+              ? SignalingMessageType.offer
+              : SignalingMessageType.answer,
+          sdp: sdp,
         );
       case 'candidate':
-        final raw = json['candidate'];
+        final candidate = _normalizeCandidate(json['candidate']);
+        if (candidate == null) {
+          return const SignalingMessage(type: SignalingMessageType.error);
+        }
         return SignalingMessage(
           type: SignalingMessageType.candidate,
-          candidate: raw is Map<String, dynamic> ? raw : null,
+          candidate: candidate,
         );
       default:
         return const SignalingMessage(type: SignalingMessageType.error);
@@ -69,15 +74,46 @@ class SignalingMessage {
     }
   }
 
-  Map<String, dynamic> toJson() => switch (type) {
-    SignalingMessageType.offer ||
-    SignalingMessageType.answer => {'type': type.name, 'sdp': sdp},
-    SignalingMessageType.candidate => {
-      'type': type.name,
-      'candidate': candidate,
-    },
-    _ => {'type': type.name},
-  };
+  Map<String, dynamic> toJson() {
+    switch (type) {
+      case SignalingMessageType.offer:
+      case SignalingMessageType.answer:
+        if (sdp == null || sdp!.trim().isEmpty) return {'type': 'error'};
+        return {'type': type.name, 'sdp': sdp};
+      case SignalingMessageType.candidate:
+        final normalized = _normalizeCandidate(candidate);
+        return normalized == null
+            ? {'type': 'error'}
+            : {'type': type.name, 'candidate': normalized};
+      default:
+        return {'type': type.name};
+    }
+  }
+
+  /// Keep only the RTCIceCandidateInit contract, in stable wire order.
+  /// Empty candidate strings are valid end-of-candidates markers.
+  static Map<String, dynamic>? _normalizeCandidate(dynamic value) {
+    if (value is! Map<String, dynamic> || value['candidate'] is! String) {
+      return null;
+    }
+    final mid = value['sdpMid'];
+    final index = value['sdpMLineIndex'];
+    if (mid != null && mid is! String) return null;
+    if (index != null &&
+        (index is! num ||
+            !index.isFinite ||
+            index < 0 ||
+            index > 65535 ||
+            index != index.truncateToDouble())) {
+      return null;
+    }
+    return {
+      'candidate': value['candidate'],
+      if (value.containsKey('sdpMid')) 'sdpMid': mid,
+      if (value.containsKey('sdpMLineIndex'))
+        'sdpMLineIndex': (index as num?)?.toInt(),
+    };
+  }
 }
 
 /// Connection lifecycle controller with the 8-second P2P timeout contract.

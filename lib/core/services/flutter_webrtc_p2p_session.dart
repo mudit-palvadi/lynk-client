@@ -34,8 +34,7 @@ bool isWithinReceiveLimit({
   required int receivedBytes,
   required int declaredBytes,
   required int maxBytes,
-}) =>
-    receivedBytes <= declaredBytes && receivedBytes <= maxBytes;
+}) => receivedBytes <= declaredBytes && receivedBytes <= maxBytes;
 
 /// Fetches short-lived TURN credentials from the backend. Returns null when
 /// TURN is disabled, unreachable, or the response is malformed -- the caller
@@ -44,11 +43,7 @@ bool isWithinReceiveLimit({
 /// The endpoint requires the transfer access token, so a caller that holds one
 /// must pass it: TURN credentials are the relay's bandwidth budget (#47).
 Future<({List<String> urls, String username, String credential})?>
-fetchTurnCredentials(
-  String sessionId, {
-  String? accessToken,
-  Dio? dio,
-}) async {
+fetchTurnCredentials(String sessionId, {String? accessToken, Dio? dio}) async {
   try {
     final base =
         dotenv.env['API_BASE_URL'] ?? 'https://api.lynkshare.app/api/v1/';
@@ -129,6 +124,8 @@ class ReceivedFile {
 /// lives in [WebrtcPeerCoordinator]; this class only translates calls.
 class FlutterWebrtcPeerActions implements PeerActions {
   final SignalingChannel signaling;
+  final LocalSignalingOrder _outbound = LocalSignalingOrder();
+  final RemoteCandidateQueue _inbound = RemoteCandidateQueue();
   RTCPeerConnection? _pc;
   RTCDataChannel? _dataChannel;
 
@@ -142,7 +139,6 @@ class FlutterWebrtcPeerActions implements PeerActions {
     required void Function(RTCDataChannel channel) onDataChannelOpen,
     required void Function(Uint8List bytes) onBinaryMessage,
     required void Function(String text) onTextMessage,
-    required void Function(RTCIceCandidate candidate) onLocalCandidate,
   }) async {
     final pc = await createPeerConnection({
       'iceServers': iceServers,
@@ -150,8 +146,19 @@ class FlutterWebrtcPeerActions implements PeerActions {
     });
 
     pc.onIceCandidate = (candidate) {
-      if (candidate.candidate != null) {
-        onLocalCandidate(candidate);
+      if (candidate.candidate == null) return;
+      // Held until the offer or answer is actually written to the socket.
+      for (final message in _outbound.stage(
+        SignalingMessage(
+          type: SignalingMessageType.candidate,
+          candidate: {
+            'candidate': candidate.candidate,
+            'sdpMid': candidate.sdpMid,
+            'sdpMLineIndex': candidate.sdpMLineIndex,
+          },
+        ),
+      )) {
+        signaling.send(message);
       }
     };
 
@@ -199,11 +206,19 @@ class FlutterWebrtcPeerActions implements PeerActions {
         onText(message.text);
       }
     };
-    channel.stateChangeStream.listen((_) {
-      if (channel.state == RTCDataChannelState.RTCDataChannelOpen) {
-        onOpen(channel);
+    var opened = false;
+    void notifyOpen() {
+      if (opened || channel.state != RTCDataChannelState.RTCDataChannelOpen) {
+        return;
       }
-    });
+      opened = true;
+      onOpen(channel);
+    }
+
+    channel.stateChangeStream.listen((_) => notifyOpen());
+    // The open event is broadcast and is not replayed. A channel that is
+    // already open when this listener attaches would otherwise never notify.
+    notifyOpen();
   }
 
   bool get isChannelOpen =>
@@ -237,6 +252,7 @@ class FlutterWebrtcPeerActions implements PeerActions {
     final pc = _pc!;
     if (msg.type == SignalingMessageType.offer) {
       await pc.setRemoteDescription(RTCSessionDescription(msg.sdp!, 'offer'));
+      await _flushRemoteCandidates();
       final answer = await pc.createAnswer({});
       await pc.setLocalDescription(answer);
       return SignalingMessage(
@@ -246,12 +262,25 @@ class FlutterWebrtcPeerActions implements PeerActions {
     }
     if (msg.sdp != null) {
       await pc.setRemoteDescription(RTCSessionDescription(msg.sdp!, 'answer'));
+      await _flushRemoteCandidates();
     }
     return null;
   }
 
   @override
   Future<void> addIceCandidate(Map<String, dynamic> candidate) async {
+    for (final ready in _inbound.add(candidate)) {
+      await _addCandidateNow(ready);
+    }
+  }
+
+  Future<void> _flushRemoteCandidates() async {
+    for (final candidate in _inbound.markReady()) {
+      await _addCandidateNow(candidate);
+    }
+  }
+
+  Future<void> _addCandidateNow(Map<String, dynamic> candidate) async {
     await _pc?.addCandidate(
       RTCIceCandidate(
         candidate['candidate'] as String?,
@@ -262,8 +291,11 @@ class FlutterWebrtcPeerActions implements PeerActions {
   }
 
   @override
-  Future<void> sendSignaling(SignalingMessage message) =>
-      signaling.send(message);
+  Future<void> sendSignaling(SignalingMessage message) async {
+    for (final ready in _outbound.stage(message)) {
+      await signaling.send(ready);
+    }
+  }
 
   Future<void> dispose() async {
     await _dataChannel?.close();
@@ -327,7 +359,10 @@ class P2PFileSession implements P2PSenderSession {
     final session = P2PFileSession._(signaling, peer, aesKey)
       ..onFallbackToCloud = onFallbackToCloud;
 
-    final turn = await fetchTurnCredentials(sessionId, accessToken: accessToken);
+    final turn = await fetchTurnCredentials(
+      sessionId,
+      accessToken: accessToken,
+    );
     final iceServers = buildIceServers(
       turnEnabled: turn != null,
       urls: turn?.urls ?? const [],
@@ -351,16 +386,6 @@ class P2PFileSession implements P2PSenderSession {
       },
       onBinaryMessage: session._onBinary,
       onTextMessage: session._onText,
-      onLocalCandidate: (candidate) => signaling.send(
-        SignalingMessage(
-          type: SignalingMessageType.candidate,
-          candidate: {
-            'candidate': candidate.candidate,
-            'sdpMid': candidate.sdpMid,
-            'sdpMLineIndex': candidate.sdpMLineIndex,
-          },
-        ),
-      ),
     );
 
     signaling.messages.listen(session.coordinator.handleMessage);

@@ -205,4 +205,51 @@ void main() {
       expect(chunks.length, 3);
     });
   });
+
+  group('trickle candidates follow the local description', () {
+    SignalingMessage candidate(String line) => SignalingMessage(
+      type: SignalingMessageType.candidate,
+      candidate: {'candidate': line},
+    );
+
+    test('a candidate gathered before the offer is sent after it', () {
+      final order = LocalSignalingOrder();
+      final early = candidate('candidate:early');
+
+      expect(order.stage(early), isEmpty);
+
+      final ready = order.stage(
+        const SignalingMessage(type: SignalingMessageType.offer, sdp: 'v=0'),
+      );
+
+      expect(ready.map((message) => message.type).toList(), [
+        SignalingMessageType.offer,
+        SignalingMessageType.candidate,
+      ]);
+      expect(ready.last.candidate!['candidate'], 'candidate:early');
+    });
+
+    test('a candidate gathered after the answer is sent immediately', () {
+      final order = LocalSignalingOrder();
+      order.stage(
+        const SignalingMessage(type: SignalingMessageType.answer, sdp: 'v=0'),
+      );
+
+      final ready = order.stage(candidate('candidate:late'));
+
+      expect(ready, hasLength(1));
+      expect(ready.single.type, SignalingMessageType.candidate);
+    });
+
+    test('a remote candidate waits for the remote description', () {
+      final queue = RemoteCandidateQueue();
+      const early = {'candidate': 'candidate:early'};
+
+      expect(queue.add(early), isEmpty);
+      expect(queue.markReady(), [early]);
+      expect(queue.add({'candidate': 'candidate:late'}), [
+        {'candidate': 'candidate:late'},
+      ]);
+    });
+  });
 }

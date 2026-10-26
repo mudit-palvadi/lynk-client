@@ -21,6 +21,44 @@ void main() {
       },
     );
 
+    test('a local ICE candidate map is sent as a candidate', () {
+      // Same fields flutter_webrtc gathers: a string line, a mid, an int index.
+      final Map<String, Object?> gathered = {
+        'candidate': 'candidate:1 1 UDP 2122260223 192.168.1.8 54321 typ host',
+        'sdpMid': '0',
+        'sdpMLineIndex': 0,
+      };
+      final encoded = SignalingMessage(
+        type: SignalingMessageType.candidate,
+        candidate: Map<String, dynamic>.from(gathered),
+      ).toJson();
+
+      expect(encoded['type'], 'candidate');
+      expect(encoded['candidate'], {
+        'candidate': 'candidate:1 1 UDP 2122260223 192.168.1.8 54321 typ host',
+        'sdpMid': '0',
+        'sdpMLineIndex': 0,
+      });
+    });
+
+    test('the peer connection candidate literal is sent as a candidate', () {
+      // Same expression as FlutterWebrtcPeerActions.onLocalCandidate.
+      const String line =
+          'candidate:1 1 UDP 2122260223 192.168.1.8 54321 typ host';
+      const String mid = '0';
+      const int index = 0;
+      final encoded = SignalingMessage(
+        type: SignalingMessageType.candidate,
+        candidate: {'candidate': line, 'sdpMid': mid, 'sdpMLineIndex': index},
+      ).toJson();
+
+      expect(encoded['type'], 'candidate');
+      expect(
+        (encoded['candidate'] as Map)['candidate'],
+        'candidate:1 1 UDP 2122260223 192.168.1.8 54321 typ host',
+      );
+    });
+
     for (final vector in contract['cases'] as List<dynamic>) {
       final entry = vector as Map<String, dynamic>;
       test(entry['name'] as String, () {

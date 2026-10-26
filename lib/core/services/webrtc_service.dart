@@ -92,12 +92,16 @@ class SignalingMessage {
 
   /// Keep only the RTCIceCandidateInit contract, in stable wire order.
   /// Empty candidate strings are valid end-of-candidates markers.
+  ///
+  /// A gathered candidate is not always stored as `Map<String, dynamic>`
+  /// (a nullable mid beside an int index). Copy it before the field checks
+  /// so that shape still encodes as a candidate.
   static Map<String, dynamic>? _normalizeCandidate(dynamic value) {
-    if (value is! Map<String, dynamic> || value['candidate'] is! String) {
-      return null;
-    }
-    final mid = value['sdpMid'];
-    final index = value['sdpMLineIndex'];
+    if (value is! Map) return null;
+    final map = Map<String, dynamic>.from(value);
+    if (map['candidate'] is! String) return null;
+    final mid = map['sdpMid'];
+    final index = map['sdpMLineIndex'];
     if (mid != null && mid is! String) return null;
     if (index != null &&
         (index is! num ||
@@ -108,11 +112,61 @@ class SignalingMessage {
       return null;
     }
     return {
-      'candidate': value['candidate'],
-      if (value.containsKey('sdpMid')) 'sdpMid': mid,
-      if (value.containsKey('sdpMLineIndex'))
+      'candidate': map['candidate'],
+      if (map.containsKey('sdpMid')) 'sdpMid': mid,
+      if (map.containsKey('sdpMLineIndex'))
         'sdpMLineIndex': (index as num?)?.toInt(),
     };
+  }
+}
+
+/// Trickle candidates must not precede the local offer or answer.
+///
+/// Gathering starts inside `setLocalDescription`, and that returns before
+/// the description is written to the socket. Sending the candidates first
+/// puts them ahead of the offer in the room history. The other peer then
+/// applies them with no remote description and the direct path never opens.
+class LocalSignalingOrder {
+  final List<SignalingMessage> _pending = [];
+  bool _descriptionSent = false;
+
+  /// Messages that are allowed on the socket now, in send order.
+  List<SignalingMessage> stage(SignalingMessage message) {
+    final isDescription =
+        message.type == SignalingMessageType.offer ||
+        message.type == SignalingMessageType.answer;
+    if (!isDescription && !_descriptionSent) {
+      if (message.type == SignalingMessageType.candidate) {
+        _pending.add(message);
+      }
+      return const [];
+    }
+    if (!isDescription) return [message];
+    _descriptionSent = true;
+    final ready = <SignalingMessage>[message, ..._pending];
+    _pending.clear();
+    return ready;
+  }
+}
+
+/// Remote candidates wait until `setRemoteDescription` has finished.
+class RemoteCandidateQueue {
+  final List<Map<String, dynamic>> _pending = [];
+  bool _ready = false;
+
+  List<Map<String, dynamic>> add(Map<String, dynamic> candidate) {
+    if (!_ready) {
+      _pending.add(Map<String, dynamic>.from(candidate));
+      return const [];
+    }
+    return [candidate];
+  }
+
+  List<Map<String, dynamic>> markReady() {
+    _ready = true;
+    final ready = List<Map<String, dynamic>>.from(_pending);
+    _pending.clear();
+    return ready;
   }
 }
 

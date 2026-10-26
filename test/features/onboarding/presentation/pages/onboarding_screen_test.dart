@@ -58,6 +58,7 @@ void main() {
     );
 
     await pumpScreen(tester);
+    await tester.ensureVisible(find.text('Privacy Policy'));
     await tester.tap(find.text('Privacy Policy'));
     await tester.pump();
 

@@ -132,65 +132,112 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Send Files')),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            children: [
-              if (uploadState.phase == UploadPhase.idle) ...[
-                Expanded(
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.cloud_upload_outlined,
-                          size: 80,
-                          color: AppTheme.primary,
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Select files to transfer',
-                          style: TextStyle(color: AppTheme.textSecondary),
-                        ),
-                        const SizedBox(height: 24),
-                        ElevatedButton.icon(
-                          onPressed: () => notifier.pickFiles(),
-                          icon: const Icon(Icons.add_circle_outline),
-                          label: const Text('Choose Files & Media'),
-                        ),
-                      ],
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 640),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (widget.attachToSessionId?.isNotEmpty ?? false) ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppTheme.secondary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.link, color: AppTheme.secondary),
+                          SizedBox(height: 8),
+                          Text(
+                            'Receiver linked',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'You scanned their receiving QR. Choose files to send to them.',
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ),
-              ] else if (uploadState.phase == UploadPhase.selecting) ...[
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppTheme.cardBg,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF2E364F)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '${uploadState.selectedFiles.length} of ${UploadState.maxFiles} files',
-                      ),
-                      Text(
-                        '${FileSizeFormatter.format(uploadState.totalSize)} / ${uploadState.maxTotalSizeMb} MB',
-                        style: const TextStyle(
-                          color: AppTheme.primary,
-                          fontWeight: FontWeight.bold,
+                    const SizedBox(height: 24),
+                  ],
+                  if (uploadState.phase == UploadPhase.idle) ...[
+                    const SizedBox(height: 32),
+                    Container(
+                      padding: const EdgeInsets.all(32),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppTheme.primary.withValues(alpha: 0.2),
+                            AppTheme.secondary.withValues(alpha: 0.08),
+                          ],
                         ),
+                        borderRadius: BorderRadius.circular(28),
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: uploadState.selectedFiles.length,
-                    itemBuilder: (context, index) {
+                      child: const Icon(
+                        Icons.file_present_outlined,
+                        size: 72,
+                        color: AppTheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'Choose what to send',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Pick files first. Next, choose how to share them.',
+                      style: TextStyle(color: AppTheme.textSecondary),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: () => notifier.pickFiles(),
+                      icon: const Icon(Icons.add_circle_outline),
+                      label: const Text('Choose Files & Media'),
+                    ),
+                  ] else if (uploadState.phase == UploadPhase.selecting) ...[
+                    Text(
+                      'Review your files',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Check your selection, then choose a way to send.',
+                      style: TextStyle(color: AppTheme.textSecondary),
+                    ),
+                    const SizedBox(height: 20),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppTheme.cardBg,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF2E364F)),
+                      ),
+                      child: Wrap(
+                        spacing: 20,
+                        runSpacing: 8,
+                        children: [
+                          Text(
+                            '${uploadState.selectedFiles.length} of ${UploadState.maxFiles} files',
+                          ),
+                          Text(
+                            '${FileSizeFormatter.format(uploadState.totalSize)} / ${uploadState.maxTotalSizeMb} MB',
+                            style: const TextStyle(
+                              color: AppTheme.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    ...List.generate(uploadState.selectedFiles.length, (index) {
                       final f = uploadState.selectedFiles[index];
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
@@ -202,6 +249,7 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                           ),
                           subtitle: Text(FileSizeFormatter.format(f.size)),
                           trailing: IconButton(
+                            tooltip: 'Remove ${f.name}',
                             icon: const Icon(
                               Icons.close,
                               color: AppTheme.error,
@@ -210,149 +258,191 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                           ),
                         ),
                       );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: () => notifier.pickFiles(),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add More Files'),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          TransferAdGate().start(
-                            p2p: false,
-                            sizeUnlockAlreadyPaid:
-                                uploadState.isSizeLimitUnlocked &&
-                                uploadState.rawTotalSize >
-                                    uploadState.maxTotalSizeFree,
-                            onAllowed: () {
-                              notifier.setTransferMode(TransferMode.cloud);
-                              notifier.startUpload(
-                                attachToSessionId: widget.attachToSessionId,
-                                receiverPk: widget.receiverPk,
-                              );
-                            },
-                          );
-                        },
-                        icon: const Icon(Icons.cloud_upload, size: 18),
-                        label: const Text('Cloud Session (10m)'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.secondary,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
+                    }),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () => notifier.pickFiles(),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add More Files'),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'How would you like to send?',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 12),
+                    _SendChoice(
+                      title: 'Share a code',
+                      details: 'Cloud • 10-minute session',
+                      description:
+                          'Upload encrypted files, then share a QR or 6-digit code.',
+                      icon: Icons.cloud_upload_outlined,
+                      color: AppTheme.secondary,
+                      onPressed: () =>
+                          _startTransfer(uploadState, TransferMode.cloud),
+                    ),
+                    const SizedBox(height: 12),
+                    _SendChoice(
+                      title: 'Send directly',
+                      details: 'Both devices stay open • Cloud fallback',
+                      description:
+                          'Connect to the receiver now. If direct connection fails, we’ll try cloud.',
+                      icon: Icons.swap_horiz,
+                      color: AppTheme.primary,
+                      onPressed: () =>
+                          _startTransfer(uploadState, TransferMode.p2p),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Internet required for both options.',
+                      style: TextStyle(color: AppTheme.textSecondary),
+                    ),
+                  ] else if (uploadState.phase == UploadPhase.uploading) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 32),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '${(uploadState.overallProgress * 100).toStringAsFixed(1)}%',
+                            style: const TextStyle(
+                              fontSize: 48,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.primary,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          LinearProgressIndicator(
+                            value: uploadState.overallProgress,
+                            backgroundColor: AppTheme.cardBg,
+                          ),
+                          const SizedBox(height: 24),
+                          Text(
+                            'Preparing to share file ${uploadState.currentFileIndex + 1} of ${uploadState.selectedFiles.length}',
+                          ),
+                          const SizedBox(height: 32),
+                          OutlinedButton(
+                            onPressed: () => notifier.cancelUpload(),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppTheme.error,
+                              side: const BorderSide(color: AppTheme.error),
+                            ),
+                            child: const Text('Cancel Transfer'),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          TransferAdGate().start(
-                            p2p: true,
-                            sizeUnlockAlreadyPaid:
-                                uploadState.isSizeLimitUnlocked &&
-                                uploadState.rawTotalSize >
-                                    uploadState.maxTotalSizeFree,
-                            onAllowed: () {
-                              notifier.setTransferMode(TransferMode.p2p);
-                              notifier.startUpload(
-                                attachToSessionId: widget.attachToSessionId,
-                                receiverPk: widget.receiverPk,
-                              );
-                            },
-                          );
-                        },
-                        icon: const Icon(Icons.flash_on, size: 18),
-                        label: const Text('Instant P2P Direct'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primary,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                  ] else if (uploadState.phase == UploadPhase.failed) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 32),
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.error_outline,
+                              size: 70,
+                              color: AppTheme.error,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              uploadState.errorMessage ?? 'Upload failed',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                            const SizedBox(height: 24),
+                            ElevatedButton(
+                              onPressed: () {
+                                // Start from a clean slate: this view is also
+                                // reached after a failed upload, and appending a
+                                // new pick to a half-sent list would be wrong.
+                                notifier.reset();
+                                notifier.pickFiles();
+                              },
+                              child: const Text('Try Again'),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ],
-                ),
-              ] else if (uploadState.phase == UploadPhase.uploading) ...[
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        '${(uploadState.overallProgress * 100).toStringAsFixed(1)}%',
-                        style: const TextStyle(
-                          fontSize: 48,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.primary,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      LinearProgressIndicator(
-                        value: uploadState.overallProgress,
-                        backgroundColor: AppTheme.cardBg,
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        'Uploading file ${uploadState.currentFileIndex + 1} of ${uploadState.selectedFiles.length}',
-                      ),
-                      const SizedBox(height: 32),
-                      OutlinedButton(
-                        onPressed: () => notifier.cancelUpload(),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppTheme.error,
-                          side: const BorderSide(color: AppTheme.error),
-                        ),
-                        child: const Text('Cancel Transfer'),
-                      ),
-                    ],
-                  ),
-                ),
-              ] else if (uploadState.phase == UploadPhase.failed) ...[
-                Expanded(
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.error_outline,
-                          size: 70,
-                          color: AppTheme.error,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          uploadState.errorMessage ?? 'Upload failed',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                        const SizedBox(height: 24),
-                        ElevatedButton(
-                          onPressed: () {
-                            // Start from a clean slate: this view is also
-                            // reached after a failed upload, and appending a
-                            // new pick to a half-sent list would be wrong.
-                            notifier.reset();
-                            notifier.pickFiles();
-                          },
-                          child: const Text('Try Again'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-              if (uploadState.phase == UploadPhase.idle ||
-                  uploadState.phase == UploadPhase.selecting) ...[
-                const SizedBox(height: 16),
-                const AdBannerWidget(),
-              ],
-            ],
+                  if (uploadState.phase == UploadPhase.idle ||
+                      uploadState.phase == UploadPhase.selecting) ...[
+                    const SizedBox(height: 16),
+                    const AdBannerWidget(),
+                  ],
+                ],
+              ),
+            ),
           ),
         ),
       ),
     );
   }
+
+  void _startTransfer(UploadState state, TransferMode mode) {
+    final notifier = ref.read(uploadProvider.notifier);
+    TransferAdGate().start(
+      p2p: mode == TransferMode.p2p,
+      sizeUnlockAlreadyPaid:
+          state.isSizeLimitUnlocked &&
+          state.rawTotalSize > state.maxTotalSizeFree,
+      onAllowed: () {
+        notifier.setTransferMode(mode);
+        notifier.startUpload(
+          attachToSessionId: widget.attachToSessionId,
+          receiverPk: widget.receiverPk,
+        );
+      },
+    );
+  }
+}
+
+class _SendChoice extends StatelessWidget {
+  const _SendChoice({
+    required this.title,
+    required this.details,
+    required this.description,
+    required this.icon,
+    required this.color,
+    required this.onPressed,
+  });
+
+  final String title;
+  final String details;
+  final String description;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: AppTheme.cardBg,
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: color.withValues(alpha: 0.35)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          details,
+          style: TextStyle(color: color, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          description,
+          style: const TextStyle(color: AppTheme.textSecondary),
+        ),
+        const SizedBox(height: 12),
+        ElevatedButton.icon(
+          onPressed: onPressed,
+          icon: Icon(icon),
+          label: Text(title),
+          style: ElevatedButton.styleFrom(backgroundColor: color),
+        ),
+      ],
+    ),
+  );
 }

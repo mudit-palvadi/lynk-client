@@ -7,6 +7,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/file_size_formatter.dart';
 import '../../../../core/utils/qr_share_helper.dart';
 import '../../../../core/widgets/scrollable_fill.dart';
+import '../../../../core/widgets/transfer_role_heading.dart';
 import '../../domain/entities/transfer.dart';
 import '../helpers/send_qr_helper.dart';
 import '../providers/sender_code_notifier.dart';
@@ -75,9 +76,16 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
   }
 
   Widget _buildP2pStatus(UploadState state) {
-    final p2pActive =
-        state.phase == UploadPhase.uploading ||
-        state.p2pStage != P2PSendStage.none;
+    if (state.phase == UploadPhase.completed) {
+      // Sending completion is not evidence that the receiver has saved files.
+      return const Text(
+        'Files sent',
+        style: TextStyle(
+          color: AppTheme.secondary,
+          fontWeight: FontWeight.bold,
+        ),
+      );
+    }
 
     if (state.p2pStage == P2PSendStage.waitingForReceiver) {
       return const Column(
@@ -122,22 +130,11 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
       return const Column(
         children: [
           Text(
-            'Establishing secure connection...',
+            'Preparing your files…',
             style: TextStyle(color: AppTheme.textSecondary),
           ),
           SizedBox(height: 8),
           LinearProgressIndicator(),
-        ],
-      );
-    }
-
-    if (state.phase == UploadPhase.completed && p2pActive) {
-      return const Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.check_circle, color: AppTheme.secondary),
-          SizedBox(width: 6),
-          Text('Delivered directly'),
         ],
       );
     }
@@ -166,7 +163,8 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
     return Column(
       children: [
         const Text(
-          'Or type this code in the app',
+          'Or ask them to enter this code.',
+          textAlign: TextAlign.center,
           style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
         ),
         const SizedBox(height: 6),
@@ -183,6 +181,7 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
           codeState.isAttached
               ? 'Receiver joined — the files are unlocked.'
               : 'Waiting for the receiver…',
+          textAlign: TextAlign.center,
           style: TextStyle(
             color: codeState.isAttached
                 ? AppTheme.secondary
@@ -225,6 +224,13 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
           child: ScrollableFill(
             children: [
               const Spacer(),
+              const TransferRoleHeading(
+                role: 'You’re sending',
+                title: 'Let the receiver scan this',
+                instruction: 'On their device: Receive → Scan sender’s QR.',
+                icon: Icons.upload_outlined,
+              ),
+              const SizedBox(height: 24),
               RepaintBoundary(
                 key: _qrKey,
                 child: Container(
@@ -248,11 +254,19 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
-                'Scan with Lynk App to Download',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
+              if (uploadState.transferMode == TransferMode.cloud &&
+                  (uploadState.phase == UploadPhase.completed ||
+                      widget.transfer.status == TransferStatus.ready)) ...[
+                const Text(
+                  'Ready to receive',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppTheme.secondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               _buildCodeSection(codeState),
               const SizedBox(height: 12),
               ValueListenableBuilder<int>(
@@ -301,6 +315,7 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
               const SizedBox(height: 16),
               Text(
                 '${widget.transfer.totalFiles} files · ${FileSizeFormatter.format(widget.transfer.totalSize)}',
+                textAlign: TextAlign.center,
                 style: const TextStyle(color: AppTheme.textSecondary),
               ),
               if (uploadState.transferMode == TransferMode.p2p) ...[
@@ -315,7 +330,7 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
                   );
                 },
                 icon: const Icon(Icons.qr_code_scanner),
-                label: const Text("Scan Receiver's Code"),
+                label: const Text('Scan their receiving QR'),
               ),
               const SizedBox(height: 10),
               OutlinedButton.icon(

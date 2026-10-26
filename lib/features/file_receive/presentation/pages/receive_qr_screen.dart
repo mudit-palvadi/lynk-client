@@ -9,6 +9,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/app_links.dart';
 import '../../../../core/widgets/ad_banner_widget.dart';
 import '../../../../core/widgets/scrollable_fill.dart';
+import '../../../../core/widgets/transfer_role_heading.dart';
 import '../helpers/receive_qr_helper.dart';
 
 class ReceiveQrScreen extends ConsumerStatefulWidget {
@@ -77,6 +78,13 @@ class _ReceiveQrScreenState extends ConsumerState<ReceiveQrScreen> {
         child: ScrollableFill(
           children: [
             const Spacer(),
+            const TransferRoleHeading(
+              role: 'You’re receiving',
+              title: 'Your receiving QR',
+              instruction: 'Ask the sender to scan this',
+              icon: Icons.download_outlined,
+            ),
+            const SizedBox(height: 24),
             if (state.session != null) ...[
               Container(
                 padding: const EdgeInsets.all(16),
@@ -99,9 +107,26 @@ class _ReceiveQrScreenState extends ConsumerState<ReceiveQrScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
-                'Scan with Sender Device',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppTheme.cardBg,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Sender: scan this QR in LynkShare.'),
+                    SizedBox(height: 8),
+                    Text('Sender: choose files and send.'),
+                    SizedBox(height: 8),
+                    Text(
+                      'You: keep this screen open. Receiving starts automatically.',
+                      style: TextStyle(color: AppTheme.textSecondary),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 8),
               ValueListenableBuilder<int>(
@@ -109,6 +134,7 @@ class _ReceiveQrScreenState extends ConsumerState<ReceiveQrScreen> {
                 builder: (context, seconds, child) {
                   return Text(
                     'Session expires in ${ReceiveQrHelper.formatTime(seconds)}',
+                    textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: AppTheme.secondary,
                       fontWeight: FontWeight.bold,
@@ -126,9 +152,12 @@ class _ReceiveQrScreenState extends ConsumerState<ReceiveQrScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                   SizedBox(width: 8),
-                  Text(
-                    'Waiting for sender to connect...',
-                    style: TextStyle(color: AppTheme.textSecondary),
+                  Flexible(
+                    child: Text(
+                      'Waiting for sender to connect...',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppTheme.textSecondary),
+                    ),
                   ),
                 ],
               ),
@@ -155,7 +184,8 @@ class _ReceiveQrScreenState extends ConsumerState<ReceiveQrScreen> {
               const CircularProgressIndicator(),
               const SizedBox(height: 16),
               const Text(
-                'Generating receive session...',
+                'Creating your receiving QR…',
+                textAlign: TextAlign.center,
                 style: TextStyle(color: AppTheme.textSecondary),
               ),
             ],

@@ -179,7 +179,7 @@ final class UploadNotifierProvider
   }
 }
 
-String _$uploadNotifierHash() => r'eaf961f5fcc8429da92ea7aa3ba445df9291b41c';
+String _$uploadNotifierHash() => r'1c6b8187dc91c181ac857d66ba9b291d08f80060';
 
 abstract class _$UploadNotifier extends $Notifier<UploadState> {
   UploadState build();

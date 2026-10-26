@@ -32,9 +32,10 @@ class EncryptFileUseCase {
   Future<File> execute({
     required File inputFile,
     required String aesKey32Bytes,
+    String? outputPath,
   }) async {
     final inputPath = inputFile.path;
-    final outputPath = '$inputPath.enc';
+    final encryptedPath = outputPath ?? '$inputPath.enc';
     final keyStr = _requireKey(aesKey32Bytes);
 
     await Isolate.run(() async {
@@ -42,7 +43,7 @@ class EncryptFileUseCase {
       final initialIv = enc.IV.fromSecureRandom(16);
 
       final inFile = File(inputPath);
-      final outFile = File(outputPath);
+      final outFile = File(encryptedPath);
       if (await outFile.exists()) {
         await outFile.delete();
       }
@@ -95,7 +96,7 @@ class EncryptFileUseCase {
       await sink.close();
     });
 
-    return File(outputPath);
+    return File(encryptedPath);
   }
 
   Uint8List executeBytes({

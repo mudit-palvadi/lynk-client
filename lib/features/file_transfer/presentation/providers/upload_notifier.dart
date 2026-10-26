@@ -47,14 +47,27 @@ Duration p2pAutoFallbackDuration(Ref ref) => const Duration(seconds: 60);
 
 @Riverpod(keepAlive: true)
 class UploadNotifier extends _$UploadNotifier {
-  CancelToken? _cancelToken;
+  _UploadAttempt? _attempt;
+
+  bool _isCurrent(_UploadAttempt attempt) =>
+      ref.mounted && identical(_attempt, attempt) && !attempt.token.isCancelled;
 
   /// The last batch a picker handed over that the rules refused, so the
   /// rewarded-ad unlock can re-run it instead of asking for the files again.
   List<PlatformFile> _rejectedBatch = const [];
 
   @override
-  UploadState build() => const UploadState();
+  UploadState build() {
+    ref.onDispose(_invalidateAttempt);
+    return const UploadState();
+  }
+
+  void _invalidateAttempt() {
+    final attempt = _attempt;
+    _attempt = null;
+    attempt?.token.cancel();
+    attempt?.session?.cancelWait();
+  }
 
   bool get hasRejectedFiles => _rejectedBatch.isNotEmpty;
 
@@ -185,29 +198,50 @@ class UploadNotifier extends _$UploadNotifier {
     String? attachToSessionId,
     String? receiverPk,
   }) async {
-    if (state.selectedFiles.isEmpty) return;
+    if (_attempt != null || state.selectedFiles.isEmpty) return;
+    final attempt = _UploadAttempt(state);
+    _attempt = attempt;
+    try {
+      await _startUpload(attempt, attachToSessionId, receiverPk);
+    } catch (_) {
+      if (_isCurrent(attempt)) {
+        state = state.copyWith(
+          phase: UploadPhase.failed,
+          errorMessage: 'Unable to send files. Please try again.',
+        );
+      }
+    } finally {
+      if (identical(_attempt, attempt)) _attempt = null;
+      await attempt.cleanFiles();
+    }
+  }
 
+  Future<void> _startUpload(
+    _UploadAttempt attempt,
+    String? attachToSessionId,
+    String? receiverPk,
+  ) async {
     // Snapshot the selection before the first await. `reset()` clears the
     // selected files, and a cancel during the upload would otherwise record a
     // transfer with no file names at all, which the history list cannot show.
-    final selectedFiles = List<PlatformFile>.from(state.selectedFiles);
-    final totalSize = state.totalSize;
+    final selectedFiles = attempt.files;
+    final totalSize = attempt.totalSize;
 
     state = state.copyWith(
       phase: UploadPhase.uploading,
       currentFileIndex: 0,
       overallProgress: 0.0,
     );
-    _cancelToken = CancelToken();
 
     final repo = ref.read(transferRepositoryProvider);
     final uploadService = ref.read(uploadServiceProvider);
     final encryptUseCase = ref.read(encryptFileUseCaseProvider);
 
     final aesKey = await EntropyGenerator.generateKey();
+    if (!_isCurrent(attempt)) return;
     state = state.copyWith(aesKey: aesKey);
 
-    final fileItems = state.selectedFiles.map((f) {
+    final fileItems = selectedFiles.map((f) {
       final encSize = ((f.size ~/ 16) + 1) * 16 + 16;
       return FileItem(
         id: '',
@@ -221,6 +255,16 @@ class UploadNotifier extends _$UploadNotifier {
     }).toList();
 
     final createResult = await repo.createTransfer(fileItems);
+    if (!_isCurrent(attempt)) {
+      if (createResult.isSuccess) {
+        final obsolete = createResult.value!;
+        await repo.cancelTransfer(
+          obsolete.id,
+          senderSecret: obsolete.senderSecret,
+        );
+      }
+      return;
+    }
 
     // Await the outcome directly: fold() discards async closures, which
     // previously let startUpload return before the transfer finished.
@@ -228,47 +272,53 @@ class UploadNotifier extends _$UploadNotifier {
       final transfer = createResult.value!;
       final effectiveTotalSize = transfer.totalSize > 0
           ? transfer.totalSize
-          : state.totalSize;
+          : totalSize;
       final updatedTransfer = transfer.copyWith(
         totalSize: effectiveTotalSize,
         totalFiles: transfer.totalFiles > 0
             ? transfer.totalFiles
-            : state.selectedFiles.length,
+            : selectedFiles.length,
       );
       state = state.copyWith(transfer: updatedTransfer);
 
       // P2P mode: show the QR first, wait patiently for a receiver, then
       // stream. Falls through to the R2 pipeline when nobody connects
       // within the window, on ICE failure after handshake, or on error.
-      var useP2P = state.transferMode == TransferMode.p2p;
+      var useP2P = attempt.mode == TransferMode.p2p;
 
       // Flow B (reverse pairing): deliver the wrapped AES key to the paired
       // receiver BEFORE streaming so it can join the room already able to
       // decrypt. On attach failure, skip P2P and let R2 retry after upload.
       if (useP2P && attachToSessionId != null && receiverPk != null) {
         final attached = await _attachWrappedKey(
+          attempt: attempt,
           sessionId: attachToSessionId,
           transferId: transfer.id,
           aesKey: aesKey,
           receiverPk: receiverPk,
+          accessToken: transfer.accessToken,
         );
+        if (!_isCurrent(attempt)) return;
         if (!attached) useP2P = false;
       }
 
       if (useP2P) {
-        final p2pCompleted = await runP2PSession(
+        final p2pCompleted = await _runP2PSession(
+          attempt,
           sessionId: transfer.id,
           aesKey: aesKey,
+          accessToken: transfer.accessToken,
         );
+        if (!_isCurrent(attempt)) return;
         if (p2pCompleted) return;
       }
 
       int cumulativeBytes = 0;
 
-      for (int i = 0; i < state.selectedFiles.length; i++) {
-        if (_cancelToken?.isCancelled ?? false) return;
+      for (int i = 0; i < selectedFiles.length; i++) {
+        if (!_isCurrent(attempt)) return;
 
-        final pFile = state.selectedFiles[i];
+        final pFile = selectedFiles[i];
         final item = transfer.files[i];
 
         state = state.copyWith(currentFileIndex: i, currentFileProgress: 0.0);
@@ -281,6 +331,7 @@ class UploadNotifier extends _$UploadNotifier {
             encryptedFile = await encryptUseCase.execute(
               inputFile: File(pFile.path!),
               aesKey32Bytes: aesKey,
+              outputPath: await attempt.outputPath(i, pFile),
             );
           } else if (pFile.bytes != null) {
             encryptedBytes = encryptUseCase.executeBytes(
@@ -290,6 +341,7 @@ class UploadNotifier extends _$UploadNotifier {
           } else {
             throw ArgumentError('File has no valid path or bytes payload');
           }
+          if (!_isCurrent(attempt)) return;
 
           final int encSize =
               encryptedBytes?.length ?? await encryptedFile!.length();
@@ -301,16 +353,18 @@ class UploadNotifier extends _$UploadNotifier {
             uploadUrl: item.uploadUrl!,
             file: encryptedFile,
             bytes: encryptedBytes,
-            cancelToken: _cancelToken,
+            cancelToken: attempt.token,
             onProgress: (sent, total) {
+              if (!_isCurrent(attempt)) return;
               final fileProgress = sent / total;
-              final currentOverall = (cumulativeBytes + sent) / state.totalSize;
+              final currentOverall = (cumulativeBytes + sent) / totalSize;
               state = state.copyWith(
                 currentFileProgress: fileProgress,
                 overallProgress: currentOverall.clamp(0.0, 1.0),
               );
             },
           );
+          if (!_isCurrent(attempt)) return;
 
           if (encryptedFile != null && await encryptedFile.exists()) {
             await encryptedFile.delete();
@@ -321,9 +375,10 @@ class UploadNotifier extends _$UploadNotifier {
             fileId: item.id,
             senderSecret: transfer.senderSecret,
           );
+          if (!_isCurrent(attempt)) return;
           cumulativeBytes += encSize;
         } catch (e) {
-          if (_cancelToken?.isCancelled ?? false) return;
+          if (!_isCurrent(attempt)) return;
           state = state.copyWith(
             phase: UploadPhase.failed,
             errorMessage: 'Failed uploading ${pFile.name}: $e',
@@ -348,12 +403,14 @@ class UploadNotifier extends _$UploadNotifier {
             wrappedKey = null;
           }
         }
+        if (!_isCurrent(attempt)) return;
 
         await receiverRepo.attachTransfer(
           sessionId: attachToSessionId,
           transferId: transfer.id,
           wrappedKey: wrappedKey,
         );
+        if (!_isCurrent(attempt)) return;
       }
 
       state = state.copyWith(
@@ -390,8 +447,7 @@ class UploadNotifier extends _$UploadNotifier {
   }
 
   void reset() {
-    _cancelToken?.cancel();
-    _activeSession?.cancelWait();
+    _invalidateAttempt();
     _rejectedBatch = const [];
     state = const UploadState();
   }
@@ -400,18 +456,21 @@ class UploadNotifier extends _$UploadNotifier {
   /// attaches it to the receiver session. Returns false when either step
   /// fails so callers can degrade gracefully.
   Future<bool> _attachWrappedKey({
+    required _UploadAttempt attempt,
     required String sessionId,
     required String transferId,
     required String aesKey,
     required String receiverPk,
+    String? accessToken,
   }) async {
     try {
       final wrappedKey = await KeyWrapService().wrapKey(
         aesKey: aesKey,
-        accessToken: state.transfer?.accessToken,
+        accessToken: accessToken,
         receiverPublicKeyB64: receiverPk,
         sessionId: sessionId,
       );
+      if (!_isCurrent(attempt)) return false;
       await ref
           .read(receiverRepositoryProvider)
           .attachTransfer(
@@ -428,9 +487,7 @@ class UploadNotifier extends _$UploadNotifier {
 
   /// User tapped "Send via Cloud instead" while waiting for a receiver.
   /// Breaks the P2P wait so the caller falls through to the R2 pipeline.
-  void forceCloudFallback() => _activeSession?.cancelWait();
-
-  P2PSenderSession? _activeSession;
+  void forceCloudFallback() => _attempt?.session?.cancelWait();
 
   void _setStage(P2PSendStage stage) => state = state.copyWith(p2pStage: stage);
 
@@ -448,13 +505,36 @@ class UploadNotifier extends _$UploadNotifier {
     required String sessionId,
     required String aesKey,
   }) async {
+    if (_attempt != null) return false;
+    final attempt = _UploadAttempt(state);
+    _attempt = attempt;
+    final accessToken = state.transfer?.accessToken;
+    try {
+      return await _runP2PSession(
+        attempt,
+        sessionId: sessionId,
+        aesKey: aesKey,
+        accessToken: accessToken,
+      );
+    } finally {
+      if (identical(_attempt, attempt)) _attempt = null;
+      await attempt.cleanFiles();
+    }
+  }
+
+  Future<bool> _runP2PSession(
+    _UploadAttempt attempt, {
+    required String sessionId,
+    required String aesKey,
+    String? accessToken,
+  }) async {
     if (kIsWeb) return false;
 
     // Snapshot the selection before the first await: the wait for a receiver
     // can last a minute, and a cancel in that window would otherwise record a
     // transfer with no file names.
-    final selectedFiles = List<PlatformFile>.from(state.selectedFiles);
-    final totalSize = state.totalSize;
+    final selectedFiles = attempt.files;
+    final totalSize = attempt.totalSize;
 
     final factory = ref.read(p2pSessionFactoryProvider);
     final window = ref.read(p2pAutoFallbackDurationProvider);
@@ -467,12 +547,15 @@ class UploadNotifier extends _$UploadNotifier {
       // Encrypt up-front so channel-open time is spent sending, not hashing.
       var totalEncrypted = 0;
       final encryptUseCase = ref.read(encryptFileUseCaseProvider);
-      for (final pFile in selectedFiles) {
+      for (var i = 0; i < selectedFiles.length; i++) {
+        final pFile = selectedFiles[i];
         if (pFile.path == null) return false; // bytes-only pickers: use R2
         final encrypted = await encryptUseCase.execute(
           inputFile: File(pFile.path!),
           aesKey32Bytes: aesKey,
+          outputPath: await attempt.outputPath(i, pFile),
         );
+        if (!_isCurrent(attempt)) return false;
         totalEncrypted += encrypted.lengthSync();
         tempEncrypted.add(encrypted);
       }
@@ -480,27 +563,31 @@ class UploadNotifier extends _$UploadNotifier {
       session = await factory(
         signalingUrl: ConfigService.signalingUri(sessionId),
         sessionId: sessionId,
-        accessToken: state.transfer?.accessToken,
+        accessToken: accessToken,
         aesKey: aesKey,
         onFallbackToCloud: () {},
       );
-      _activeSession = session;
+      if (!_isCurrent(attempt)) return false;
+      attempt.session = session;
       _setStage(P2PSendStage.waitingForReceiver);
 
       await session.waitUntilOpen(timeout: window);
+      if (!_isCurrent(attempt)) return false;
       _setStage(P2PSendStage.transferring);
       enteredTransfer = true;
 
       await session.sendFiles(
         tempEncrypted,
-        shouldAbort: () => _cancelToken?.isCancelled ?? false,
+        shouldAbort: () => !_isCurrent(attempt),
         onProgress: (sent) {
+          if (!_isCurrent(attempt)) return;
           final pct = totalEncrypted == 0
               ? 0.0
               : (sent / totalEncrypted).clamp(0.0, 1.0);
           state = state.copyWith(overallProgress: pct);
         },
       );
+      if (!_isCurrent(attempt)) return false;
 
       _setStage(P2PSendStage.none);
       state = state.copyWith(
@@ -525,6 +612,7 @@ class UploadNotifier extends _$UploadNotifier {
           );
       return true;
     } catch (e) {
+      if (!_isCurrent(attempt)) return false;
       debugPrint('runP2PSession failed: $e');
       _setStage(P2PSendStage.none);
       if (enteredTransfer) {
@@ -532,7 +620,7 @@ class UploadNotifier extends _$UploadNotifier {
       }
       return false;
     } finally {
-      _activeSession = null;
+      attempt.session = null;
       await session?.dispose();
       for (final f in tempEncrypted) {
         if (await f.exists()) await f.delete();
@@ -541,8 +629,7 @@ class UploadNotifier extends _$UploadNotifier {
   }
 
   void cancelUpload() {
-    _cancelToken?.cancel();
-    forceCloudFallback();
+    _invalidateAttempt();
     if (state.transfer != null) {
       ref
           .read(transferRepositoryProvider)
@@ -552,5 +639,36 @@ class UploadNotifier extends _$UploadNotifier {
           );
     }
     state = const UploadState(phase: UploadPhase.cancelled);
+  }
+}
+
+/// Resources belong to an attempt, never to whichever send happens to be live
+/// when an old await or native callback finishes.
+class _UploadAttempt {
+  _UploadAttempt(UploadState state)
+    : files = List<PlatformFile>.unmodifiable(state.selectedFiles),
+      totalSize = state.totalSize,
+      mode = state.transferMode;
+
+  final List<PlatformFile> files;
+  final int totalSize;
+  final TransferMode mode;
+  final token = CancelToken();
+  P2PSenderSession? session;
+  Directory? _directory;
+
+  Future<String> outputPath(int index, PlatformFile file) async {
+    final directory = _directory ??= await Directory.systemTemp.createTemp(
+      'lynk-send-',
+    );
+    final folder = await Directory('${directory.path}/$index').create();
+    return '${folder.path}/${FileNameSanitizer.safeFileName(file.name)}.enc';
+  }
+
+  Future<void> cleanFiles() async {
+    final directory = _directory;
+    if (directory != null && await directory.exists()) {
+      await directory.delete(recursive: true);
+    }
   }
 }

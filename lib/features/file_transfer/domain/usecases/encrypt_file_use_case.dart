@@ -16,13 +16,21 @@ class EncryptFileUseCase {
   static String _requireKey(String key) {
     final clean = key.trim();
     if (utf8.encode(clean).length != 32) {
-      throw ArgumentError.value(
-        key,
-        'aesKey32Bytes',
+      throw ArgumentError(
         'an AES-256 key must be exactly 32 bytes',
+        'aesKey32Bytes',
       );
     }
     return clean;
+  }
+
+  // Explicit padding also handles an empty input/tail, which the package's
+  // padded cipher cannot encrypt. Aligned inputs still need a full block.
+  static Uint8List _pad(Uint8List bytes) {
+    final padding = 16 - bytes.length % 16;
+    return Uint8List(bytes.length + padding)
+      ..setRange(0, bytes.length, bytes)
+      ..fillRange(bytes.length, bytes.length + padding, padding);
   }
 
   /// Encrypts an input file using AES-256-CBC with chunked streaming.
@@ -49,51 +57,51 @@ class EncryptFileUseCase {
       }
 
       final sink = outFile.openWrite();
-      sink.add(initialIv.bytes);
+      try {
+        sink.add(initialIv.bytes);
 
-      final encrypterStandard = enc.Encrypter(
-        enc.AES(key, mode: enc.AESMode.cbc, padding: 'PKCS7'),
-      );
-      final encrypterNoPadding = enc.Encrypter(
-        enc.AES(key, mode: enc.AESMode.cbc, padding: null),
-      );
+        final encrypterNoPadding = enc.Encrypter(
+          enc.AES(key, mode: enc.AESMode.cbc, padding: null),
+        );
 
-      final inputStream = inFile.openRead();
-      final buffer = BytesBuilder(copy: false);
-      const chunkSize = 1024 * 1024;
-      enc.IV currentIv = initialIv;
+        final inputStream = inFile.openRead();
+        final buffer = BytesBuilder(copy: false);
+        const chunkSize = 1024 * 1024;
+        enc.IV currentIv = initialIv;
 
-      await for (final chunk in inputStream) {
-        buffer.add(chunk);
+        await for (final chunk in inputStream) {
+          buffer.add(chunk);
 
-        while (buffer.length >= chunkSize + 16) {
-          final rawChunk = buffer.takeBytes();
-          final processLength = (rawChunk.length ~/ 16) * 16;
-          final toProcess = rawChunk.sublist(0, processLength);
-          final remainder = rawChunk.sublist(processLength);
+          while (buffer.length >= chunkSize + 16) {
+            final rawChunk = buffer.takeBytes();
+            final processLength = (rawChunk.length ~/ 16) * 16;
+            final toProcess = rawChunk.sublist(0, processLength);
+            final remainder = rawChunk.sublist(processLength);
 
-          final encrypted = encrypterNoPadding.encryptBytes(
-            toProcess,
-            iv: currentIv,
-          );
-          sink.add(encrypted.bytes);
+            final encrypted = encrypterNoPadding.encryptBytes(
+              toProcess,
+              iv: currentIv,
+            );
+            sink.add(encrypted.bytes);
 
-          currentIv = enc.IV(
-            encrypted.bytes.sublist(encrypted.bytes.length - 16),
-          );
-          buffer.add(remainder);
+            currentIv = enc.IV(
+              encrypted.bytes.sublist(encrypted.bytes.length - 16),
+            );
+            buffer.add(remainder);
+          }
         }
+
+        final remaining = buffer.takeBytes();
+        final finalEncrypted = encrypterNoPadding.encryptBytes(
+          _pad(remaining),
+          iv: currentIv,
+        );
+        sink.add(finalEncrypted.bytes);
+
+        await sink.flush();
+      } finally {
+        await sink.close();
       }
-
-      final remaining = buffer.takeBytes();
-      final finalEncrypted = encrypterStandard.encryptBytes(
-        remaining,
-        iv: currentIv,
-      );
-      sink.add(finalEncrypted.bytes);
-
-      await sink.flush();
-      await sink.close();
     });
 
     return File(encryptedPath);
@@ -108,9 +116,9 @@ class EncryptFileUseCase {
     final iv = enc.IV.fromSecureRandom(16);
 
     final encrypter = enc.Encrypter(
-      enc.AES(key, mode: enc.AESMode.cbc, padding: 'PKCS7'),
+      enc.AES(key, mode: enc.AESMode.cbc, padding: null),
     );
-    final encrypted = encrypter.encryptBytes(inputBytes, iv: iv);
+    final encrypted = encrypter.encryptBytes(_pad(inputBytes), iv: iv);
 
     final builder = BytesBuilder();
     builder.add(iv.bytes);

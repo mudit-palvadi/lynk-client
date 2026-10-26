@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "format": "16-byte IV + AES-256-CBC ciphertext, PKCS7 padding; trimmed UTF-8 key exactly 32 bytes",
+  "vectors": [
+    {"name":"dart-one-byte","producer":"Dart EncryptFileUseCase.executeBytes","key":"0123456789abcdef0123456789abcdef","plainBase64":"/w==","packedBase64":"wvrk/qlYUjuqB6y7mp01USYZCFJGfphJnYtCoR4a7R4="},
+    {"name":"dart-utf8-key","producer":"Dart EncryptFileUseCase.executeBytes","key":"éééééééééééééééé","plainBase64":"AA0aJzRBTltodYKPnKm2w9A=","packedBase64":"VcjTIwduNi+N3VT6cGsg3jVVKfVvGs+ZWPea12VkTExaxS7rGfR2NmFmqnBBAqrv"},
+    {"name":"web-0-bytes","producer":"Browser encryptWithIvPrefix (WebCrypto)","key":"0123456789abcdef0123456789abcdef","plainBase64":"","packedBase64":"d8r+Cii43tN0HaKpPKDDhNpawgNaYHslAd6LSW+woQU="},
+    {"name":"web-16-bytes","producer":"Browser encryptWithIvPrefix (WebCrypto)","key":"0123456789abcdef0123456789abcdef","plainBase64":"AxQlNkdYaXqLnK2+z+DxAg==","packedBase64":"cxjvRGCl66dNjpxfWGu0A8CiMScthPV01Dg7CXPi1uO1ZNPdKVO014tcSyeooIt2"},
+    {"name":"web-17-bytes","producer":"Browser encryptWithIvPrefix (WebCrypto)","key":"0123456789abcdef0123456789abcdef","plainBase64":"AxQlNkdYaXqLnK2+z+DxAhM=","packedBase64":"iyww8I6JApT5dHRNQ8a/8i9H330VXofb6VGyL5ikCBHPAekYdHZL+n9oqtyXdMde"}
+  ],
+  "invalidKeys": ["short-public-test-key", "0123456789abcdef0123456789abcdefX", "éééééééééééééééééééééééééééééééé", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+}

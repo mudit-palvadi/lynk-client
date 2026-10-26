@@ -16,10 +16,9 @@ class DecryptFileUseCase {
   static String _requireKey(String key) {
     final clean = key.trim();
     if (utf8.encode(clean).length != 32) {
-      throw ArgumentError.value(
-        key,
-        'aesKey32Bytes',
+      throw ArgumentError(
         'an AES-256 key must be exactly 32 bytes',
+        'aesKey32Bytes',
       );
     }
     return clean;

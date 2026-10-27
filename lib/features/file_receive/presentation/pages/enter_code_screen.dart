@@ -115,6 +115,24 @@ class _EnterCodeScreenState extends ConsumerState<EnterCodeScreen> {
               ),
               const SizedBox(height: 16),
             ],
+            if (state.keyCheck != null) ...[
+              Text(
+                'Key check ${state.keyCheck}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'The sender shows the same check.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+              ),
+              const SizedBox(height: 16),
+            ],
             if (state.isBusy) ...[
               const CircularProgressIndicator(),
               const SizedBox(height: 12),

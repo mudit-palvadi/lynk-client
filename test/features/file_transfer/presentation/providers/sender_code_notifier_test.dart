@@ -1,4 +1,5 @@
 import 'package:client/core/providers/transfer_providers.dart';
+import 'package:client/core/services/key_fingerprint.dart';
 import 'package:client/core/services/key_wrap_service.dart';
 import 'package:client/features/file_transfer/data/datasources/sender_session_remote_data_source.dart';
 import 'package:client/features/file_transfer/data/models/sender_session_model.dart';
@@ -145,6 +146,7 @@ void main() {
     expect(wrap.tokenSeen, 'token-1');
     expect(data.attachedKey, 'wrapped::session-1');
     expect(data.attachedMode, 'p2p');
+    expect(read().keyCheck, keyFingerprint('pk-1'));
   });
 
   test(

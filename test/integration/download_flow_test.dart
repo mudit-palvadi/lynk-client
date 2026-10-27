@@ -82,7 +82,73 @@ void main() {
       expect(state.downloadFiles, hasLength(1));
       expect(state.downloadFiles.first.name, 'note.bin');
       expect(state.downloadFiles.first.downloadUrl, isNotNull);
-      expect(state.downloadFiles.first.downloadUrl, startsWith('https://r2.test/'));
+      expect(
+        state.downloadFiles.first.downloadUrl,
+        startsWith('https://r2.test/'),
+      );
+    });
+
+    test('a second link stops the download already running', () async {
+      final backend = FakeBackend();
+      final holding = _HoldingDownload();
+      final prefs = await SharedPreferences.getInstance();
+      final container = ProviderContainer(
+        overrides: [
+          apiClientProvider.overrideWithValue(
+            ApiClient(dio: backend.createDio()),
+          ),
+          downloadServiceProvider.overrideWithValue(holding),
+          sharedPreferencesProvider.overrideWithValue(prefs),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final firstTransfer = await _seedTransfer(
+        container,
+        backend,
+        'first.bin',
+        contents: [1, 2, 3, 4],
+      );
+      final secondTransfer = await _seedTransfer(
+        container,
+        backend,
+        'second.bin',
+        contents: [5, 6, 7, 8],
+      );
+      final notifier = container.read(downloadProvider.notifier);
+      await notifier.loadTransferPreview(
+        firstTransfer.id,
+        accessToken: firstTransfer.accessToken ?? '',
+      );
+      await _waitUntil(
+        () => container.read(downloadProvider).downloadFiles.isNotEmpty,
+        description: 'the first download urls to arrive',
+      );
+
+      final running = notifier.startDownload(aesKey: aesKey);
+      await holding.started.future;
+      await notifier.loadTransferPreview(
+        secondTransfer.id,
+        accessToken: secondTransfer.accessToken ?? '',
+      );
+      await running;
+      await _waitUntil(
+        () =>
+            container.read(downloadProvider).transfer?.id ==
+                secondTransfer.id &&
+            container.read(downloadProvider).downloadFiles.isNotEmpty,
+        description: 'the second preview to replace the first download',
+      );
+
+      expect(holding.cancelled, isTrue);
+      expect(
+        container.read(downloadProvider).phase,
+        isNot(DownloadPhase.failed),
+      );
+      expect(
+        container.read(downloadProvider).errorMessage,
+        isNot(contains('Failed downloading')),
+      );
     });
 
     test('a missing transfer surfaces the backend error', () async {
@@ -161,7 +227,12 @@ void main() {
         aesKey32Bytes: aesKey,
       );
 
-      final seeded = await _seedTransfer(container, backend, 'note.bin', contents: encrypted);
+      final seeded = await _seedTransfer(
+        container,
+        backend,
+        'note.bin',
+        contents: encrypted,
+      );
 
       final notifier = container.read(downloadProvider.notifier);
       await notifier.loadTransferPreview(
@@ -269,105 +340,115 @@ void main() {
         reason: 'the file was written outside the download directory',
       );
     });
-    test('a sender that is still uploading is waited for, not failed', () async {
-      // A sender shows the QR code before it uploads anything, so a receiver
-      // can arrive while the files are still on their way. The server answers
-      // 409 in that window, which is a temporary state and not an error.
-      final backend = FakeBackend();
-      final container = await _container(backend);
+    test(
+      'a sender that is still uploading is waited for, not failed',
+      () async {
+        // A sender shows the QR code before it uploads anything, so a receiver
+        // can arrive while the files are still on their way. The server answers
+        // 409 in that window, which is a temporary state and not an error.
+        final backend = FakeBackend();
+        final container = await _container(backend);
 
-      final plaintext = Uint8List.fromList(
-        List<int>.generate(256, (i) => (i * 7) % 256),
-      );
-      final encrypted = EncryptFileUseCase().executeBytes(
-        inputBytes: plaintext,
-        aesKey32Bytes: aesKey,
-      );
+        final plaintext = Uint8List.fromList(
+          List<int>.generate(256, (i) => (i * 7) % 256),
+        );
+        final encrypted = EncryptFileUseCase().executeBytes(
+          inputBytes: plaintext,
+          aesKey32Bytes: aesKey,
+        );
 
-      final seeded = await _seedTransfer(
-        container,
-        backend,
-        'note.bin',
-        contents: encrypted,
-        completeUpload: false,
-      );
+        final seeded = await _seedTransfer(
+          container,
+          backend,
+          'note.bin',
+          contents: encrypted,
+          completeUpload: false,
+        );
 
-      final notifier = container.read(downloadProvider.notifier);
-      notifier.readyPollInterval = const Duration(milliseconds: 50);
-      notifier.readyTimeout = const Duration(seconds: 10);
+        final notifier = container.read(downloadProvider.notifier);
+        notifier.readyPollInterval = const Duration(milliseconds: 50);
+        notifier.readyTimeout = const Duration(seconds: 10);
 
-      await notifier.loadTransferPreview(
-        seeded.id,
-        accessToken: seeded.accessToken ?? '',
-      );
-      await _waitUntil(
-        () => container.read(downloadProvider).transfer != null,
-        description: 'the transfer details to arrive',
-      );
+        await notifier.loadTransferPreview(
+          seeded.id,
+          accessToken: seeded.accessToken ?? '',
+        );
+        await _waitUntil(
+          () => container.read(downloadProvider).transfer != null,
+          description: 'the transfer details to arrive',
+        );
 
-      // The preview must not ask for the files yet: the server would answer
-      // 409, and that says nothing useful.
-      var state = container.read(downloadProvider);
-      expect(state.phase, DownloadPhase.preview);
-      expect(state.downloadFiles, isEmpty);
+        // The preview must not ask for the files yet: the server would answer
+        // 409, and that says nothing useful.
+        var state = container.read(downloadProvider);
+        expect(state.phase, DownloadPhase.preview);
+        expect(state.downloadFiles, isEmpty);
 
-      // The sender finishes uploading a moment later, the way a sender does
-      // once its direct-connection window has passed.
-      final repository = container.read(transferRepositoryProvider);
-      unawaited(
-        Future<void>.delayed(const Duration(milliseconds: 200)).then((_) async {
-          await repository.completeFileUpload(
-            transferId: seeded.id,
-            fileId: seeded.files.first.id,
-            senderSecret: seeded.senderSecret,
-          );
-        }),
-      );
+        // The sender finishes uploading a moment later, the way a sender does
+        // once its direct-connection window has passed.
+        final repository = container.read(transferRepositoryProvider);
+        unawaited(
+          Future<void>.delayed(const Duration(milliseconds: 200)).then((
+            _,
+          ) async {
+            await repository.completeFileUpload(
+              transferId: seeded.id,
+              fileId: seeded.files.first.id,
+              senderSecret: seeded.senderSecret,
+            );
+          }),
+        );
 
-      await notifier.startDownload(aesKey: aesKey);
-      await _waitUntil(
-        () =>
-            container.read(downloadProvider).phase == DownloadPhase.completed ||
-            container.read(downloadProvider).phase == DownloadPhase.failed,
-        description: 'the download to finish',
-      );
+        await notifier.startDownload(aesKey: aesKey);
+        await _waitUntil(
+          () =>
+              container.read(downloadProvider).phase ==
+                  DownloadPhase.completed ||
+              container.read(downloadProvider).phase == DownloadPhase.failed,
+          description: 'the download to finish',
+        );
 
-      state = container.read(downloadProvider);
-      expect(state.phase, DownloadPhase.completed, reason: state.errorMessage);
-      expect(state.downloadedPaths, hasLength(1));
-      expect(
-        File(state.downloadedPaths.single).readAsBytesSync(),
-        plaintext,
-      );
-    });
+        state = container.read(downloadProvider);
+        expect(
+          state.phase,
+          DownloadPhase.completed,
+          reason: state.errorMessage,
+        );
+        expect(state.downloadedPaths, hasLength(1));
+        expect(File(state.downloadedPaths.single).readAsBytesSync(), plaintext);
+      },
+    );
 
-    test('a sender that never uploads ends with a message that says so', () async {
-      final backend = FakeBackend();
-      final container = await _container(backend);
+    test(
+      'a sender that never uploads ends with a message that says so',
+      () async {
+        final backend = FakeBackend();
+        final container = await _container(backend);
 
-      final seeded = await _seedTransfer(
-        container,
-        backend,
-        'note.bin',
-        completeUpload: false,
-      );
+        final seeded = await _seedTransfer(
+          container,
+          backend,
+          'note.bin',
+          completeUpload: false,
+        );
 
-      final notifier = container.read(downloadProvider.notifier);
-      notifier.readyPollInterval = const Duration(milliseconds: 50);
-      notifier.readyTimeout = const Duration(milliseconds: 300);
+        final notifier = container.read(downloadProvider.notifier);
+        notifier.readyPollInterval = const Duration(milliseconds: 50);
+        notifier.readyTimeout = const Duration(milliseconds: 300);
 
-      await notifier.loadTransferPreview(
-        seeded.id,
-        accessToken: seeded.accessToken ?? '',
-      );
-      await notifier.startDownload(aesKey: aesKey);
+        await notifier.loadTransferPreview(
+          seeded.id,
+          accessToken: seeded.accessToken ?? '',
+        );
+        await notifier.startDownload(aesKey: aesKey);
 
-      final state = container.read(downloadProvider);
-      expect(state.phase, DownloadPhase.failed);
-      expect(state.errorMessage, contains('still uploading'));
-      // The raw exception text must never reach the user.
-      expect(state.errorMessage, isNot(contains('DioException')));
-    });
+        final state = container.read(downloadProvider);
+        expect(state.phase, DownloadPhase.failed);
+        expect(state.errorMessage, contains('still uploading'));
+        // The raw exception text must never reach the user.
+        expect(state.errorMessage, isNot(contains('DioException')));
+      },
+    );
   });
 }
 
@@ -438,9 +519,7 @@ Future<ProviderContainer> _container(FakeBackend backend) async {
   final prefs = await SharedPreferences.getInstance();
   final container = ProviderContainer(
     overrides: [
-      apiClientProvider.overrideWithValue(
-        ApiClient(dio: backend.createDio()),
-      ),
+      apiClientProvider.overrideWithValue(ApiClient(dio: backend.createDio())),
       downloadServiceProvider.overrideWithValue(
         _FakeDownloadService(backend.uploadedObjects),
       ),
@@ -486,5 +565,31 @@ class _FakeDownloadService extends DownloadService {
     }
     File(savePath).writeAsBytesSync(bytes);
     onProgress(bytes.length, bytes.length);
+  }
+}
+
+/// Stays inside the download until the caller cancels that token.
+class _HoldingDownload extends DownloadService {
+  final started = Completer<void>();
+  var cancelled = false;
+
+  @override
+  Future<void> downloadFileFromR2({
+    required String downloadUrl,
+    required String savePath,
+    required void Function(int received, int total) onProgress,
+    CancelToken? cancelToken,
+  }) async {
+    if (!started.isCompleted) started.complete();
+    final stopped = Completer<void>();
+    cancelToken?.whenCancel.then((_) {
+      cancelled = true;
+      if (!stopped.isCompleted) stopped.complete();
+    });
+    await stopped.future;
+    throw DioException(
+      requestOptions: RequestOptions(path: downloadUrl),
+      type: DioExceptionType.cancel,
+    );
   }
 }

@@ -61,6 +61,9 @@ class DownloadNotifier extends _$DownloadNotifier {
     _receiveGeneration++;
     _cancelP2PReceive?.call();
     _activeReceive = null;
+    // The cloud loop holds its own token. Cancelling it here is what stops
+    // that loop; replacing the field later must not look like a new download.
+    _cancelToken?.cancel();
   }
 
   Future<void> loadTransferPreview(
@@ -231,7 +234,12 @@ class DownloadNotifier extends _$DownloadNotifier {
       currentFileIndex: 0,
       overallProgress: 0.0,
     );
-    _cancelToken = CancelToken();
+    final generation = _receiveGeneration;
+    final previous = _cancelToken;
+    final token = CancelToken();
+    _cancelToken = token;
+    previous?.cancel();
+    bool stopped() => generation != _receiveGeneration || token.isCancelled;
 
     final repo = ref.read(transferRepositoryProvider);
     final downloadService = ref.read(downloadServiceProvider);
@@ -244,14 +252,16 @@ class DownloadNotifier extends _$DownloadNotifier {
         state.transfer!.id,
         state.accessToken ?? '',
       );
-      if (files == null) return;
+      if (files == null || stopped()) return;
       downloadFiles = files;
       state = state.copyWith(downloadFiles: downloadFiles);
     }
+    if (stopped()) return;
 
     Directory? saveDir;
     if (!kIsWeb) {
       saveDir = await _stagingDirectory();
+      if (stopped()) return;
     }
 
     final downloadedPaths = <String>[];
@@ -259,7 +269,7 @@ class DownloadNotifier extends _$DownloadNotifier {
     final totalSize = state.transfer!.totalSize;
 
     for (int i = 0; i < downloadFiles.length; i++) {
-      if (_cancelToken?.isCancelled ?? false) return;
+      if (stopped()) return;
 
       final item = downloadFiles[i];
       state = state.copyWith(currentFileIndex: i, currentFileProgress: 0.0);
@@ -268,8 +278,9 @@ class DownloadNotifier extends _$DownloadNotifier {
         if (kIsWeb) {
           final encBytes = await downloadService.downloadBytesFromR2(
             downloadUrl: item.downloadUrl!,
-            cancelToken: _cancelToken,
+            cancelToken: token,
             onProgress: (received, total) {
+              if (stopped()) return;
               final fileProgress = total > 0 ? received / total : 0.0;
               final overall = totalSize > 0
                   ? (cumulativeBytes + received) / totalSize
@@ -280,6 +291,7 @@ class DownloadNotifier extends _$DownloadNotifier {
               );
             },
           );
+          if (stopped()) return;
 
           Uint8List finalBytes = encBytes;
           if (key.isNotEmpty) {
@@ -299,8 +311,9 @@ class DownloadNotifier extends _$DownloadNotifier {
           await downloadService.downloadFileFromR2(
             downloadUrl: item.downloadUrl!,
             savePath: tempSavePath,
-            cancelToken: _cancelToken,
+            cancelToken: token,
             onProgress: (received, total) {
+              if (stopped()) return;
               final fileProgress = total > 0 ? received / total : 0.0;
               final overall = totalSize > 0
                   ? (cumulativeBytes + received) / totalSize
@@ -311,6 +324,7 @@ class DownloadNotifier extends _$DownloadNotifier {
               );
             },
           );
+          if (stopped()) return;
 
           if (key.isNotEmpty) {
             await decryptUseCase.execute(
@@ -318,6 +332,7 @@ class DownloadNotifier extends _$DownloadNotifier {
               aesKey32Bytes: key,
               outputPath: savePath,
             );
+            if (stopped()) return;
             final tempFile = File(tempSavePath);
             if (await tempFile.exists()) {
               await tempFile.delete();
@@ -332,12 +347,14 @@ class DownloadNotifier extends _$DownloadNotifier {
             savePath,
             FileNameSanitizer.safeFileName(item.name),
           );
+          if (stopped()) return;
           downloadedPaths.add(delivered);
         }
 
+        if (stopped()) return;
         cumulativeBytes += item.size;
       } catch (e) {
-        if (_cancelToken?.isCancelled ?? false) return;
+        if (stopped()) return;
         state = state.copyWith(
           phase: DownloadPhase.failed,
           errorMessage: 'Failed downloading ${item.name}: $e',
@@ -346,6 +363,7 @@ class DownloadNotifier extends _$DownloadNotifier {
       }
     }
 
+    if (stopped()) return;
     state = state.copyWith(
       phase: DownloadPhase.completed,
       overallProgress: 1.0,
@@ -660,7 +678,6 @@ class DownloadNotifier extends _$DownloadNotifier {
 
   void cancelDownload() {
     _invalidateReception();
-    _cancelToken?.cancel();
     state = state.copyWith(phase: DownloadPhase.cancelled);
   }
 }

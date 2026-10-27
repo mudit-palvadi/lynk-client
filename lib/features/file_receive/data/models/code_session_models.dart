@@ -7,10 +7,14 @@ class ReceiverCodeJoinModel {
   final String status;
   final int expiresIn;
 
+  /// Presented on each collect. Empty when an older server did not return one.
+  final String receiverSecret;
+
   const ReceiverCodeJoinModel({
     required this.sessionId,
     required this.status,
     required this.expiresIn,
+    this.receiverSecret = '',
   });
 
   factory ReceiverCodeJoinModel.fromJson(Map<String, dynamic> json) {
@@ -18,6 +22,7 @@ class ReceiverCodeJoinModel {
       sessionId: json['session_id'] as String,
       status: json['status'] as String? ?? 'joined',
       expiresIn: (json['expires_in'] as num?)?.toInt() ?? 0,
+      receiverSecret: json['receiver_secret'] as String? ?? '',
     );
   }
 }

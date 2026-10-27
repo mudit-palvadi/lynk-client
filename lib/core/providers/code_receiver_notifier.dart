@@ -86,6 +86,7 @@ class CodeReceiverNotifier extends _$CodeReceiverNotifier {
   Timer? _pollTimer;
   String? _activeSessionId;
   Uint8List? _privateKeySeed;
+  String? _receiverSecret;
 
   /// When the code the sender minted stops naming anything.
   DateTime? _deadline;
@@ -115,6 +116,7 @@ class CodeReceiverNotifier extends _$CodeReceiverNotifier {
 
       _activeSessionId = joined.sessionId;
       _privateKeySeed = pair.privateKeySeed;
+      _receiverSecret = joined.receiverSecret;
       _deadline = DateTime.now().add(Duration(seconds: joined.expiresIn));
 
       state = CodeReceiveState(
@@ -153,7 +155,7 @@ class CodeReceiverNotifier extends _$CodeReceiverNotifier {
     try {
       final key = await ref
           .read(codeSessionRemoteDataSourceProvider)
-          .collectKey(sessionId);
+          .collectKey(sessionId, receiverSecret: _receiverSecret ?? '');
       if (!ref.mounted || _activeSessionId != sessionId) return;
 
       if (key == null) {
@@ -189,6 +191,7 @@ class CodeReceiverNotifier extends _$CodeReceiverNotifier {
     _pollTimer?.cancel();
     _activeSessionId = null;
     _privateKeySeed = null;
+    _receiverSecret = null;
     _deadline = null;
   }
 

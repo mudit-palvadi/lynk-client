@@ -17,7 +17,9 @@ class _FakeDataSource implements CodeSessionRemoteDataSource {
     sessionId: 'session-1',
     status: 'joined',
     expiresIn: 600,
+    receiverSecret: 'receiver-secret',
   );
+  String? collectedSecret;
 
   /// One entry per poll; a null entry means "not wrapped yet".
   List<ReceiverCodeKeyModel?> polls = <ReceiverCodeKeyModel?>[];
@@ -36,8 +38,12 @@ class _FakeDataSource implements CodeSessionRemoteDataSource {
   }
 
   @override
-  Future<ReceiverCodeKeyModel?> collectKey(String sessionId) async {
+  Future<ReceiverCodeKeyModel?> collectKey(
+    String sessionId, {
+    required String receiverSecret,
+  }) async {
     collectCalls++;
+    collectedSecret = receiverSecret;
     if (polls.isEmpty) return null;
     return polls.removeAt(0);
   }
@@ -162,6 +168,7 @@ void main() {
     await waitFor(() => read().isReady);
 
     expect(data.collectCalls, 3);
+    expect(data.collectedSecret, 'receiver-secret');
     expect(read().transferId, 'transfer-1');
   });
 

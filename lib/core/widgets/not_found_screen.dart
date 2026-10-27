@@ -41,7 +41,7 @@ class NotFoundScreen extends StatelessWidget {
                 Text(
                   path != null
                       ? 'The requested path "$path" could not be found.'
-                      : 'The page or link you followed does not exist or has expired.',
+                      : 'The page or link does not exist or has expired.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     color: AppTheme.textSecondary,

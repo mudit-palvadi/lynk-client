@@ -66,7 +66,7 @@ class _EnterCodeScreenState extends ConsumerState<EnterCodeScreen> {
             const Icon(Icons.dialpad, size: 64, color: AppTheme.primary),
             const SizedBox(height: 16),
             const Text(
-              'Type the 6-digit code',
+              'Enter code',
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),

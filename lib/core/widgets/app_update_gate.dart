@@ -115,7 +115,7 @@ class _UpdateMessage extends ConsumerWidget {
         const SizedBox(height: 16),
         Text(
           update.phase == AppUpdatePhase.failed
-              ? 'Unable to verify the latest version. Check your connection and retry, or update from Google Play.'
+              ? 'Unable to verify the latest version. Check the connection and retry, or update from Google Play.'
               : 'Install the latest LynkShare version to continue.',
           textAlign: TextAlign.center,
         ),

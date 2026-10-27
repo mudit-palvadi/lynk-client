@@ -79,9 +79,9 @@ class _ReceiveQrScreenState extends ConsumerState<ReceiveQrScreen> {
           children: [
             const Spacer(),
             const TransferRoleHeading(
-              role: 'You’re receiving',
-              title: 'Your receiving QR',
-              instruction: 'Ask the sender to scan this',
+              role: 'Receiving',
+              title: 'Receiving QR',
+              instruction: 'Sender: scan this QR.',
               icon: Icons.download_outlined,
             ),
             const SizedBox(height: 24),
@@ -122,7 +122,7 @@ class _ReceiveQrScreenState extends ConsumerState<ReceiveQrScreen> {
                     Text('Sender: choose files and send.'),
                     SizedBox(height: 8),
                     Text(
-                      'You: keep this screen open. Receiving starts automatically.',
+                      'Keep this screen open. Receiving starts automatically.',
                       style: TextStyle(color: AppTheme.textSecondary),
                     ),
                   ],
@@ -184,7 +184,7 @@ class _ReceiveQrScreenState extends ConsumerState<ReceiveQrScreen> {
               const CircularProgressIndicator(),
               const SizedBox(height: 16),
               const Text(
-                'Creating your receiving QR…',
+                'Creating the receiving QR…',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppTheme.textSecondary),
               ),

@@ -89,14 +89,12 @@ class SendQrHelper {
   static void cancelSessionAndGoHome({
     required BuildContext context,
     required WidgetRef ref,
-    required String transferId,
   }) {
-    final secret = ref.read(uploadProvider).transfer?.senderSecret;
-    ref.read(transferRepositoryProvider).cancelTransfer(
-      transferId,
-      senderSecret: secret,
-    );
-    ref.read(uploadProvider.notifier).reset();
+    final notifier = ref.read(uploadProvider.notifier);
+    // The notifier owns both active work and its authenticated cancellation.
+    // Cancel before reset removes the transfer and its sender secret.
+    notifier.cancelUpload();
+    notifier.reset();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Transfer session cancelled.'),

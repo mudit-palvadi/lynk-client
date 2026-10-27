@@ -337,15 +337,10 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
               const SizedBox(height: 12),
               ElevatedButton(
                 onPressed: () {
-                  if (uploadState.p2pStage != P2PSendStage.none ||
-                      uploadState.phase == UploadPhase.uploading) {
-                    ref.read(uploadProvider.notifier).cancelUpload();
-                  }
                   ref.read(senderCodeProvider.notifier).stop();
                   SendQrHelper.cancelSessionAndGoHome(
                     context: context,
                     ref: ref,
-                    transferId: widget.transfer.id,
                   );
                 },
                 style: ElevatedButton.styleFrom(

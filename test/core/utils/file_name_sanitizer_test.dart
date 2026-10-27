@@ -91,6 +91,14 @@ void main() {
     test('a tab is dropped', () {
       expect(FileNameSanitizer.safeFileName('with\ttab.txt'), 'withtab.txt');
     });
+
+    test('a colon is dropped so it cannot name an alternate stream', () {
+      expect(
+        FileNameSanitizer.safeFileName('report.txt:stream'),
+        'report.txtstream',
+      );
+      expect(FileNameSanitizer.safeFileName(':'), 'file');
+    });
   });
 
   group('the result is always a single safe segment', () {

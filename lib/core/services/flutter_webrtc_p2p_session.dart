@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -431,6 +432,9 @@ class P2PFileSession implements P2PSenderSession {
   );
   int _receivedFiles = 0;
   int _receivedBytes = 0;
+  final _cipherDigest = _DigestSlot();
+  Sink<List<int>>? _cipherHash;
+  bool _cipherHashClosed = false;
 
   File? _currentInboundFile;
   RandomAccessFile? _currentSink;
@@ -620,7 +624,13 @@ class P2PFileSession implements P2PSenderSession {
         files == 0) {
       throw StateError('file delivery does not match the received transfer');
     }
-    await peer.sendText(TransferFramer.encodeReceipt(files, bytes).text!);
+    await peer.sendText(
+      TransferFramer.encodeReceipt(
+        files,
+        bytes,
+        sha256: _ciphertextDigest(),
+      ).text!,
+    );
     final elapsed = Stopwatch()..start();
     while (peer.isChannelOpen && peer.bufferedAmount > 0) {
       if (elapsed.elapsed > const Duration(seconds: 5)) {
@@ -757,6 +767,17 @@ class P2PFileSession implements P2PSenderSession {
     }
     sink.writeFromSync(bytes);
     _currentWritten += bytes.length;
+    (_cipherHash ??= sha256.startChunkedConversion(_cipherDigest)).add(bytes);
+  }
+
+  String? _ciphertextDigest() {
+    final hash = _cipherHash;
+    if (hash == null) return null;
+    if (!_cipherHashClosed) {
+      hash.close();
+      _cipherHashClosed = true;
+    }
+    return _cipherDigest.value?.toString();
   }
 
   /// Stops a transfer that broke the size rules.
@@ -799,4 +820,14 @@ class P2PFileSession implements P2PSenderSession {
     await peer.dispose();
     await signaling.close();
   }
+}
+
+class _DigestSlot implements Sink<Digest> {
+  Digest? value;
+
+  @override
+  void add(Digest data) => value = data;
+
+  @override
+  void close() {}
 }

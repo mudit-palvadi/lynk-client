@@ -22,10 +22,22 @@ void main() {
         expect(frame!.receipts, vector['receipts']);
       }
       if (vector['kind'] == 'receipt') {
-        expect(
-          TransferFramer.encodeReceipt(frame!.files!, frame.bytes!).text,
-          '{"t":"ack","files":2,"bytes":64}',
-        );
+        expect(frame!.digest, vector['sha256']);
+        if (vector['sha256'] == null) {
+          expect(
+            TransferFramer.encodeReceipt(frame.files!, frame.bytes!).text,
+            '{"t":"ack","files":2,"bytes":64}',
+          );
+        } else {
+          expect(
+            TransferFramer.encodeReceipt(
+              frame.files!,
+              frame.bytes!,
+              sha256: frame.digest,
+            ).text,
+            vector['wire'],
+          );
+        }
       }
     });
   }

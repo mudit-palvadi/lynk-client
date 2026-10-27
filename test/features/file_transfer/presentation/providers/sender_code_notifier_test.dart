@@ -1,4 +1,5 @@
 import 'package:client/core/providers/transfer_providers.dart';
+import 'package:client/core/services/key_fingerprint.dart';
 import 'package:client/core/services/key_wrap_service.dart';
 import 'package:client/features/file_transfer/data/datasources/sender_session_remote_data_source.dart';
 import 'package:client/features/file_transfer/data/models/sender_session_model.dart';
@@ -38,6 +39,7 @@ class _FakeDataSource implements SenderSessionRemoteDataSource {
     required String transferId,
     required String wrappedKey,
     required String mode,
+    required String senderSecret,
   }) async {
     attachedKey = wrappedKey;
     attachedMode = mode;
@@ -144,25 +146,29 @@ void main() {
     expect(wrap.tokenSeen, 'token-1');
     expect(data.attachedKey, 'wrapped::session-1');
     expect(data.attachedMode, 'p2p');
+    expect(read().keyCheck, keyFingerprint('pk-1'));
   });
 
-  test('a cloud send keeps the same code for the next transfer only once', () async {
-    await notifier().ensureStarted(
-      transferId: 'transfer-1',
-      aesKey: 'aes-1',
-      accessToken: 'token-1',
-      mode: TransferMode.cloud,
-    );
-    await notifier().ensureStarted(
-      transferId: 'transfer-2',
-      aesKey: 'aes-2',
-      accessToken: 'token-2',
-      mode: TransferMode.cloud,
-    );
+  test(
+    'a cloud send keeps the same code for the next transfer only once',
+    () async {
+      await notifier().ensureStarted(
+        transferId: 'transfer-1',
+        aesKey: 'aes-1',
+        accessToken: 'token-1',
+        mode: TransferMode.cloud,
+      );
+      await notifier().ensureStarted(
+        transferId: 'transfer-2',
+        aesKey: 'aes-2',
+        accessToken: 'token-2',
+        mode: TransferMode.cloud,
+      );
 
-    expect(data.createCalls, 2);
-    expect(read().transferId, 'transfer-2');
-  });
+      expect(data.createCalls, 2);
+      expect(read().transferId, 'transfer-2');
+    },
+  );
 
   test('a failed create is reported without a code', () async {
     data.createFails = true;

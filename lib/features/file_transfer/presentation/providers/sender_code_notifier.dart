@@ -5,6 +5,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../../core/providers/transfer_providers.dart'
     show senderSessionRemoteDataSourceProvider;
+import '../../../../core/services/key_fingerprint.dart';
 import '../../../../core/services/key_wrap_service.dart';
 import '../providers/upload_state.dart' show TransferMode;
 import 'sender_pairing.dart';
@@ -24,12 +25,16 @@ class SenderCodeState {
   /// new session for the same files.
   final String? transferId;
 
+  /// Eight-digit check of the receiver public key, once one has joined.
+  final String? keyCheck;
+
   final String? errorMessage;
 
   const SenderCodeState({
     this.phase = SenderCodePhase.idle,
     this.code,
     this.transferId,
+    this.keyCheck,
     this.errorMessage,
   });
 
@@ -92,13 +97,14 @@ class SenderCodeNotifier extends _$SenderCodeNotifier {
             required receiverPublicKeyB64,
             required sessionId,
             accessToken,
-          }) =>
-              ref.read(keyWrapServiceProvider).wrapKey(
-                    aesKey: aesKey,
-                    receiverPublicKeyB64: receiverPublicKeyB64,
-                    sessionId: sessionId,
-                    accessToken: accessToken,
-                  ),
+          }) => ref
+              .read(keyWrapServiceProvider)
+              .wrapKey(
+                aesKey: aesKey,
+                receiverPublicKeyB64: receiverPublicKeyB64,
+                sessionId: sessionId,
+                accessToken: accessToken,
+              ),
     );
     _pairing = pairing;
 
@@ -155,7 +161,8 @@ class SenderCodeNotifier extends _$SenderCodeNotifier {
         state = SenderCodeState(
           phase: SenderCodePhase.expired,
           transferId: state.transferId,
-          errorMessage: 'That code has expired. Open the share screen for a new one.',
+          errorMessage:
+              'That code has expired. Open the share screen for a new one.',
         );
       }
       return;
@@ -174,18 +181,26 @@ class SenderCodeNotifier extends _$SenderCodeNotifier {
           phase: SenderCodePhase.attached,
           code: state.code,
           transferId: state.transferId,
+          keyCheck: _keyCheck(pairing),
         );
       } else {
         state = SenderCodeState(
           phase: SenderCodePhase.failed,
           code: state.code,
           transferId: state.transferId,
+          keyCheck: _keyCheck(pairing),
           errorMessage: 'Could not hand the file key to the receiver.',
         );
       }
     } finally {
       _polling = false;
     }
+  }
+
+  String? _keyCheck(SenderPairing pairing) {
+    final publicKey = pairing.receiverPublicKey;
+    if (publicKey == null || publicKey.isEmpty) return null;
+    return keyFingerprint(publicKey);
   }
 
   void _reset() {

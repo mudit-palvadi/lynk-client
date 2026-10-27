@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../services/key_fingerprint.dart';
 import '../services/key_wrap_service.dart';
 import 'receiver_providers.dart';
 
@@ -22,6 +23,9 @@ class CodeReceiveState {
   final String? aesKey;
   final String? accessToken;
 
+  /// Eight-digit check of this device's public key, once the code is accepted.
+  final String? keyCheck;
+
   /// True when the sender uploaded first, so a direct connection is pointless.
   final bool viaPairing;
 
@@ -34,6 +38,7 @@ class CodeReceiveState {
     this.transferId,
     this.aesKey,
     this.accessToken,
+    this.keyCheck,
     this.viaPairing = true,
     this.errorMessage,
   });
@@ -49,6 +54,7 @@ class CodeReceiveState {
     String? transferId,
     String? aesKey,
     String? accessToken,
+    String? keyCheck,
     bool? viaPairing,
     String? errorMessage,
   }) {
@@ -59,6 +65,7 @@ class CodeReceiveState {
       transferId: transferId ?? this.transferId,
       aesKey: aesKey ?? this.aesKey,
       accessToken: accessToken ?? this.accessToken,
+      keyCheck: keyCheck ?? this.keyCheck,
       viaPairing: viaPairing ?? this.viaPairing,
       errorMessage: errorMessage ?? this.errorMessage,
     );
@@ -113,6 +120,7 @@ class CodeReceiverNotifier extends _$CodeReceiverNotifier {
       state = CodeReceiveState(
         isWaiting: true,
         sessionId: joined.sessionId,
+        keyCheck: keyFingerprint(pair.publicKeyB64),
       );
       _schedulePoll();
     } catch (e) {
@@ -197,7 +205,8 @@ class CodeReceiverNotifier extends _$CodeReceiverNotifier {
     if (error is DioException) {
       final status = error.response?.statusCode;
       if (status == 404) return 'That code is not valid or has expired.';
-      if (status == 409) return 'That code is already paired with another device.';
+      if (status == 409)
+        return 'That code is already paired with another device.';
     }
     return 'Could not pair with that code. Check it and try again.';
   }

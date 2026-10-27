@@ -174,6 +174,14 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
             fontSize: 12,
           ),
         ),
+        if ((codeState.keyCheck ?? '').isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Key check ${codeState.keyCheck}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+          ),
+        ],
       ],
     );
   }

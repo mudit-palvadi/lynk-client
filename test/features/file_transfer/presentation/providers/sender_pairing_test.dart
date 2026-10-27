@@ -13,7 +13,9 @@ class _FakeDataSource implements SenderSessionRemoteDataSource {
     code: '123456',
     status: 'waiting',
     expiresIn: 600,
+    senderSecret: 'sender-secret',
   );
+  String? attachedSecret;
   int polls = 0;
   String? attachedSession;
   String? attachedTransfer;
@@ -38,12 +40,14 @@ class _FakeDataSource implements SenderSessionRemoteDataSource {
     required String transferId,
     required String wrappedKey,
     required String mode,
+    required String senderSecret,
   }) async {
     if (attachFails) throw Exception('nope');
     attachedSession = sessionId;
     attachedTransfer = transferId;
     attachedKey = wrappedKey;
     attachedMode = mode;
+    attachedSecret = senderSecret;
   }
 }
 
@@ -53,12 +57,13 @@ void main() {
   late List<String?> wrappedTokens;
 
   SenderPairing build() => SenderPairing(
-        dataSource: data,
-        transferId: 'transfer-1',
-        aesKey: 'key',
-        accessToken: 'token-1',
-        mode: 'p2p',
-        wrapKey: ({
+    dataSource: data,
+    transferId: 'transfer-1',
+    aesKey: 'key',
+    accessToken: 'token-1',
+    mode: 'p2p',
+    wrapKey:
+        ({
           required aesKey,
           required receiverPublicKeyB64,
           required sessionId,
@@ -68,7 +73,7 @@ void main() {
           wrappedTokens.add(accessToken);
           return 'wrapped::$sessionId';
         },
-      );
+  );
 
   setUp(() {
     data = _FakeDataSource();
@@ -105,8 +110,7 @@ void main() {
       expect(data.attachedKey, isNull);
     });
 
-    test('a joined receiver gets the wrapped key and stops the poll',
-        () async {
+    test('a joined receiver gets the wrapped key and stops the poll', () async {
       final pairing = build();
       await pairing.start();
       data.nextSession = const SenderSessionModel(
@@ -124,6 +128,8 @@ void main() {
       expect(data.attachedTransfer, 'transfer-1');
       expect(data.attachedKey, 'wrapped::session-1');
       expect(data.attachedMode, 'p2p');
+      expect(data.attachedSecret, 'sender-secret');
+      expect(pairing.receiverPublicKey, 'pk-1');
     });
 
     test('an attach that fails is reported', () async {

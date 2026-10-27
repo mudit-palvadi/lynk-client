@@ -25,6 +25,7 @@ class SenderSessionRemoteDataSourceImpl
     required String transferId,
     required String wrappedKey,
     required String mode,
+    required String senderSecret,
   }) async {
     await dio.post(
       'sender-sessions/$sessionId/attach',
@@ -33,6 +34,7 @@ class SenderSessionRemoteDataSourceImpl
         'wrapped_key': wrappedKey,
         'mode': mode,
       },
+      options: Options(headers: {'X-Lynk-Sender-Secret': senderSecret}),
     );
   }
 }

@@ -10,6 +10,9 @@ class SenderSessionModel {
   final String? receiverPk;
   final String? transferId;
 
+  /// Returned only by create. Attach sends it back; a later poll does not.
+  final String? senderSecret;
+
   const SenderSessionModel({
     required this.sessionId,
     this.code,
@@ -17,6 +20,7 @@ class SenderSessionModel {
     required this.expiresIn,
     this.receiverPk,
     this.transferId,
+    this.senderSecret,
   });
 
   /// True once the receiver published its public key.
@@ -33,6 +37,7 @@ class SenderSessionModel {
       expiresIn: (json['expires_in'] as num?)?.toInt() ?? 0,
       receiverPk: json['receiver_pk'] as String?,
       transferId: json['transfer_id'] as String?,
+      senderSecret: json['sender_secret'] as String?,
     );
   }
 }

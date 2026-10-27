@@ -2,12 +2,13 @@ import '../../../../core/services/key_wrap_service.dart';
 import '../../data/datasources/sender_session_remote_data_source.dart';
 
 /// Wraps the transfer key for the receiver's public key.
-typedef KeyWrapper = Future<String> Function({
-  required String aesKey,
-  required String receiverPublicKeyB64,
-  required String sessionId,
-  String? accessToken,
-});
+typedef KeyWrapper =
+    Future<String> Function({
+      required String aesKey,
+      required String receiverPublicKeyB64,
+      required String sessionId,
+      String? accessToken,
+    });
 
 /// Where a sender pairing stands.
 enum SenderPairingStatus { idle, waiting, attached, failed }
@@ -32,13 +33,12 @@ class SenderPairing {
     required String receiverPublicKeyB64,
     required String sessionId,
     String? accessToken,
-  }) =>
-      KeyWrapService().wrapKey(
-        aesKey: aesKey,
-        receiverPublicKeyB64: receiverPublicKeyB64,
-        sessionId: sessionId,
-        accessToken: accessToken,
-      );
+  }) => KeyWrapService().wrapKey(
+    aesKey: aesKey,
+    receiverPublicKeyB64: receiverPublicKeyB64,
+    sessionId: sessionId,
+    accessToken: accessToken,
+  );
 
   final SenderSessionRemoteDataSource dataSource;
   final String transferId;
@@ -55,6 +55,8 @@ class SenderPairing {
 
   String? sessionId;
   String? code;
+  String? senderSecret;
+  String? receiverPublicKey;
   String? error;
   SenderPairingStatus status = SenderPairingStatus.idle;
 
@@ -66,6 +68,7 @@ class SenderPairing {
       final session = await dataSource.createSession();
       sessionId = session.sessionId;
       code = session.code;
+      senderSecret = session.senderSecret;
       status = SenderPairingStatus.waiting;
       return true;
     } catch (e) {
@@ -90,6 +93,7 @@ class SenderPairing {
         status = SenderPairingStatus.waiting;
         return true;
       }
+      receiverPublicKey = receiverPk;
 
       final wrapped = await _wrap(
         aesKey: aesKey,
@@ -102,6 +106,7 @@ class SenderPairing {
         transferId: transferId,
         wrappedKey: wrapped,
         mode: mode,
+        senderSecret: senderSecret ?? '',
       );
       status = SenderPairingStatus.attached;
       return false;

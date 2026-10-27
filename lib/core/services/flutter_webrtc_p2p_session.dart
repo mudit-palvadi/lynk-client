@@ -8,6 +8,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'p2p_delivery_sender.dart';
+import 'receive_budget.dart';
 import 'ice_ladder.dart';
 import 'name_sealer.dart';
 import 'signaling_channel.dart';
@@ -413,6 +414,10 @@ class P2PFileSession implements P2PSenderSession {
   final String? aesKey;
 
   late final P2PDeliverySender _sender;
+  ReceiveBudget _budget = ReceiveBudget(
+    maxFiles: 10,
+    maxBytes: maxP2PReceiveBytes,
+  );
   int _receivedFiles = 0;
   int _receivedBytes = 0;
 
@@ -466,6 +471,8 @@ class P2PFileSession implements P2PSenderSession {
     String? accessToken,
     String? aesKey,
     void Function()? onFallbackToCloud,
+    int maxFiles = 10,
+    int maxBytes = maxP2PReceiveBytes,
   }) async {
     final socket = WebSocketChannel.connect(signalingUrl);
     final signaling = SignalingChannel(WebSocketChannelAdapter(socket));
@@ -475,7 +482,8 @@ class P2PFileSession implements P2PSenderSession {
     }
     final peer = FlutterWebrtcPeerActions(signaling: signaling);
     final session = P2PFileSession._(signaling, peer, aesKey)
-      ..onFallbackToCloud = onFallbackToCloud;
+      ..onFallbackToCloud = onFallbackToCloud
+      .._budget = ReceiveBudget(maxFiles: maxFiles, maxBytes: maxBytes);
 
     final turn = await fetchTurnCredentials(
       sessionId,
@@ -626,7 +634,12 @@ class P2PFileSession implements P2PSenderSession {
     if (parsed == null) return;
     switch (parsed.kind) {
       case FrameKind.header:
-        if (_currentSink != null || _transferDone.isCompleted) {
+        if (_currentSink != null ||
+            _transferDone.isCompleted ||
+            !_budget.canStartFile(
+              fileOpen: _currentSink != null,
+              declaredSize: parsed.meta!.size,
+            )) {
           _abortReceive('unexpected file header');
           return;
         }
@@ -669,6 +682,7 @@ class P2PFileSession implements P2PSenderSession {
         final file = _currentInboundFile;
         final name = _currentName ?? '';
         if (file != null && _currentWritten == _currentExpected) {
+          _budget.finishFile(_currentWritten);
           _receivedFiles++;
           _receivedBytes += _currentWritten;
           if (!_fileReceived.isClosed) {
@@ -714,10 +728,15 @@ class P2PFileSession implements P2PSenderSession {
     // bigger than the largest one the app offers. Without this a peer could
     // fill the device's disk.
     if (!isWithinReceiveLimit(
-      receivedBytes: _currentWritten + bytes.length,
-      declaredBytes: _currentExpected,
-      maxBytes: maxP2PReceiveBytes,
-    )) {
+          receivedBytes: _currentWritten + bytes.length,
+          declaredBytes: _currentExpected,
+          maxBytes: maxP2PReceiveBytes,
+        ) ||
+        !_budget.canAcceptChunk(
+          writtenInFile: _currentWritten,
+          incoming: bytes.length,
+          declaredSize: _currentExpected,
+        )) {
       _abortReceive("the peer sent more data than it declared");
       return;
     }

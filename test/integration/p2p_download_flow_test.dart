@@ -92,6 +92,8 @@ void main() {
                 String? accessToken,
                 String? aesKey,
                 void Function()? onFallbackToCloud,
+                int maxFiles = 10,
+                int maxBytes = 0,
               }) async {
                 expect(role, PeerRole.receiver);
                 return session;

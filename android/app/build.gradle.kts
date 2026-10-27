@@ -36,43 +36,7 @@ val configuredAdMobAppId: String =
 /** True when no AdMob application id was supplied at all. */
 val isAdMobAppIdMissing: Boolean = configuredAdMobAppId.isBlank()
 
-/** True when the configured id is Google's public test id rather than a real one. */
-val isGoogleTestAdMobAppId: Boolean = configuredAdMobAppId == googleTestAdMobAppId
-
-/**
- * Whether a release build may deliberately ship Google's public test ids.
- *
- * Resolution order:
- *  1. `-PallowTestAdMobIds=true` on the Gradle command line
- *  2. `ORG_GRADLE_PROJECT_allowTestAdMobIds=true` in the environment
- *  3. `ALLOW_TEST_ADMOB_IDS=true` in the environment
- *
- * The release pipeline sets this when it falls back to the public test ids
- * because no AdMob account is configured yet. The shipped app then shows
- * Google's test ads and earns nothing - a deliberate, warned-about state
- * rather than an accident.
- */
-val allowTestAdMobIds: Boolean =
-    (project.findProperty("allowTestAdMobIds") as String?)?.toBooleanStrictOrNull()
-        ?: (System.getenv("ORG_GRADLE_PROJECT_allowTestAdMobIds")
-            ?: System.getenv("ALLOW_TEST_ADMOB_IDS"))
-            ?.trim()
-            ?.equals("true", ignoreCase = true)
-        ?: false
-
-/**
- * Fails a release build that has no AdMob application id, or that would ship
- * Google's public test id without saying so.
- *
- * The release pipeline used to leave `ADMOB_*` unset, so `AdService` fell back
- * to Google's test ad units and the shipped APK showed test ads. A missing id
- * is always fatal (an empty id would break the AdMob SDK at start-up); a test
- * id is fatal unless it was asked for, so a real account cannot be forgotten.
- */
-// The gate runs in `doFirst` on every release task, so the warning is
-// printed once per build rather than once per task.
-var warnedAboutTestAdMobIds = false
-
+/** Release tasks fail closed; debug and profile never need live IDs or signing. */
 fun requireReleaseAdMobAppId() {
     if (isAdMobAppIdMissing) {
         throw GradleException(
@@ -80,23 +44,15 @@ fun requireReleaseAdMobAppId() {
                 "-PadmobAppId=ca-app-pub-... or set ORG_GRADLE_PROJECT_admobAppId.",
         )
     }
-    if (isGoogleTestAdMobAppId) {
-        if (!allowTestAdMobIds) {
-            throw GradleException(
-                "A release build needs a real AdMob application id. Pass " +
-                    "-PadmobAppId=ca-app-pub-... or set ORG_GRADLE_PROJECT_admobAppId. " +
-                    "Google's public test id ($googleTestAdMobAppId) ships test ads and " +
-                    "earns nothing. If that is deliberate, set ALLOW_TEST_ADMOB_IDS=true.",
-            )
-        }
-        if (!warnedAboutTestAdMobIds) {
-            warnedAboutTestAdMobIds = true
-            println(
-                "WARNING: shipping Google's public test AdMob id: the app will " +
-                    "serve test ads and earn nothing until a real AdMob account is " +
-                    "configured.",
-            )
-        }
+    if (!Regex("^ca-app-pub-[0-9]{16}~[0-9]{10}$").matches(configuredAdMobAppId) ||
+        configuredAdMobAppId.startsWith("ca-app-pub-3940256099942544")) {
+        throw GradleException("A release build needs a valid, non-sample AdMob application id.")
+    }
+    val requiredSigning = listOf("keyAlias", "keyPassword", "storeFile", "storePassword")
+    if (!keystorePropertiesFile.exists() || requiredSigning.any {
+            keystoreProperties.getProperty(it).isNullOrBlank()
+        } || !file(keystoreProperties.getProperty("storeFile")).isFile) {
+        throw GradleException("A release build needs the registered upload keystore and all signing properties.")
     }
 }
 
@@ -120,8 +76,7 @@ android {
         // The manifest holds the AdMob application id as a placeholder. Debug
         // and profile fall back to the public test id; release overrides it
         // with the real one (or fails the build).
-        manifestPlaceholders["admobAppId"] =
-            if (isAdMobAppIdMissing) googleTestAdMobAppId else configuredAdMobAppId
+        manifestPlaceholders["admobAppId"] = googleTestAdMobAppId
         // Real phones only: drops the ~21 MB of x86_64/x86 emulator libs that
         // flutter_webrtc and ML Kit otherwise bundle for every ABI.
         // Skipped under --split-per-abi (Flutter injects its own filters).
@@ -135,20 +90,18 @@ android {
     signingConfigs {
         create("release") {
             if (keystorePropertiesFile.exists()) {
-                keyAlias = keystoreProperties["keyAlias"] as String
-                keyPassword = keystoreProperties["keyPassword"] as String
-                storeFile = file(keystoreProperties["storeFile"] as String)
-                storePassword = keystoreProperties["storePassword"] as String
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeFile = keystoreProperties.getProperty("storeFile")?.let { file(it) }
+                storePassword = keystoreProperties.getProperty("storePassword")
             }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = if (keystorePropertiesFile.exists())
-                signingConfigs.getByName("release")
-            else
-                signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
+            manifestPlaceholders["admobAppId"] = configuredAdMobAppId
             // Shrink and obfuscate the release build. Without this the APK
             // ships every dependency class name and the Dart symbols.
             isMinifyEnabled = true

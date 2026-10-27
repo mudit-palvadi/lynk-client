@@ -1,24 +1,22 @@
 # Lynk — Android release pipeline
 #
 # Manually triggered only: it builds a signed release AAB and uploads it to the
-# Google Play closed testing track. Nothing runs on push.
+# Google Play open testing track. Nothing runs on push.
 #
 # One-time setup required in the Codemagic UI:
 #   1. Team settings > codemagic.yaml settings > Code signing identities >
 #      Android keystores: upload android/app/upload-keystore.jks with the
 #      reference name `lynk_upload_keystore` (paths/passwords from android/key.properties).
 #   2. Env group `lynk_config`: API_BASE_URL, PRIVACY_POLICY_URL, DEEP_LINK_BASE_URL,
-#      and - optionally - ADMOB_APP_ID, ADMOB_BANNER_ID, ADMOB_INTERSTITIAL_ID,
+#      and ADMOB_APP_ID, ADMOB_BANNER_ID, ADMOB_INTERSTITIAL_ID,
 #      ADMOB_REWARDED_ID, ADMOB_REWARDED_INTERSTITIAL_ID.
-#      Set either all five AdMob variables or none of them. With none of them
-#      the build falls back to Google's public test ids: the app is built and
-#      published, it serves test ads and earns nothing until a real AdMob
-#      account is configured.
+#      All five must be real IDs from the same AdMob publisher. Sample IDs and
+#      missing configuration stop the release; debug/profile retain test ads.
 #   3. Env group `google_play`: GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS (service account JSON key content)
 
 workflows:
   lynk-android-release:
-    name: Lynk Android Release (Closed Testing)
+    name: Lynk Android Release (Open Testing)
     max_build_duration: 60
     # Mac mini M2 is the only machine included in the Codemagic free plan
     # (500 min/month). Linux X2 requires enabling pay-as-you-go billing.
@@ -27,6 +25,14 @@ workflows:
       flutter: 3.44.6
       # Gradle 9.1 / AGP 9.0 require JDK 17+; pin 21 for a deterministic build.
       java: 21
+      # Public AdMob identifiers, not account credentials. Environment-group
+      # overrides must pass the same release validation.
+      vars:
+        ADMOB_APP_ID: ca-app-pub-9472143004063972~5082510676
+        ADMOB_BANNER_ID: ca-app-pub-9472143004063972/3345777238
+        ADMOB_INTERSTITIAL_ID: ca-app-pub-9472143004063972/9528042202
+        ADMOB_REWARDED_ID: ca-app-pub-9472143004063972/1768498260
+        ADMOB_REWARDED_INTERSTITIAL_ID: ca-app-pub-9472143004063972/5516171584
       groups:
         - lynk_config
         - google_play
@@ -41,34 +47,31 @@ workflows:
     scripts:
       - name: Resolve AdMob configuration
         script: |
-          # The AdMob ids are optional for now: without an AdMob account the
-          # build falls back to Google's public test ids, which serve test ads
-          # and earn nothing. That is a deliberate, warned-about state.
-          #
-          # What is NOT allowed is a half-configured release, so either all
-          # five ids are set or none of them are.
-          count=0
-          for var in ADMOB_APP_ID ADMOB_BANNER_ID ADMOB_INTERSTITIAL_ID ADMOB_REWARDED_ID ADMOB_REWARDED_INTERSTITIAL_ID; do
-            if [ -n "$(printenv $var)" ]; then
-              count=$((count+1))
-            fi
-          done
-          if [ "$count" = "0" ]; then
-            echo "WARNING: no AdMob ids in the lynk_config env group."
-            echo "Falling back to Google's public test ids: the app will serve test ads and earn nothing."
-            echo "Set the five ADMOB_* variables to your own AdMob ids to fix this."
-            ADMOB_APP_ID=ca-app-pub-3940256099942544~3347511713
-            ADMOB_BANNER_ID=ca-app-pub-3940256099942544/6300978111
-            ADMOB_INTERSTITIAL_ID=ca-app-pub-3940256099942544/1033173712
-            ADMOB_REWARDED_ID=ca-app-pub-3940256099942544/5224354917
-            ADMOB_REWARDED_INTERSTITIAL_ID=ca-app-pub-3940256099942544/5354046379
-            allow_test=true
-          elif [ "$count" = "5" ]; then
-            allow_test=false
-          else
-            echo "ERROR: incomplete AdMob configuration - set all five ADMOB_* variables, or none of them."
+          set -eu
+          if [ "${GOOGLE_PLAY_TRACK:-beta}" != beta ]; then
+            echo "ERROR: this workflow publishes to open testing (beta) only."
             exit 1
           fi
+          expected_publisher=''
+          for var in ADMOB_APP_ID ADMOB_BANNER_ID ADMOB_INTERSTITIAL_ID ADMOB_REWARDED_ID ADMOB_REWARDED_INTERSTITIAL_ID; do
+            value="$(printenv "$var" || true)"
+            separator=/
+            if [ "$var" = ADMOB_APP_ID ]; then separator='~'; fi
+            if ! printf '%s' "$value" | grep -Eq "^ca-app-pub-[0-9]{16}${separator}[0-9]{10}$"; then
+              echo "ERROR: $var must contain a valid real AdMob ID."
+              exit 1
+            fi
+            if printf '%s' "$value" | grep -q '^ca-app-pub-3940256099942544'; then
+              echo "ERROR: Google sample IDs cannot be used in an open-testing release."
+              exit 1
+            fi
+            publisher="$(printf '%s' "$value" | cut -c 1-27)"
+            if [ -n "${expected_publisher:-}" ] && [ "$publisher" != "$expected_publisher" ]; then
+              echo "ERROR: all AdMob IDs must belong to the same publisher."
+              exit 1
+            fi
+            expected_publisher="$publisher"
+          done
           # Written to a file rather than exported, because Codemagic does not
           # guarantee that an export in one step survives into the next one.
           {
@@ -78,8 +81,7 @@ workflows:
             echo "export ADMOB_REWARDED_ID=\"$ADMOB_REWARDED_ID\""
             echo "export ADMOB_REWARDED_INTERSTITIAL_ID=\"$ADMOB_REWARDED_INTERSTITIAL_ID\""
             echo "export ORG_GRADLE_PROJECT_admobAppId=\"$ADMOB_APP_ID\""
-            echo "export ORG_GRADLE_PROJECT_allowTestAdMobIds=\"$allow_test\""
-          } > $CM_BUILD_DIR/.admob-release.env
+          } > "$CM_BUILD_DIR/.admob-release.env"
 
       - name: Recreate .env
         script: |
@@ -122,8 +124,8 @@ workflows:
       - name: Build release AAB
         script: |
           . $CM_BUILD_DIR/.admob-release.env
-          # build number = Codemagic project build counter + 100, so the first CI
-          # build is versionCode 101 — always higher than any manual +N upload.
+          # versionCode = Codemagic project build counter + 100. Before starting
+          # a build, verify it exceeds every version already uploaded to Play.
           # --obfuscate + --split-debug-info keep the Dart symbols out of the
           # AAB and write them to build/symbols, which is uploaded as an
           # artifact so a Play crash report can still be de-obfuscated.
@@ -132,9 +134,18 @@ workflows:
             --obfuscate \
             --split-debug-info=build/symbols
 
-      - name: Verify signing certificate (must not say "Android Debug")
+      - name: Verify release upload signing certificate
         script: |
-          keytool -printcert -jarfile build/app/outputs/bundle/release/app-release.aab | grep -E "Owner:|SHA256:"
+          set -eu
+          aab=build/app/outputs/bundle/release/app-release.aab
+          certificate="$(keytool -J-Duser.language=en -printcert -jarfile "$aab")"
+          expected='74:25:40:24:ED:53:EF:1F:A7:8F:00:B7:D1:72:7B:6A:CC:4B:12:B9:20:8D:EB:8D:48:11:58:6C:6C:C8:F0:94'
+          actual="$(printf '%s\n' "$certificate" | sed -n 's/.*SHA256: //p' | tr -d '\r')"
+          if [ "$actual" != "$expected" ]; then
+            echo "ERROR: the bundle is not signed with the registered upload certificate."
+            exit 1
+          fi
+          jarsigner -J-Duser.language=en -verify "$aab" | grep -q 'jar verified'
 
       - name: Verify the release manifest carries the configured AdMob app id
         script: |
@@ -149,11 +160,9 @@ workflows:
           # then end with grep's "not found" status.
           aab=build/app/outputs/bundle/release/app-release.aab
           test_id=ca-app-pub-3940256099942544~3347511713
-          if [ "$ADMOB_APP_ID" != "$test_id" ]; then
-            if unzip -p "$aab" base/manifest/AndroidManifest.xml | grep -qF "$test_id"; then
-              echo "ERROR: the release manifest still carries Google's public test AdMob app id."
-              exit 1
-            fi
+          if unzip -p "$aab" base/manifest/AndroidManifest.xml | grep -qF "$test_id"; then
+            echo "ERROR: the release manifest still carries Google's public test AdMob app id."
+            exit 1
           fi
           if ! unzip -p "$aab" base/manifest/AndroidManifest.xml | grep -qF "$ADMOB_APP_ID"; then
             echo "ERROR: the release manifest does not carry the configured AdMob application id ($ADMOB_APP_ID)."
@@ -174,16 +183,7 @@ workflows:
     publishing:
       google_play:
         credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS
-        # "alpha" = default closed testing track. If your closed track has a
-        # custom name, put it here instead. Can also be overridden per build
-        # with the GOOGLE_PLAY_TRACK environment variable.
-        track: alpha
+        # beta is open testing. A GOOGLE_PLAY_TRACK override other than beta
+        # is rejected by the first script, including production.
+        track: beta
         submit_as_draft: false
-
-    # Optional: uncomment to also auto-release when a version tag is pushed.
-    #triggering:
-    #  events:
-    #    - tag
-    #  tag_patterns:
-    #    - pattern: 'v*'
-    #      include: true

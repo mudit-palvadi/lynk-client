@@ -54,15 +54,18 @@ void main() {
 
     test('the debug manifest re-enables cleartext for local development', () {
       expect(
-        applicationOf(debugManifest).getAttribute('android:usesCleartextTraffic'),
+        applicationOf(
+          debugManifest,
+        ).getAttribute('android:usesCleartextTraffic'),
         'true',
       );
     });
 
     test('the profile manifest keeps cleartext off', () {
       expect(
-        applicationOf(profileManifest)
-            .getAttribute('android:usesCleartextTraffic'),
+        applicationOf(
+          profileManifest,
+        ).getAttribute('android:usesCleartextTraffic'),
         'false',
       );
     });
@@ -78,9 +81,9 @@ void main() {
 
     test("Google's sample app id is not hard-coded in the manifest", () {
       expect(
-        File('android/app/src/main/AndroidManifest.xml')
-            .readAsStringSync()
-            .contains('ca-app-pub-3940256099942544~3347511713'),
+        File(
+          'android/app/src/main/AndroidManifest.xml',
+        ).readAsStringSync().contains('ca-app-pub-3940256099942544~3347511713'),
         isFalse,
       );
     });
@@ -90,24 +93,15 @@ void main() {
       expect(gradle, contains('isAdMobAppIdMissing'));
       expect(gradle, contains('GradleException'));
 
-      // A missing id breaks the AdMob SDK at start-up, so it must be checked
-      // before - and independently of - the test-ads opt-in.
+      // Missing configuration must fail before any release task runs.
       final missingCheck = gradle.indexOf('if (isAdMobAppIdMissing)');
-      final optIn = gradle.indexOf('if (!allowTestAdMobIds)');
       expect(missingCheck, isNot(-1));
-      expect(optIn, isNot(-1));
-      expect(
-        missingCheck,
-        lessThan(optIn),
-        reason: 'a missing id must fail even when test ads are allowed',
-      );
     });
 
-    test('shipping the public test ids has to be asked for', () {
-      expect(gradle, contains('allowTestAdMobIds'));
-      expect(gradle, contains('isGoogleTestAdMobAppId'));
-      expect(gradle, contains('ALLOW_TEST_ADMOB_IDS'));
-      expect(gradle, contains('ORG_GRADLE_PROJECT_allowTestAdMobIds'));
+    test('release tasks have no sample-ad escape hatch', () {
+      expect(gradle, isNot(contains('allowTestAdMobIds')));
+      expect(gradle, contains('configuredAdMobAppId.startsWith'));
+      expect(gradle, contains('non-sample AdMob application id'));
     });
 
     test('the release pipeline injects the real id', () {
@@ -116,21 +110,19 @@ void main() {
     });
 
     test('the release pipeline refuses a half-configured ad setup', () {
-      // Either all five ids come from the env group or none of them do. A
-      // release with some real ids and some missing ones would ship with ads
-      // silently half-enabled.
-      expect(codemagic, contains('incomplete AdMob configuration'));
+      // The executable environment-matrix tests cover each failure path.
+      expect(codemagic, contains('must contain a valid real AdMob ID'));
     });
 
-    test('the release pipeline can deliberately ship the public test ids', () {
-      expect(codemagic, contains('ORG_GRADLE_PROJECT_allowTestAdMobIds'));
-      expect(codemagic, contains('Falling back to Google'));
+    test('the release pipeline rejects public test ids', () {
+      expect(codemagic, isNot(contains('allowTestAdMobIds')));
+      expect(codemagic, isNot(contains('Falling back to Google')));
       expect(
         codemagic,
         contains('ca-app-pub-3940256099942544~3347511713'),
         reason:
             'The verification step has to recognise the public test id in '
-            'order to default to it.',
+            'order to reject it.',
       );
     });
 
@@ -172,9 +164,7 @@ void main() {
   group('the ad bypass is not shipped', () {
     // The name may still appear in a comment that explains the history; what
     // must not exist is code that reads the key out of the environment.
-    final environmentRead = RegExp(
-      r"""env\[\s*['"]DEV_CONFIG_KEY['"]\s*\]""",
-    );
+    final environmentRead = RegExp(r"""env\[\s*['"]DEV_CONFIG_KEY['"]\s*\]""");
 
     test('no source file reads DEV_CONFIG_KEY', () {
       final sources = Directory('lib')
@@ -186,14 +176,16 @@ void main() {
         expect(
           environmentRead.hasMatch(file.readAsStringSync()),
           isFalse,
-          reason: '${file.path} still reads the bypass key from the environment',
+          reason:
+              '${file.path} still reads the bypass key from the environment',
         );
       }
     });
 
     test('the bypass key is a compile-time define behind a debug guard', () {
-      final configService =
-          File('lib/core/services/config_service.dart').readAsStringSync();
+      final configService = File(
+        'lib/core/services/config_service.dart',
+      ).readAsStringSync();
 
       expect(configService, contains('String.fromEnvironment('));
       expect(configService, contains('LYNK_DEBUG_BYPASS_KEY'));
@@ -206,10 +198,7 @@ void main() {
         isFalse,
         reason: 'the pipeline must not put the bypass key into the build',
       );
-      expect(
-        RegExp(r'LYNK_DEBUG_BYPASS_KEY\s*=').hasMatch(codemagic),
-        isFalse,
-      );
+      expect(RegExp(r'LYNK_DEBUG_BYPASS_KEY\s*=').hasMatch(codemagic), isFalse);
     });
 
     test('the local .env does not carry the bypass key', () {

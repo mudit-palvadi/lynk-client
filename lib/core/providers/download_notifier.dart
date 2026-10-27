@@ -546,6 +546,8 @@ class DownloadNotifier extends _$DownloadNotifier {
       receiver.onFallbackToCloud = fallBack;
 
       int filesDone = 0;
+      int deliveredBytes = 0;
+      var confirming = false;
       final receivedNames = <String>[];
       final expectedFiles = state.transfer!.totalFiles > 0
           ? state.transfer!.totalFiles
@@ -557,8 +559,21 @@ class DownloadNotifier extends _$DownloadNotifier {
         if (isCurrent() &&
             !outcome.isCompleted &&
             transportDone &&
-            filesDone == expectedFiles) {
-          outcome.complete(true);
+            filesDone == expectedFiles &&
+            !confirming) {
+          confirming = true;
+          unawaited(() async {
+            try {
+              await receiver.confirmDelivery(
+                files: filesDone,
+                bytes: deliveredBytes,
+              );
+            } catch (_) {
+              // Files are already saved. A lost receipt must not download a
+              // duplicate cloud copy; the sender still must not claim success.
+            }
+            if (isCurrent() && !outcome.isCompleted) outcome.complete(true);
+          }());
         }
       }
 
@@ -586,6 +601,7 @@ class DownloadNotifier extends _$DownloadNotifier {
           decryptedPaths.add(delivered);
           receivedNames.add(safeName);
           filesDone++;
+          deliveredBytes += received.expectedSize;
           state = state.copyWith(
             currentFileIndex: filesDone - 1,
             currentFileProgress: 1.0,

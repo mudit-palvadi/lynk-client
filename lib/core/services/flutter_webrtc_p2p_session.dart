@@ -7,7 +7,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-import 'chunk_sender.dart';
+import 'p2p_delivery_sender.dart';
 import 'ice_ladder.dart';
 import 'name_sealer.dart';
 import 'signaling_channel.dart';
@@ -312,11 +312,13 @@ class FlutterWebrtcPeerActions implements PeerActions {
   }
 
   Future<void> sendBinary(Uint8List bytes) async {
-    await _dataChannel?.send(RTCDataChannelMessage.fromBinary(bytes));
+    if (!isChannelOpen) throw const SocketException('DataChannel is closed');
+    await _dataChannel!.send(RTCDataChannelMessage.fromBinary(bytes));
   }
 
   Future<void> sendText(String text) async {
-    await _dataChannel?.send(RTCDataChannelMessage(text));
+    if (!isChannelOpen) throw const SocketException('DataChannel is closed');
+    await _dataChannel!.send(RTCDataChannelMessage(text));
   }
 
   @override
@@ -410,7 +412,9 @@ class P2PFileSession implements P2PSenderSession {
   /// the data-channel header instead of sending it in clear text (#32).
   final String? aesKey;
 
-  final Completer<void> _peerHello = Completer<void>();
+  late final P2PDeliverySender _sender;
+  int _receivedFiles = 0;
+  int _receivedBytes = 0;
 
   File? _currentInboundFile;
   RandomAccessFile? _currentSink;
@@ -423,6 +427,22 @@ class P2PFileSession implements P2PSenderSession {
   late final ReceiveWatchdog _watchdog;
 
   P2PFileSession._(this.signaling, this.peer, this.aesKey) {
+    // Transport loss can precede the receiver subscribing (or occur on a
+    // sender, which never awaits transferDone). Keep the original future's
+    // error available to its consumer without an unhandled early error.
+    unawaited(
+      _transferDone.future.then<void>(
+        (_) {},
+        onError: (Object _, StackTrace _) {},
+      ),
+    );
+    _sender = P2PDeliverySender(
+      sendText: peer.sendText,
+      sendBinary: peer.sendBinary,
+      bufferedAmount: () => peer.bufferedAmount,
+      isOpen: () => peer.isChannelOpen,
+      aesKey: aesKey,
+    );
     coordinator = WebrtcPeerCoordinator(actions: peer);
     _watchdog = ReceiveWatchdog(
       idleTimeout: p2pReceiveIdleTimeout,
@@ -433,6 +453,7 @@ class P2PFileSession implements P2PSenderSession {
   /// Ends the transfer because the link is gone; the caller falls back to R2.
   void _failTransport(String reason) {
     _transportLost = true;
+    _sender.cancel();
     if (!_transferDone.isCompleted) {
       _transferDone.completeError(SocketException(reason));
     }
@@ -476,7 +497,7 @@ class P2PFileSession implements P2PSenderSession {
           // A sender that sees this seals the file name in the header (#32).
           unawaited(
             session.peer
-                .sendText(TransferFramer.encodeHello().text!)
+                .sendText(TransferFramer.encodeHello(2, true).text!)
                 .catchError((Object _) {}),
           );
         }
@@ -548,6 +569,7 @@ class P2PFileSession implements P2PSenderSession {
 
   @override
   void cancelWait() {
+    _sender.cancel();
     if (!_waitCancelled.isCompleted) _waitCancelled.complete();
   }
 
@@ -562,56 +584,31 @@ class P2PFileSession implements P2PSenderSession {
     void Function(int totalBytesSent)? onProgress,
     bool Function()? shouldAbort,
   }) async {
-    if (!peer.isChannelOpen) {
-      throw StateError('DataChannel is not open');
+    await _sender.sendFiles(
+      encryptedFiles,
+      names: names,
+      onProgress: onProgress,
+      shouldAbort: shouldAbort,
+    );
+  }
+
+  /// Called only after the notifier has decrypted and delivered every file.
+  Future<void> confirmDelivery({required int files, required int bytes}) async {
+    if (!_transferDone.isCompleted ||
+        _transportLost ||
+        files != _receivedFiles ||
+        bytes != _receivedBytes ||
+        files == 0) {
+      throw StateError('file delivery does not match the received transfer');
     }
-    if (names != null && names.length != encryptedFiles.length) {
-      throw ArgumentError('one name is needed for each file');
-    }
-    bool abort() => _transportLost || (shouldAbort?.call() ?? false);
-    // The receiver advertises that it can open a sealed name with a `hi`
-    // frame. A peer that never sends one is an older build, so its file name
-    // stays in clear text - that is the only way it can still receive (#32).
-    var peerSealsNames = false;
-    if (aesKey != null && aesKey!.isNotEmpty) {
-      try {
-        await _peerHello.future.timeout(const Duration(seconds: 2));
-        peerSealsNames = true;
-      } on TimeoutException {
-        peerSealsNames = false;
+    await peer.sendText(TransferFramer.encodeReceipt(files, bytes).text!);
+    final elapsed = Stopwatch()..start();
+    while (peer.isChannelOpen && peer.bufferedAmount > 0) {
+      if (elapsed.elapsed > const Duration(seconds: 5)) {
+        throw TimeoutException('receipt did not drain');
       }
+      await Future<void>.delayed(const Duration(milliseconds: 10));
     }
-    var cumulative = 0;
-    for (var i = 0; i < encryptedFiles.length; i++) {
-      final file = encryptedFiles[i];
-      if (abort()) {
-        throw const SocketException('P2P send aborted');
-      }
-      final name = names?[i] ?? file.path.split(Platform.pathSeparator).last;
-      final size = await file.length();
-      final token = peerSealsNames ? NameSealer.seal(name, aesKey) : null;
-      await peer.sendText(
-        TransferFramer.encodeHeader(
-          FramedFileMeta(name: name, size: size, token: token),
-        ).text!,
-      );
-      final sender = ChunkSender(
-        bufferedAmount: () => peer.bufferedAmount,
-        send: peer.sendBinary,
-        onProgress: (fileSent) => onProgress?.call(cumulative + fileSent),
-        shouldAbort: abort,
-      );
-      await for (final chunkBytes in file.openRead()) {
-        await sender.sendAll(Uint8List.fromList(chunkBytes));
-      }
-      cumulative += size;
-      await peer.sendText(
-        TransferFramer.encodeEof(
-          FramedFileMeta(name: name, size: 0, token: token),
-        ).text!,
-      );
-    }
-    await peer.sendText(TransferFramer.encodeDone().text!);
   }
 
   Stream<ReceivedFile> get onFileReceived => _fileReceived.stream;
@@ -629,6 +626,10 @@ class P2PFileSession implements P2PSenderSession {
     if (parsed == null) return;
     switch (parsed.kind) {
       case FrameKind.header:
+        if (_currentSink != null || _transferDone.isCompleted) {
+          _abortReceive('unexpected file header');
+          return;
+        }
         final meta = parsed.meta!;
         final name = meta.token != null
             ? NameSealer.open(meta.token!, aesKey)
@@ -655,10 +656,9 @@ class P2PFileSession implements P2PSenderSession {
           '${FileNameSanitizer.safeFileName(name)}',
         );
         _currentSink = _currentInboundFile!.openSync(mode: FileMode.write);
-      case FrameKind.receipt:
-        break;
       case FrameKind.hello:
-        if (!_peerHello.isCompleted) _peerHello.complete();
+      case FrameKind.receipt:
+        _sender.accept(parsed);
       case FrameKind.eof:
         final meta = parsed.meta!;
         final sameFile = meta.token != null
@@ -669,6 +669,8 @@ class P2PFileSession implements P2PSenderSession {
         final file = _currentInboundFile;
         final name = _currentName ?? '';
         if (file != null && _currentWritten == _currentExpected) {
+          _receivedFiles++;
+          _receivedBytes += _currentWritten;
           if (!_fileReceived.isClosed) {
             _fileReceived.add(
               ReceivedFile(
@@ -695,6 +697,10 @@ class P2PFileSession implements P2PSenderSession {
         _currentToken = null;
         _currentWritten = 0;
       case FrameKind.done:
+        if (_currentSink != null || _receivedFiles == 0) {
+          _abortReceive('incomplete direct transfer');
+          return;
+        }
         _watchdog.stop();
         if (!_transferDone.isCompleted) _transferDone.complete();
     }

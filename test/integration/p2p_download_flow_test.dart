@@ -33,15 +33,36 @@ void main() {
 
   group('P2P receive completion', () {
     for (final scenario in [
-      (files: 1, transportFirst: true, decryptFails: false),
-      (files: 2, transportFirst: true, decryptFails: false),
-      (files: 1, transportFirst: false, decryptFails: false),
-      (files: 2, transportFirst: false, decryptFails: false),
-      (files: 1, transportFirst: true, decryptFails: true),
+      (
+        files: 1,
+        transportFirst: true,
+        decryptFails: false,
+        receiptFails: false,
+      ),
+      (
+        files: 2,
+        transportFirst: true,
+        decryptFails: false,
+        receiptFails: false,
+      ),
+      (
+        files: 1,
+        transportFirst: false,
+        decryptFails: false,
+        receiptFails: false,
+      ),
+      (
+        files: 2,
+        transportFirst: false,
+        decryptFails: false,
+        receiptFails: false,
+      ),
+      (files: 1, transportFirst: true, decryptFails: true, receiptFails: false),
+      (files: 1, transportFirst: true, decryptFails: false, receiptFails: true),
     ]) {
       final fileCount = scenario.files;
       test(
-        'receives $fileCount file(s), done first: ${scenario.transportFirst}, decrypt failure: ${scenario.decryptFails}',
+        'receives $fileCount file(s), done first: ${scenario.transportFirst}, decrypt failure: ${scenario.decryptFails}, receipt failure: ${scenario.receiptFails}',
         () async {
           final sandbox = await Directory.systemTemp.createTemp(
             'lynk-p2p-receive',
@@ -55,7 +76,7 @@ void main() {
           SharedPreferences.setMockInitialValues({});
           final prefs = await SharedPreferences.getInstance();
           final backend = FakeBackend();
-          final session = _FakeReceiver();
+          final session = _FakeReceiver()..receiptFails = scenario.receiptFails;
           final decryptor = _HeldDecryption(fail: scenario.decryptFails);
           final container = ProviderContainer(
             overrides: [
@@ -106,6 +127,9 @@ void main() {
               .then((_) => finished = true);
           addTearDown(() async {
             if (!decryptor.release.isCompleted) decryptor.release.complete();
+            if (!session.releaseReceipt.isCompleted) {
+              session.releaseReceipt.complete();
+            }
             await decryptor.settled.future;
             await pumpEventQueue();
             if (!finished) session.onFallbackToCloud?.call();
@@ -147,6 +171,7 @@ void main() {
             reason: 'Transport done is not decryption/delivery done.',
           );
           expect(session.disposed, isFalse);
+          expect(session.receipts, isEmpty);
           decryptor.release.complete();
           if (!scenario.transportFirst) {
             await _until(
@@ -159,12 +184,23 @@ void main() {
             );
             session.done.complete();
           }
+          if (!scenario.decryptFails) {
+            await _until(() => session.receipts.isNotEmpty);
+            expect(
+              finished,
+              isFalse,
+              reason: 'Keep the channel until receipt sending/drain finishes.',
+            );
+            expect(session.disposed, isFalse);
+            session.releaseReceipt.complete();
+          }
           await reception.timeout(const Duration(seconds: 3));
 
           final state = container.read(downloadProvider);
           if (scenario.decryptFails) {
             expect(state.phase, DownloadPhase.failed);
             expect(state.downloadedPaths, isEmpty);
+            expect(session.receipts, isEmpty);
             expect(session.disposed, isTrue);
             return;
           }
@@ -181,6 +217,7 @@ void main() {
             );
           }
           expect(session.disposed, isTrue);
+          expect(session.receipts, [(fileCount, fileCount * 32)]);
         },
       );
     }
@@ -201,6 +238,17 @@ class _FakeReceiver implements P2PFileSession {
   final files = StreamController<ReceivedFile>.broadcast();
   final done = Completer<void>();
   bool disposed = false;
+  final receipts = <(int, int)>[];
+  final releaseReceipt = Completer<void>();
+  bool receiptFails = false;
+
+  @override
+  Future<void> confirmDelivery({required int files, required int bytes}) async {
+    expect(disposed, isFalse);
+    receipts.add((files, bytes));
+    await releaseReceipt.future;
+    if (receiptFails) throw const SocketException('receipt lost after saving');
+  }
 
   @override
   void Function()? onFallbackToCloud;

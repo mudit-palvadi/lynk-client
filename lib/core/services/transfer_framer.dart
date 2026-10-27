@@ -25,7 +25,7 @@ class FramedFileMeta {
   const FramedFileMeta({this.name = '', required this.size, this.token});
 }
 
-enum FrameKind { header, eof, done, hello }
+enum FrameKind { header, eof, done, hello, receipt }
 
 /// Minimal, stable wire protocol framing file transfers over the binary
 /// DataChannel (POTENTIAL_ISSUES #1: shared contract with the web receiver).
@@ -52,7 +52,12 @@ class TransferFramer {
     jsonEncode(
       meta.token == null
           ? {'t': _typeHeader, 'name': meta.name, 'size': meta.size}
-          : {'t': _typeHeader, 'v': _sealedVersion, 'n': meta.token, 'size': meta.size},
+          : {
+              't': _typeHeader,
+              'v': _sealedVersion,
+              'n': meta.token,
+              'size': meta.size,
+            },
     ),
   );
 
@@ -67,8 +72,31 @@ class TransferFramer {
   static TransferFrame encodeDone() =>
       TransferFrame.text(jsonEncode({'t': _typeDone}));
 
-  static TransferFrame encodeHello([int version = _sealedVersion]) =>
-      TransferFrame.text(jsonEncode({'t': _typeHello, 'v': version}));
+  static TransferFrame encodeHello([
+    int version = _sealedVersion,
+    bool receipts = false,
+  ]) => TransferFrame.text(
+    jsonEncode({'t': _typeHello, 'v': version, if (receipts) 'receipts': true}),
+  );
+
+  static TransferFrame encodeReceipt(int files, int bytes) {
+    if (!_validReceipt(files, bytes)) throw ArgumentError('invalid receipt');
+    return TransferFrame.text(
+      jsonEncode({'t': 'ack', 'files': files, 'bytes': bytes}),
+    );
+  }
+
+  static bool _validReceipt(dynamic files, dynamic bytes) =>
+      files is num &&
+      files.isFinite &&
+      files == files.truncateToDouble() &&
+      files > 0 &&
+      files <= 10 &&
+      bytes is num &&
+      bytes.isFinite &&
+      bytes == bytes.truncateToDouble() &&
+      bytes > 0 &&
+      bytes <= 9007199254740991;
 
   /// Lenient parse of an inbound text frame; `null` for anything that is not
   /// a valid protocol frame (never throws).
@@ -112,7 +140,20 @@ class TransferFramer {
       case _typeDone:
         return const ParsedFrame(FrameKind.done, null);
       case _typeHello:
-        return const ParsedFrame(FrameKind.hello, null);
+        return ParsedFrame(
+          FrameKind.hello,
+          null,
+          receipts: json['receipts'] == true,
+          version: json['v'] is int ? json['v'] as int : 1,
+        );
+      case 'ack':
+        if (!_validReceipt(json['files'], json['bytes'])) return null;
+        return ParsedFrame(
+          FrameKind.receipt,
+          null,
+          files: (json['files'] as num).toInt(),
+          bytes: (json['bytes'] as num).toInt(),
+        );
       default:
         return null;
     }
@@ -122,6 +163,17 @@ class TransferFramer {
 class ParsedFrame {
   final FrameKind kind;
   final FramedFileMeta? meta;
+  final bool receipts;
+  final int version;
+  final int? files;
+  final int? bytes;
 
-  const ParsedFrame(this.kind, this.meta);
+  const ParsedFrame(
+    this.kind,
+    this.meta, {
+    this.receipts = false,
+    this.version = 1,
+    this.files,
+    this.bytes,
+  });
 }

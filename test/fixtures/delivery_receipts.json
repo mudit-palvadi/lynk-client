@@ -1,0 +1,15 @@
+[
+  {"wire":"{\"t\":\"hi\",\"v\":2}","kind":"hello","receipts":false},
+  {"wire":"{\"t\":\"hi\",\"v\":2,\"receipts\":true}","kind":"hello","receipts":true},
+  {"wire":"{\"t\":\"hi\",\"v\":2,\"receipts\":\"true\"}","kind":"hello","receipts":false},
+  {"wire":"{\"t\":\"ack\",\"files\":2,\"bytes\":64}","kind":"receipt","files":2,"bytes":64},
+  {"wire":"{\"t\":\"ack\",\"files\":2.0,\"bytes\":64.0}","kind":"receipt","files":2,"bytes":64},
+  {"wire":"{\"t\":\"ack\",\"files\":0,\"bytes\":32}","kind":null},
+  {"wire":"{\"t\":\"ack\",\"files\":11,\"bytes\":32}","kind":null},
+  {"wire":"{\"t\":\"ack\",\"files\":1,\"bytes\":0}","kind":null},
+  {"wire":"{\"t\":\"ack\",\"files\":1,\"bytes\":-1}","kind":null},
+  {"wire":"{\"t\":\"ack\",\"files\":1,\"bytes\":3.5}","kind":null},
+  {"wire":"{\"t\":\"ack\",\"files\":true,\"bytes\":32}","kind":null},
+  {"wire":"{\"t\":\"ack\",\"files\":1,\"bytes\":\"32\"}","kind":null},
+  {"wire":"{\"t\":\"ack\",\"files\":1,\"bytes\":9007199254740992}","kind":null}
+]

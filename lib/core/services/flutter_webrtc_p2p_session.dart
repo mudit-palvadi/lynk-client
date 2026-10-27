@@ -655,6 +655,8 @@ class P2PFileSession implements P2PSenderSession {
           '${FileNameSanitizer.safeFileName(name)}',
         );
         _currentSink = _currentInboundFile!.openSync(mode: FileMode.write);
+      case FrameKind.receipt:
+        break;
       case FrameKind.hello:
         if (!_peerHello.isCompleted) _peerHello.complete();
       case FrameKind.eof:

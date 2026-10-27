@@ -59,8 +59,15 @@ class SenderPairing {
   String? receiverPublicKey;
   String? error;
   SenderPairingStatus status = SenderPairingStatus.idle;
+  int _epoch = 0;
 
   bool get isAttached => status == SenderPairingStatus.attached;
+
+  /// Drops a poll that is still in flight, so closing the screen cannot
+  /// attach a key for a code the person is no longer showing.
+  void retire() {
+    _epoch++;
+  }
 
   /// Creates the session and exposes the code to show on screen.
   Future<bool> start() async {
@@ -84,10 +91,15 @@ class SenderPairing {
   /// wraps the key, attaches it and stops the loop.
   Future<bool> poll() async {
     final id = sessionId;
+    final epoch = _epoch;
     if (id == null || isAttached) return false;
+    bool retired() => epoch != _epoch;
 
     try {
       final session = await dataSource.getSession(id);
+      if (retired()) {
+        return false;
+      }
       final receiverPk = session.receiverPk;
       if (receiverPk == null || receiverPk.isEmpty) {
         status = SenderPairingStatus.waiting;
@@ -101,6 +113,9 @@ class SenderPairing {
         sessionId: id,
         accessToken: accessToken,
       );
+      if (retired()) {
+        return false;
+      }
       await dataSource.attachKey(
         sessionId: id,
         transferId: transferId,
@@ -108,9 +123,15 @@ class SenderPairing {
         mode: mode,
         senderSecret: senderSecret ?? '',
       );
+      if (retired()) {
+        return false;
+      }
       status = SenderPairingStatus.attached;
       return false;
     } catch (e) {
+      if (retired()) {
+        return false;
+      }
       error = e.toString();
       status = SenderPairingStatus.failed;
       return false;

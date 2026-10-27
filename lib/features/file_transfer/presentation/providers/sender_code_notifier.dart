@@ -205,6 +205,7 @@ class SenderCodeNotifier extends _$SenderCodeNotifier {
 
   void _reset() {
     _cancelTimer();
+    _pairing?.retire();
     _pairing = null;
     _expiresAt = null;
   }

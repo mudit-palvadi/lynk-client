@@ -52,6 +52,10 @@ void main() {
           '$script${readOutput ? '\ncat "\$CM_BUILD_DIR/.admob-release.env"' : ''}',
         ],
         environment: environment,
+        // Codemagic exports the real AdMob IDs before flutter test. Removing
+        // them from this map does not unset them while the parent environment
+        // is still inherited.
+        includeParentEnvironment: false,
       );
     } finally {
       directory.deleteSync(recursive: true);

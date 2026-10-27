@@ -75,12 +75,12 @@ void main() {
           aesKey: _key,
         ),
       );
-      expect(find.text('Let the receiver scan this'), findsOneWidget);
+      expect(find.text('Share this QR'), findsOneWidget);
       expect(
-        find.text('On their device: Receive → Scan sender’s QR.'),
+        find.text('Receiver: open Receive and scan this QR.'),
         findsOneWidget,
       );
-      expect(find.text('Or ask them to enter this code.'), findsOneWidget);
+      expect(find.text('Share Code'), findsOneWidget);
       expect(find.text('Ready to receive'), findsOneWidget);
       expect(find.textContaining('Delivered'), findsNothing);
       await _expectQrPayload(
@@ -95,14 +95,12 @@ void main() {
       tester,
     ) async {
       await pump(tester, const ReceiveQrScreen());
-      expect(find.text('Your receiving QR'), findsOneWidget);
-      expect(find.text('Ask the sender to scan this'), findsOneWidget);
+      expect(find.text('Receiving QR'), findsOneWidget);
+      expect(find.text('Sender: scan this QR.'), findsOneWidget);
       expect(find.text('Sender: scan this QR in LynkShare.'), findsOneWidget);
       expect(find.text('Sender: choose files and send.'), findsOneWidget);
       expect(
-        find.text(
-          'You: keep this screen open. Receiving starts automatically.',
-        ),
+        find.text('Keep this screen open. Receiving starts automatically.'),
         findsOneWidget,
       );
       final container = ProviderScope.containerOf(
@@ -134,7 +132,8 @@ void main() {
           aesKey: _key,
         ),
       );
-      expect(find.text('Waiting for receiver to scan...'), findsOneWidget);
+      expect(find.text('Connecting to receiver device...'), findsOneWidget);
+      expect(find.textContaining('Upload'), findsNothing);
       expect(find.text('Keep this screen open'), findsOneWidget);
       expect(find.text('Ready to receive'), findsNothing);
       expect(find.textContaining('Delivered'), findsNothing);
@@ -154,7 +153,7 @@ void main() {
             aesKey: _key,
           ),
         );
-        expect(find.text('Files sent'), findsOneWidget);
+        expect(find.text('Transfer complete'), findsOneWidget);
         expect(find.text('Ready to receive'), findsNothing);
         expect(find.textContaining('Delivered'), findsNothing);
         expect(find.textContaining('saved'), findsNothing);
@@ -186,7 +185,7 @@ void main() {
             await tester.ensureVisible(find.text('Cancel Session'));
             expect(tester.takeException(), isNull);
             if (sender) {
-              await tester.ensureVisible(find.text('Scan their receiving QR'));
+              await tester.ensureVisible(find.text('Scan receiving QR'));
             } else {
               await tester.pump(const Duration(seconds: 2));
               final container = ProviderScope.containerOf(

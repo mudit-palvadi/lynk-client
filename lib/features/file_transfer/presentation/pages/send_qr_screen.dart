@@ -76,44 +76,19 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
   }
 
   Widget _buildP2pStatus(UploadState state) {
-    if (state.phase == UploadPhase.completed) {
-      // Sending completion is not evidence that the receiver has saved files.
-      return const Text(
-        'Files sent',
-        style: TextStyle(
-          color: AppTheme.secondary,
-          fontWeight: FontWeight.bold,
-        ),
-      );
-    }
+    final message = directTransferStatus(state);
+    if (message == null) return const SizedBox.shrink();
 
-    if (state.p2pStage == P2PSendStage.waitingForReceiver) {
-      return const Column(
-        children: [
-          SizedBox(
-            width: 22,
-            height: 22,
-            child: CircularProgressIndicator(strokeWidth: 2.5),
-          ),
-          SizedBox(height: 10),
-          Text(
-            'Waiting for receiver to scan...',
-            style: TextStyle(fontWeight: FontWeight.w600),
-          ),
-          SizedBox(height: 4),
-          Text(
-            'Keep this screen open',
-            style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
-          ),
-        ],
-      );
-    }
-
-    if (state.p2pStage == P2PSendStage.transferring) {
+    final moving = message == 'Transferring files...';
+    final connected = message == 'Connected to receiver device';
+    if (moving || connected) {
       return Column(
         children: [
           Text(
-            'Sending directly... ${(state.overallProgress * 100).toStringAsFixed(0)}%',
+            moving
+                ? '$message ${(state.overallProgress * 100).toStringAsFixed(0)}%'
+                : message,
+            textAlign: TextAlign.center,
             style: const TextStyle(
               color: AppTheme.secondary,
               fontWeight: FontWeight.bold,
@@ -125,21 +100,31 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
       );
     }
 
-    if (state.p2pStage == P2PSendStage.none &&
-        state.phase == UploadPhase.uploading) {
-      return const Column(
-        children: [
-          Text(
-            'Preparing your files…',
-            style: TextStyle(color: AppTheme.textSecondary),
+    final waiting = message == 'Connecting to receiver device...';
+    return Column(
+      children: [
+        if (waiting) ...[
+          const SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2.5),
           ),
-          SizedBox(height: 8),
-          LinearProgressIndicator(),
+          const SizedBox(height: 10),
         ],
-      );
-    }
-
-    return const SizedBox.shrink();
+        Text(
+          message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        if (waiting) ...[
+          const SizedBox(height: 4),
+          const Text(
+            'Keep this screen open',
+            style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+          ),
+        ],
+      ],
+    );
   }
 
   Widget _buildCodeSection(SenderCodeState codeState) {
@@ -155,7 +140,7 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
     final code = codeState.code;
     if (code == null || code.isEmpty) {
       return const Text(
-        'Creating a 6-digit code…',
+        'Creating a code…',
         style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
       );
     }
@@ -163,7 +148,7 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
     return Column(
       children: [
         const Text(
-          'Or ask them to enter this code.',
+          'Share Code',
           textAlign: TextAlign.center,
           style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
         ),
@@ -225,9 +210,9 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
             children: [
               const Spacer(),
               const TransferRoleHeading(
-                role: 'You’re sending',
-                title: 'Let the receiver scan this',
-                instruction: 'On their device: Receive → Scan sender’s QR.',
+                role: 'Sending',
+                title: 'Share this QR',
+                instruction: 'Receiver: open Receive and scan this QR.',
                 icon: Icons.upload_outlined,
               ),
               const SizedBox(height: 24),
@@ -330,7 +315,7 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
                   );
                 },
                 icon: const Icon(Icons.qr_code_scanner),
-                label: const Text('Scan their receiving QR'),
+                label: const Text('Scan receiving QR'),
               ),
               const SizedBox(height: 10),
               OutlinedButton.icon(

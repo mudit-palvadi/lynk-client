@@ -31,6 +31,9 @@ class FakeBackend {
   /// The adapter the last created Dio is wired to, for assertions.
   FakeHttpAdapter? adapter;
 
+  /// The next metadata read waits on this, then clears it.
+  Future<void>? holdMetadata;
+
   String _nextId(String prefix) => '$prefix-${++_counter}';
 
   /// A Dio wired to this backend. Pass it to `ApiClient(dio: ...)` so the real
@@ -56,7 +59,14 @@ class FakeBackend {
       if (!_matches(request, 'x-lynk-access-token', transfer.accessToken)) {
         return _unauthorized();
       }
-      return jsonResponse(200, _transferMetadata(transfer));
+      final body = jsonResponse(200, _transferMetadata(transfer));
+      final gate = holdMetadata;
+      if (gate == null) return body;
+      holdMetadata = null;
+      return Future(() async {
+        await gate;
+        return body;
+      });
     }
 
     if (method == 'POST' && path.endsWith('/downloads')) {

@@ -158,9 +158,7 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                           SizedBox(height: 4),
-                          Text(
-                            'You scanned their receiving QR. Choose files to send to them.',
-                          ),
+                          Text('Receiving QR linked. Choose files to send.'),
                         ],
                       ),
                     ),
@@ -187,7 +185,7 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'Pick files first. Next, choose how to share them.',
+                      'Choose files, then choose a transfer method.',
                       style: TextStyle(color: AppTheme.textSecondary),
                     ),
                     const SizedBox(height: 24),
@@ -198,12 +196,12 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                     ),
                   ] else if (uploadState.phase == UploadPhase.selecting) ...[
                     Text(
-                      'Review your files',
+                      'Review files',
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'Check your selection, then choose a way to send.',
+                      'Check the selection, then choose a transfer method.',
                       style: TextStyle(color: AppTheme.textSecondary),
                     ),
                     const SizedBox(height: 20),
@@ -262,15 +260,14 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'How would you like to send?',
+                      'Transfer method',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 12),
                     _SendChoice(
-                      title: 'Share a code',
-                      details: 'Cloud • 10-minute session',
+                      title: 'Cloud',
                       description:
-                          'Upload encrypted files, then share a QR or 6-digit code.',
+                          'Share files with multiple recipients simultaneously while the session is active. All files are encrypted.',
                       icon: Icons.cloud_upload_outlined,
                       color: AppTheme.secondary,
                       onPressed: () =>
@@ -278,19 +275,13 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                     ),
                     const SizedBox(height: 12),
                     _SendChoice(
-                      title: 'Send directly',
-                      details: 'Both devices stay open • Cloud fallback',
+                      title: 'Direct',
                       description:
-                          'Connect to the receiver now. If direct connection fails, we’ll try cloud.',
+                          'Files transfer directly between devices without passing through a server, providing higher privacy. Both devices must remain online throughout the transfer.',
                       icon: Icons.swap_horiz,
                       color: AppTheme.primary,
                       onPressed: () =>
                           _startTransfer(uploadState, TransferMode.p2p),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Internet required for both options.',
-                      style: TextStyle(color: AppTheme.textSecondary),
                     ),
                   ] else if (uploadState.phase == UploadPhase.uploading) ...[
                     Padding(
@@ -313,7 +304,11 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                           ),
                           const SizedBox(height: 24),
                           Text(
-                            'Preparing to share file ${uploadState.currentFileIndex + 1} of ${uploadState.selectedFiles.length}',
+                            uploadState.transferMode == TransferMode.p2p
+                                ? (directTransferStatus(uploadState) ??
+                                      'Connecting to receiver device...')
+                                : 'Uploading files...',
+                            textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 32),
                           OutlinedButton(
@@ -322,7 +317,11 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                               foregroundColor: AppTheme.error,
                               side: const BorderSide(color: AppTheme.error),
                             ),
-                            child: const Text('Cancel Transfer'),
+                            child: Text(
+                              uploadState.transferMode == TransferMode.p2p
+                                  ? 'Cancel Transfer'
+                                  : 'Cancel Upload',
+                            ),
                           ),
                         ],
                       ),
@@ -341,7 +340,11 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              uploadState.errorMessage ?? 'Upload failed',
+                              uploadState.transferMode == TransferMode.p2p
+                                  ? (directTransferStatus(uploadState) ??
+                                        'Transfer failed')
+                                  : (uploadState.errorMessage ??
+                                        'Upload failed'),
                               textAlign: TextAlign.center,
                               style: const TextStyle(fontSize: 16),
                             ),
@@ -396,7 +399,6 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
 class _SendChoice extends StatelessWidget {
   const _SendChoice({
     required this.title,
-    required this.details,
     required this.description,
     required this.icon,
     required this.color,
@@ -404,7 +406,6 @@ class _SendChoice extends StatelessWidget {
   });
 
   final String title;
-  final String details;
   final String description;
   final IconData icon;
   final Color color;
@@ -422,8 +423,12 @@ class _SendChoice extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          details,
-          style: TextStyle(color: color, fontWeight: FontWeight.w600),
+          title,
+          style: TextStyle(
+            color: color,
+            fontWeight: FontWeight.w600,
+            fontSize: 18,
+          ),
         ),
         const SizedBox(height: 8),
         Text(

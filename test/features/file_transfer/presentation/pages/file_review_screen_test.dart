@@ -61,10 +61,10 @@ void main() {
       final upload = await pump(tester);
       expect(find.text('Choose what to send'), findsOneWidget);
       expect(
-        find.text('Pick files first. Next, choose how to share them.'),
+        find.text('Choose files, then choose a transfer method.'),
         findsOneWidget,
       );
-      expect(find.text('Send directly'), findsNothing);
+      expect(find.text('Direct'), findsNothing);
       await tester.tap(find.text('Choose Files & Media'));
       expect(upload.pickCalls, 1);
       expect(find.byType(AdBannerWidget), findsOneWidget);
@@ -74,16 +74,19 @@ void main() {
       tester,
     ) async {
       final upload = await pump(tester, upload: _selection());
-      expect(find.text('Review your files'), findsOneWidget);
+      expect(find.text('Review files'), findsOneWidget);
       expect(find.text('notes.txt'), findsOneWidget);
-      expect(find.text('How would you like to send?'), findsOneWidget);
-      expect(find.text('Share a code'), findsOneWidget);
-      expect(find.text('Send directly'), findsOneWidget);
-      expect(find.text('Cloud • 10-minute session'), findsOneWidget);
+      expect(find.text('Transfer method'), findsOneWidget);
+      expect(find.text('Cloud'), findsWidgets);
+      expect(find.text('Direct'), findsWidgets);
       expect(
-        find.text('Both devices stay open • Cloud fallback'),
+        find.text(
+          'Share files with multiple recipients simultaneously while the session is active. All files are encrypted.',
+        ),
         findsOneWidget,
       );
+      expect(find.textContaining('fallback'), findsNothing);
+      expect(find.textContaining('6-digit'), findsNothing);
       await tester.ensureVisible(find.text('Add More Files'));
       await tester.tap(find.text('Add More Files'));
       expect(upload.pickCalls, 1);
@@ -104,9 +107,7 @@ void main() {
       );
       expect(find.text('Receiver linked'), findsOneWidget);
       expect(
-        find.text(
-          'You scanned their receiving QR. Choose files to send to them.',
-        ),
+        find.text('Receiving QR linked. Choose files to send.'),
         findsOneWidget,
       );
       expect(find.textContaining('Delivered'), findsNothing);
@@ -122,11 +123,9 @@ void main() {
           receiverId: 'receiver-1',
           receiverPk: 'public-key',
         );
-        final label = mode == TransferMode.cloud
-            ? 'Share a code'
-            : 'Send directly';
-        await tester.ensureVisible(find.text(label));
-        await tester.tap(find.text(label));
+        final label = mode == TransferMode.cloud ? 'Cloud' : 'Direct';
+        await tester.ensureVisible(find.widgetWithText(ElevatedButton, label));
+        await tester.tap(find.widgetWithText(ElevatedButton, label));
         await tester.pumpAndSettle();
         expect(upload.starts, 1);
         expect(upload.current.transferMode, mode);
@@ -144,7 +143,7 @@ void main() {
       addTearDown(tester.view.reset);
       await pump(tester, upload: _selection(), textScale: 2);
       expect(tester.takeException(), isNull);
-      await tester.ensureVisible(find.text('Send directly'));
+      await tester.ensureVisible(find.widgetWithText(ElevatedButton, 'Direct'));
       expect(tester.takeException(), isNull);
       await tester.ensureVisible(find.text('Add More Files'));
       expect(tester.takeException(), isNull);
@@ -161,7 +160,7 @@ void main() {
           ),
         );
         expect(find.text('50.0%'), findsOneWidget);
-        expect(find.text('Cancel Transfer'), findsOneWidget);
+        expect(find.text('Cancel Upload'), findsOneWidget);
         expect(find.byType(AdBannerWidget), findsNothing);
         await tester.pumpWidget(const SizedBox());
         await pump(

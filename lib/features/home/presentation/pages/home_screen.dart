@@ -50,25 +50,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     HomeCoachMarkStep(
       targetKey: _sendKey,
       title: 'Send a file',
-      description:
-          'Choose files, then share a QR or six-digit code with the receiver.',
+      description: 'Choose files, then share a QR or code.',
     ),
     HomeCoachMarkStep(
       targetKey: _receiveKey,
       title: 'Three ways to receive',
       description:
-          'Scan the sender’s QR, enter their code, or show your own receiving QR for them to scan.',
+          'Scan the sender QR, enter the code, or show a receiving QR.',
     ),
     HomeCoachMarkStep(
       targetKey: _activityKey,
-      title: 'Find your transfers',
-      description: 'Open received files or send something again from Activity.',
+      title: 'Find transfers',
+      description: 'Open received files, or send again from Activity.',
     ),
     HomeCoachMarkStep(
       targetKey: _settingsKey,
       title: 'Choose where files land',
       description:
-          'Your download folder is in Settings. Receiving help is always available on the Receive tab.',
+          'The download folder is in Settings. Receiving help stays on the Receive tab.',
     ),
   ];
 
@@ -162,7 +161,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           icon: Icons.downloading_rounded,
                           title:
                               'Downloading: ${(download.overallProgress * 100).toStringAsFixed(0)}%',
-                          subtitle: 'Tap to return to your transfer',
+                          subtitle: 'Tap to return to the transfer',
                           onTap: () {
                             final args = DownloadArguments(
                               transferId: download.transfer!.id,
@@ -204,9 +203,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       style: Theme.of(context).textTheme.headlineMedium,
     ),
     const SizedBox(height: 12),
-    const Text(
-      'Choose files, then share a QR or six-digit code. No account needed.',
-    ),
+    const Text('Choose files, then share a QR or code. No account needed.'),
     const SizedBox(height: 28),
     Container(
       padding: const EdgeInsets.all(24),
@@ -220,7 +217,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _DeviceBadge(icon: Icons.phone_android_rounded, label: 'You'),
+              _DeviceBadge(icon: Icons.phone_android_rounded, label: 'Sender'),
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: 20),
                 child: Icon(
@@ -238,8 +235,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             icon: const Icon(Icons.add_rounded),
             label: const Text('Send Files'),
           ),
-          const SizedBox(height: 12),
-          const Text('Pick • Review • Share', textAlign: TextAlign.center),
         ],
       ),
     ),
@@ -247,7 +242,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     _ActionCard(
       icon: Icons.qr_code_scanner_rounded,
       title: 'Receiver has a QR?',
-      subtitle: 'Scan their receiving QR, then choose your files.',
+      subtitle: 'Scan the receiving QR, then choose files.',
       onTap: () => context.push('/scan-qr'),
     ),
   ];
@@ -258,29 +253,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       style: Theme.of(context).textTheme.headlineMedium,
     ),
     const SizedBox(height: 8),
-    const Text('Start with what the sender has shared with you.'),
+    const Text('Start from the shared QR or code.'),
     const SizedBox(height: 24),
     _ActionCard(
       icon: Icons.qr_code_scanner_rounded,
       title: 'Scan sender’s QR',
-      subtitle: 'They show the QR. You scan it.',
+      subtitle: 'The sender shows the QR. Scan it.',
       onTap: () => context.push('/scan-qr'),
     ),
     const SizedBox(height: 12),
     _ActionCard(
       icon: Icons.dialpad_rounded,
       title: 'Enter code',
-      subtitle: 'Type the six digits shown on the sender’s screen.',
+      subtitle: 'Type the code shown on the sender screen.',
       onTap: () => context.push('/receive-code'),
     ),
     const Padding(
       padding: EdgeInsets.symmetric(vertical: 20),
-      child: Text('Or let the sender connect to you'),
+      child: Text('Or show a receiving QR'),
     ),
     _ActionCard(
       icon: Icons.qr_code_2_rounded,
-      title: 'Show my receiving QR',
-      subtitle: 'The sender scans your QR, then chooses files to send to you.',
+      title: 'Show receiving QR',
+      subtitle: 'The sender scans the QR, then chooses files.',
       onTap: () => context.push('/receive-qr'),
     ),
     const SizedBox(height: 16),
@@ -301,22 +296,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                'Their QR, your camera',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
+              Text('Sender QR', style: TextStyle(fontWeight: FontWeight.bold)),
               SizedBox(height: 8),
               Text(
-                'If the sender has chosen files, scan their sharing QR or enter their six-digit code.',
+                'When the sender has chosen files, scan the sharing QR or enter the code.',
               ),
               SizedBox(height: 24),
               Text(
-                'Your QR, their camera',
+                'Receiving QR',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 8),
               Text(
-                'Show your receiving QR. The sender scans it in LynkShare, chooses files and sends. Your download starts automatically when the files are ready. Keep this screen open, and only share the QR with someone you trust.',
+                'Show the receiving QR. The sender scans it, chooses files, and sends. The download starts when the files are ready. Keep this screen open.',
               ),
             ],
           ),
@@ -341,12 +333,9 @@ class _ActivityContent extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'Your activity',
-          style: Theme.of(context).textTheme.headlineMedium,
-        ),
+        Text('Activity', style: Theme.of(context).textTheme.headlineMedium),
         const SizedBox(height: 8),
-        const Text('Find received files and things you’ve shared.'),
+        const Text('Find received files and earlier shares.'),
         const SizedBox(height: 24),
         if (recent.asData?.value.isEmpty ?? false)
           const Padding(
@@ -359,7 +348,7 @@ class _ActivityContent extends ConsumerWidget {
                   color: AppTheme.textSecondary,
                 ),
                 SizedBox(height: 16),
-                Text('Your transfers will appear here.'),
+                Text('Transfers appear here.'),
               ],
             ),
           )

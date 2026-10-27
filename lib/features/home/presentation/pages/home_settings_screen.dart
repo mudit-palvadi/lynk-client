@@ -19,7 +19,7 @@ class HomeSettingsScreen extends ConsumerWidget {
           padding: const EdgeInsets.all(24),
           children: [
             Text(
-              'Your files, your choice',
+              'Saved files',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),

@@ -82,7 +82,7 @@ void main() {
         );
       }
       expect(find.text('Send Files'), findsOneWidget);
-      expect(find.text('Show my receiving QR'), findsNothing);
+      expect(find.text('Show receiving QR'), findsNothing);
     });
 
     testWidgets('Receive explains all three paths without starting a session', (
@@ -93,11 +93,9 @@ void main() {
 
       expect(find.text('Scan sender’s QR'), findsOneWidget);
       expect(find.text('Enter code'), findsOneWidget);
-      expect(find.text('Show my receiving QR'), findsOneWidget);
+      expect(find.text('Show receiving QR'), findsOneWidget);
       expect(
-        find.text(
-          'The sender scans your QR, then chooses files to send to you.',
-        ),
+        find.text('The sender scans the QR, then chooses files.'),
         findsOneWidget,
       );
       expect(
@@ -124,7 +122,7 @@ void main() {
         tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
         1,
       );
-      expect(find.text('Show my receiving QR'), findsOneWidget);
+      expect(find.text('Show receiving QR'), findsOneWidget);
     });
 
     testWidgets('showing a receiving QR is an explicit user action', (
@@ -135,7 +133,7 @@ void main() {
       final receiver = container.listen(receiverProvider, (_, _) {});
       addTearDown(receiver.close);
       await selectRole(tester, 'Receive');
-      await tester.tap(find.text('Show my receiving QR'));
+      await tester.tap(find.text('Show receiving QR'));
       await tester.pumpAndSettle();
 
       expect(find.byType(ReceiveQrScreen), findsOneWidget);
@@ -151,9 +149,9 @@ void main() {
       await pumpHome(tester);
       await selectRole(tester, 'Activity');
 
-      expect(find.text('Your transfers will appear here.'), findsOneWidget);
+      expect(find.text('Transfers appear here.'), findsOneWidget);
       expect(find.text('Send Files'), findsNothing);
-      expect(find.text('Show my receiving QR'), findsNothing);
+      expect(find.text('Show receiving QR'), findsNothing);
     });
 
     testWidgets('Activity retains existing history and its file actions', (
@@ -178,7 +176,7 @@ void main() {
         await tester.pumpAndSettle();
       }
 
-      expect(find.text('Your transfers will appear here.'), findsNothing);
+      expect(find.text('Transfers appear here.'), findsNothing);
       expect(find.text('received.txt'), findsOneWidget);
       expect(find.text('sent.txt'), findsOneWidget);
       expect(find.text('Open'), findsOneWidget);
@@ -199,7 +197,7 @@ void main() {
         expect(find.text('v0.1.0+122'), findsOneWidget);
         container.read(appRouterProvider).pop();
         await tester.pumpAndSettle();
-        expect(find.text('Show my receiving QR'), findsOneWidget);
+        expect(find.text('Show receiving QR'), findsOneWidget);
         expect(
           (container.read(receiverProvider.notifier) as _Receiver).creates,
           0,
@@ -216,8 +214,8 @@ void main() {
       await tester.tap(find.text('How receiving works'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Their QR, your camera'), findsOneWidget);
-      expect(find.text('Your QR, their camera'), findsOneWidget);
+      expect(find.text('Sender QR'), findsOneWidget);
+      expect(find.text('Receiving QR'), findsOneWidget);
       expect(container.read(homeTutorialProvider), isTrue);
       expect(
         (container.read(receiverProvider.notifier) as _Receiver).creates,
@@ -252,8 +250,8 @@ void main() {
       await pumpHome(tester);
       await selectRole(tester, 'Receive');
 
-      await tester.ensureVisible(find.text('Show my receiving QR'));
-      expect(find.text('Show my receiving QR').hitTestable(), findsOneWidget);
+      await tester.ensureVisible(find.text('Show receiving QR'));
+      expect(find.text('Show receiving QR').hitTestable(), findsOneWidget);
       expect(tester.takeException(), isNull);
       expect(find.byType(NavigationBar).hitTestable(), findsOneWidget);
     });

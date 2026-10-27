@@ -21,9 +21,20 @@ class CodeSessionRemoteDataSourceImpl implements CodeSessionRemoteDataSource {
   }
 
   @override
-  Future<ReceiverCodeKeyModel?> collectKey(String sessionId) async {
+  Future<ReceiverCodeKeyModel?> collectKey(
+    String sessionId, {
+    required String receiverSecret,
+  }) async {
     try {
-      final response = await dio.get('sender-sessions/$sessionId/key');
+      final response = await dio.get(
+        'sender-sessions/$sessionId/key',
+        options: Options(
+          headers: {
+            if (receiverSecret.isNotEmpty)
+              'X-Lynk-Receiver-Secret': receiverSecret,
+          },
+        ),
+      );
       return ReceiverCodeKeyModel.fromJson(
         response.data as Map<String, dynamic>,
       );

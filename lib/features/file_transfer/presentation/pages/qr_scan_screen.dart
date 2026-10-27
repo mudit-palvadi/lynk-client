@@ -63,13 +63,6 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> {
               ? 'Scan Receiver QR Code'
               : 'Scan QR Code',
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.photo_library),
-            tooltip: 'Pick QR from Gallery',
-            onPressed: _pickFromGallery,
-          ),
-        ],
       ),
       body: Stack(
         children: [

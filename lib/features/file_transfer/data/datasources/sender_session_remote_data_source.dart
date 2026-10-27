@@ -15,5 +15,6 @@ abstract class SenderSessionRemoteDataSource {
     required String transferId,
     required String wrappedKey,
     required String mode,
+    required String senderSecret,
   });
 }

@@ -35,4 +35,17 @@ void main() {
     expect(AppTheme.darkTheme.colorScheme, AppTheme.lightTheme.colorScheme);
     expect(AppTheme.darkBg, AppTheme.background);
   });
+
+  test('selected navigation icons contrast with their light indicator', () {
+    final colors = AppTheme.lightTheme.colorScheme;
+    final indicator = Color.alphaBlend(
+      AppTheme.primary.withValues(alpha: 0.22),
+      AppTheme.background,
+    );
+    expect(contrast(colors.onSecondaryContainer, indicator), greaterThan(3));
+    expect(
+      contrast(colors.onSecondaryContainer, colors.secondaryContainer),
+      greaterThan(3),
+    );
+  });
 }

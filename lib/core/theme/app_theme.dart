@@ -26,6 +26,8 @@ class AppTheme {
         onPrimary: Colors.white,
         secondary: secondary,
         onSecondary: Colors.white,
+        secondaryContainer: accentSurface,
+        onSecondaryContainer: primary,
         error: error,
         surface: cardBg,
         onSurface: textPrimary,

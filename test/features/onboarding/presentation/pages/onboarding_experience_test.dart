@@ -2,6 +2,7 @@ import 'package:client/features/onboarding/presentation/pages/onboarding_screen.
 import 'package:client/features/onboarding/presentation/providers/onboarding_provider.dart';
 import 'package:client/features/onboarding/presentation/providers/onboarding_page_provider.dart';
 import 'package:client/core/routing/pending_deep_link.dart';
+import 'package:client/core/theme/app_theme.dart';
 import 'package:client/features/file_transfer/presentation/pages/download_progress_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,6 +27,7 @@ void main() {
               // The real router observes completion for the whole intro.
               ref.watch(onboardingProvider);
               return MaterialApp(
+                theme: AppTheme.lightTheme,
                 builder: (context, child) => MediaQuery(
                   data: MediaQuery.of(
                     context,
@@ -52,38 +54,30 @@ void main() {
       tester,
     ) async {
       final prefs = await pump(tester);
-      expect(find.text('Send files in a few taps'), findsOneWidget);
+      expect(find.text('Send without the setup.'), findsOneWidget);
       expect(
         find.text(
-          'Choose files, review your selection, then share a QR or six-digit code.',
+          'Choose your files. Share a QR or six-digit code. No account needed.',
         ),
         findsOneWidget,
       );
-      expect(
-        find.text('No account needed. Internet required.'),
-        findsOneWidget,
-      );
+      expect(find.text('Internet required.'), findsOneWidget);
       expect(find.textContaining('R2'), findsNothing);
       expect(find.text('Privacy Policy'), findsOneWidget);
       expect(prefs.getBool('has_onboarded'), isNull);
     });
 
-    testWidgets('explains the three receiving choices in the Receive tab', (
+    testWidgets('explains scanning or entering a sender’s code in Receive', (
       tester,
     ) async {
       await pump(tester);
       await next(tester);
-      expect(find.text('Receive your way'), findsOneWidget);
-      expect(find.text('Scan their QR'), findsOneWidget);
-      expect(find.text('Enter their code'), findsOneWidget);
-      expect(find.text('Show your receiving QR'), findsOneWidget);
+      expect(find.text('Have a QR or code?'), findsOneWidget);
       // These are alternatives, not three steps that must all be completed.
       expect(find.text('1'), findsNothing);
-      expect(find.byIcon(Icons.qr_code_scanner), findsOneWidget);
+      expect(find.byIcon(Icons.pin_outlined), findsOneWidget);
       expect(
-        find.text(
-          'Start in Receive. Choose the option that matches what the sender has.',
-        ),
+        find.text('Open Receive to scan the sender’s QR or enter their code.'),
         findsOneWidget,
       );
       expect(find.text('Privacy Policy'), findsOneWidget);
@@ -95,14 +89,11 @@ void main() {
       final prefs = await pump(tester);
       await next(tester);
       await next(tester);
-      expect(find.text('Your QR. Their next move.'), findsOneWidget);
-      expect(find.text('You: show your receiving QR.'), findsOneWidget);
+      expect(find.text('Let the sender come to you.'), findsOneWidget);
       expect(
-        find.text('Sender: scan it in LynkShare, then choose files.'),
-        findsOneWidget,
-      );
-      expect(
-        find.text('Keep your screen open. Receiving starts automatically.'),
+        find.text(
+          'Show your receiving QR. They scan it and choose files. Keep this screen open to receive.',
+        ),
         findsOneWidget,
       );
       expect(find.text('Get Started'), findsOneWidget);
@@ -181,7 +172,7 @@ void main() {
         addTearDown(tester.view.reset);
         await pump(tester, textScale: 2);
         expect(tester.takeException(), isNull);
-        expect(find.text('Send files in a few taps'), findsOneWidget);
+        expect(find.text('Send without the setup.'), findsOneWidget);
         for (var page = 0; page < 3; page++) {
           await tester.ensureVisible(find.text('Privacy Policy'));
           expect(tester.takeException(), isNull);

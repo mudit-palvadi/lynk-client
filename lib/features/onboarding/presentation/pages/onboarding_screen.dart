@@ -1,11 +1,9 @@
 import 'package:client/core/theme/app_theme.dart';
 import 'package:client/core/utils/app_links.dart';
-import 'package:client/core/widgets/scrollable_fill.dart';
 import 'package:client/features/onboarding/presentation/providers/onboarding_page_provider.dart';
 import 'package:client/features/onboarding/presentation/providers/onboarding_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
@@ -20,32 +18,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   final List<_OnboardingPageData> _pages = const [
     _OnboardingPageData(
-      icon: Icons.upload_outlined,
-      title: 'Send files in a few taps',
+      title: 'Send without the setup.',
       description:
-          'Choose files, review your selection, then share a QR or six-digit code.',
-      steps: ['Choose', 'Review', 'Share'],
-      hint: 'No account needed. Internet required.',
+          'Choose your files. Share a QR or six-digit code. No account needed.',
     ),
     _OnboardingPageData(
-      icon: Icons.download_outlined,
-      title: 'Receive your way',
-      description:
-          'Start in Receive. Choose the option that matches what the sender has.',
-      steps: ['Scan their QR', 'Enter their code', 'Show your receiving QR'],
-      optionIcons: [Icons.qr_code_scanner, Icons.pin_outlined, Icons.qr_code_2],
-      hint: 'Not sure who scans? The next page shows you.',
+      title: 'Have a QR or code?',
+      description: 'Open Receive to scan the sender’s QR or enter their code.',
     ),
     _OnboardingPageData(
-      icon: Icons.qr_code_2_outlined,
-      title: 'Your QR. Their next move.',
+      title: 'Let the sender come to you.',
       description:
-          'You can invite someone to send files by showing your receiving QR.',
-      steps: [
-        'You: show your receiving QR.',
-        'Sender: scan it in LynkShare, then choose files.',
-      ],
-      hint: 'Keep your screen open. Receiving starts automatically.',
+          'Show your receiving QR. They scan it and choose files. Keep this screen open to receive.',
     ),
   ];
 
@@ -57,6 +41,20 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   void _finish() {
     ref.read(onboardingProvider.notifier).completeOnboarding();
+  }
+
+  void _next(int index) {
+    if (index == _pages.length - 1) {
+      _finish();
+    } else if (MediaQuery.disableAnimationsOf(context)) {
+      _controller.jumpToPage(index + 1);
+    } else {
+      _controller.animateToPage(
+        index + 1,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
 
   Future<void> _openPrivacyPolicy() async {
@@ -78,120 +76,148 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final currentIndex = ref.watch(onboardingPageProvider);
     return Scaffold(
       body: SafeArea(
-        child: PageView.builder(
-          controller: _controller,
-          itemCount: _pages.length,
-          onPageChanged: ref.read(onboardingPageProvider.notifier).select,
-          itemBuilder: (context, index) {
-            final page = _pages[index];
-            final isCurrent = index == currentIndex;
-            return Align(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 640),
-                child: ScrollableFill(
+        child: Align(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 640),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxHeight < 500;
+                final action = ElevatedButton(
+                  onPressed: () => _next(currentIndex),
+                  child: Text(
+                    currentIndex == _pages.length - 1 ? 'Get Started' : 'Next',
+                  ),
+                );
+                final privacy = TextButton(
+                  onPressed: _openPrivacyPolicy,
+                  child: const Text('Privacy Policy'),
+                );
+                return Column(
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'lynk',
-                            style: Theme.of(context).textTheme.headlineSmall,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 4,
+                      ),
+                      child: Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'lynk',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.textPrimary,
+                                letterSpacing: -1,
+                              ),
+                            ),
+                          ),
+                          Visibility(
+                            visible: currentIndex < _pages.length - 1,
+                            maintainSize: true,
+                            maintainAnimation: true,
+                            maintainState: true,
+                            child: TextButton(
+                              onPressed: _finish,
+                              child: const Text('Skip'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: PageView.builder(
+                        controller: _controller,
+                        itemCount: _pages.length,
+                        onPageChanged: ref
+                            .read(onboardingPageProvider.notifier)
+                            .select,
+                        itemBuilder: (context, index) => SingleChildScrollView(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 32,
+                            vertical: 16,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _TransferIllustration(
+                                page: index,
+                                compact: compact,
+                              ),
+                              const SizedBox(height: 24),
+                              Text(
+                                _pages[index].title,
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.headlineMedium,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                _pages[index].description,
+                                style: Theme.of(context).textTheme.bodyLarge,
+                              ),
+                              const SizedBox(height: 20),
+                              const Text(
+                                'Internet required.',
+                                style: TextStyle(
+                                  color: AppTheme.textSecondary,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        if (isCurrent && index < _pages.length - 1)
-                          TextButton(
-                            onPressed: _finish,
-                            child: const Text('Skip'),
-                          )
-                        else
-                          const SizedBox(height: 48),
-                      ],
+                      ),
                     ),
-                    const Spacer(),
-                    const SizedBox(height: 24),
-                    Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            AppTheme.primary.withValues(alpha: 0.18),
-                            AppTheme.secondary.withValues(alpha: 0.12),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
+                      child: Column(
+                        children: [
+                          Semantics(
+                            label:
+                                'Page ${currentIndex + 1} of ${_pages.length}',
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: List.generate(
+                                _pages.length,
+                                (index) => Container(
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                  ),
+                                  width: 6,
+                                  height: 6,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: index == currentIndex
+                                        ? AppTheme.primary
+                                        : AppTheme.border,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          if (compact)
+                            Row(
+                              children: [
+                                Expanded(child: privacy),
+                                const SizedBox(width: 12),
+                                Expanded(child: action),
+                              ],
+                            )
+                          else ...[
+                            SizedBox(width: double.infinity, child: action),
+                            const SizedBox(height: 4),
+                            privacy,
                           ],
-                        ),
-                        borderRadius: BorderRadius.circular(28),
+                        ],
                       ),
-                      child: Icon(page.icon, size: 64, color: AppTheme.primary),
                     ),
-                    const SizedBox(height: 24),
-                    Text(
-                      page.title,
-                      style: Theme.of(context).textTheme.headlineMedium,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(page.description, textAlign: TextAlign.center),
-                    const SizedBox(height: 24),
-                    for (var step = 0; step < page.steps.length; step++)
-                      _InstructionTile(
-                        number: step + 1,
-                        text: page.steps[step],
-                        icon: page.optionIcons.isEmpty
-                            ? null
-                            : page.optionIcons[step],
-                      ),
-                    const SizedBox(height: 8),
-                    Text(
-                      page.hint,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: AppTheme.textSecondary),
-                    ),
-                    const SizedBox(height: 24),
-                    const Spacer(),
-                    if (isCurrent) ...[
-                      Semantics(
-                        label: 'Page ${index + 1} of ${_pages.length}',
-                        child: SmoothPageIndicator(
-                          controller: _controller,
-                          count: _pages.length,
-                          effect: const ExpandingDotsEffect(
-                            activeDotColor: AppTheme.primary,
-                            dotColor: AppTheme.cardBg,
-                            dotHeight: 8,
-                            dotWidth: 8,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextButton.icon(
-                        onPressed: _openPrivacyPolicy,
-                        icon: const Icon(Icons.privacy_tip_outlined, size: 16),
-                        label: const Text('Privacy Policy'),
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            if (index == _pages.length - 1) {
-                              _finish();
-                            } else {
-                              _controller.nextPage(
-                                duration: const Duration(milliseconds: 300),
-                                curve: Curves.easeInOut,
-                              );
-                            }
-                          },
-                          child: Text(
-                            index == _pages.length - 1 ? 'Get Started' : 'Next',
-                          ),
-                        ),
-                      ),
-                    ],
                   ],
-                ),
-              ),
-            );
-          },
+                );
+              },
+            ),
+          ),
         ),
       ),
     );
@@ -199,47 +225,75 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 }
 
 class _OnboardingPageData {
-  final IconData icon;
   final String title;
   final String description;
-  final List<String> steps;
-  final String hint;
-  final List<IconData> optionIcons;
-  const _OnboardingPageData({
-    required this.icon,
-    required this.title,
-    required this.description,
-    required this.steps,
-    required this.hint,
-    this.optionIcons = const [],
-  });
+  const _OnboardingPageData({required this.title, required this.description});
 }
 
-class _InstructionTile extends StatelessWidget {
-  const _InstructionTile({required this.number, required this.text, this.icon});
+class _TransferIllustration extends StatelessWidget {
+  const _TransferIllustration({required this.page, required this.compact});
 
-  final int number;
-  final String text;
-  final IconData? icon;
+  final int page;
+  final bool compact;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 12),
+  Widget build(BuildContext context) => ConstrainedBox(
+    constraints: BoxConstraints(minHeight: compact ? 144 : 220),
+    child: Center(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _Device(
+            icon: page == 0
+                ? Icons.insert_drive_file_outlined
+                : Icons.qr_code_2,
+            label: 'You',
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Icon(
+              page == 0
+                  ? Icons.arrow_forward_rounded
+                  : Icons.arrow_back_rounded,
+              color: AppTheme.primary,
+              size: 24,
+            ),
+          ),
+          _Device(
+            icon: page == 1 ? Icons.pin_outlined : Icons.phone_android_rounded,
+            label: page == 0 ? 'Receiver' : 'Sender',
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _Device extends StatelessWidget {
+  const _Device({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Flexible(
     child: Container(
-      padding: const EdgeInsets.all(16),
+      width: 112,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
       decoration: BoxDecoration(
         color: AppTheme.cardBg,
+        border: Border.all(color: AppTheme.border),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          if (icon != null)
-            Icon(icon, color: AppTheme.secondary)
-          else
-            Text('$number', style: const TextStyle(color: AppTheme.secondary)),
-          const SizedBox(width: 16),
-          Expanded(child: Text(text)),
+          Icon(icon, size: 32, color: AppTheme.primary),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+          ),
         ],
       ),
     ),

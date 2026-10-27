@@ -211,14 +211,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppTheme.primary.withValues(alpha: 0.16),
-            AppTheme.secondary.withValues(alpha: 0.08),
-          ],
-        ),
+        color: AppTheme.cardBg,
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.35)),
+        border: Border.all(color: AppTheme.border),
       ),
       child: Column(
         children: [
@@ -230,7 +225,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 padding: EdgeInsets.symmetric(horizontal: 20),
                 child: Icon(
                   Icons.arrow_forward_rounded,
-                  color: AppTheme.secondary,
+                  color: AppTheme.primary,
                 ),
               ),
               _DeviceBadge(icon: Icons.devices_rounded, label: 'Receiver'),
@@ -286,7 +281,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       icon: Icons.qr_code_2_rounded,
       title: 'Show my receiving QR',
       subtitle: 'The sender scans your QR, then chooses files to send to you.',
-      accent: AppTheme.secondary,
       onTap: () => context.push('/receive-qr'),
     ),
     const SizedBox(height: 16),
@@ -405,14 +399,12 @@ class _ActionCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback onTap;
-  final Color accent;
 
   const _ActionCard({
     required this.icon,
     required this.title,
     required this.subtitle,
     required this.onTap,
-    this.accent = AppTheme.primary,
   });
 
   @override
@@ -420,7 +412,7 @@ class _ActionCard extends StatelessWidget {
     color: AppTheme.cardBg,
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(20),
-      side: BorderSide(color: accent.withValues(alpha: 0.25)),
+      side: const BorderSide(color: AppTheme.border),
     ),
     clipBehavior: Clip.antiAlias,
     child: InkWell(
@@ -429,7 +421,7 @@ class _ActionCard extends StatelessWidget {
         padding: const EdgeInsets.all(18),
         child: Row(
           children: [
-            Icon(icon, color: accent, size: 28),
+            Icon(icon, color: AppTheme.primary, size: 28),
             const SizedBox(width: 14),
             Expanded(
               child: Column(

@@ -48,7 +48,9 @@ class _DownloadFolderTileState extends State<DownloadFolderTile> {
       if (!mounted) return;
       if (picked != null) {
         setState(() => _treeUri = picked);
-        _say('Downloads will be saved to ${DownloadFolderService.displayName(picked)}.');
+        _say(
+          'Downloads will be saved to ${DownloadFolderService.displayName(picked)}.',
+        );
       }
     } on PlatformException {
       if (mounted) _say('Could not open the folder picker.');
@@ -58,9 +60,9 @@ class _DownloadFolderTileState extends State<DownloadFolderTile> {
   }
 
   void _say(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -78,14 +80,11 @@ class _DownloadFolderTileState extends State<DownloadFolderTile> {
         decoration: BoxDecoration(
           color: AppTheme.cardBg,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFF2E364F), width: 1),
+          border: Border.all(color: AppTheme.border),
         ),
         child: Row(
           children: [
-            const Icon(
-              Icons.folder_outlined,
-              color: AppTheme.primary,
-            ),
+            const Icon(Icons.folder_outlined, color: AppTheme.primary),
             const SizedBox(width: 12),
             Expanded(
               child: Column(

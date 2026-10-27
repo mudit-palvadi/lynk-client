@@ -171,12 +171,7 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                     Container(
                       padding: const EdgeInsets.all(32),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            AppTheme.primary.withValues(alpha: 0.2),
-                            AppTheme.secondary.withValues(alpha: 0.08),
-                          ],
-                        ),
+                        color: AppTheme.accentSurface,
                         borderRadius: BorderRadius.circular(28),
                       ),
                       child: const Icon(
@@ -217,7 +212,7 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                       decoration: BoxDecoration(
                         color: AppTheme.cardBg,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFF2E364F)),
+                        border: Border.all(color: AppTheme.border),
                       ),
                       child: Wrap(
                         spacing: 20,

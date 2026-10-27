@@ -67,7 +67,7 @@ class _AppUpdateGateState extends ConsumerState<AppUpdateGate>
         if (update.isBlocked)
           MaterialApp(
             debugShowCheckedModeBanner: false,
-            theme: AppTheme.darkTheme,
+            theme: AppTheme.lightTheme,
             home: PopScope(
               canPop: false,
               child: Scaffold(

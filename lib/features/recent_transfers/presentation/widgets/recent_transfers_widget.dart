@@ -47,7 +47,7 @@ class RecentTransfersWidget extends ConsumerWidget {
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: AppTheme.textPrimary,
                   ),
                 ),
                 TextButton.icon(
@@ -128,7 +128,7 @@ class RecentTransfersWidget extends ConsumerWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontWeight: FontWeight.w600,
-                    color: Colors.white,
+                    color: AppTheme.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -160,8 +160,9 @@ class RecentTransfersWidget extends ConsumerWidget {
             OutlinedButton.icon(
               // A file written into the user's folder is a document URI, so
               // it opens through the grant rather than a path.
-              onPressed: () =>
-                  ref.read(downloadProvider.notifier).openFile(item.filePaths!.first),
+              onPressed: () => ref
+                  .read(downloadProvider.notifier)
+                  .openFile(item.filePaths!.first),
               icon: const Icon(Icons.folder_open, size: 14),
               label: const Text('Open', style: TextStyle(fontSize: 12)),
               style: OutlinedButton.styleFrom(

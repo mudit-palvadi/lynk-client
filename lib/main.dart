@@ -38,7 +38,7 @@ void main() async {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: AppTheme.textPrimary,
                 ),
               ),
               SizedBox(height: 8),
@@ -89,7 +89,7 @@ class _RoutedApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'Lynk',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme,
+      theme: AppTheme.lightTheme,
       routerConfig: router,
     );
   }

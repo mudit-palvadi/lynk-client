@@ -27,6 +27,17 @@ const List<Map<String, String>> kLynkIceServers = kStunServers;
 /// IV and up to 16 bytes of padding for every file).
 const int maxP2PReceiveBytes = 50 * 1024 * 1024 + 1024;
 
+/// A done frame finishes the receive only when every declared file has
+/// arrived and none is still open. A shorter transfer is incomplete, so the
+/// caller can fall back to the cloud copy instead of waiting forever.
+bool directReceiveIsComplete({
+  required bool fileOpen,
+  required int receivedFiles,
+  required int expectedFiles,
+}) {
+  return !fileOpen && expectedFiles > 0 && receivedFiles == expectedFiles;
+}
+
 /// Whether [receivedBytes] may still be accepted.
 ///
 /// A peer may not send more than it declared ([declaredBytes]), and no
@@ -711,7 +722,11 @@ class P2PFileSession implements P2PSenderSession {
         _currentToken = null;
         _currentWritten = 0;
       case FrameKind.done:
-        if (_currentSink != null || _receivedFiles == 0) {
+        if (!directReceiveIsComplete(
+          fileOpen: _currentSink != null,
+          receivedFiles: _receivedFiles,
+          expectedFiles: _budget.maxFiles,
+        )) {
           _abortReceive('incomplete direct transfer');
           return;
         }

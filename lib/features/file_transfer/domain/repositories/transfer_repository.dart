@@ -22,7 +22,10 @@ abstract class TransferRepository {
     String? accessToken,
   });
 
-  Future<Result<void>> cancelTransfer(String transferId, {String? senderSecret});
+  Future<Result<void>> cancelTransfer(
+    String transferId, {
+    String? senderSecret,
+  });
 
   /// Moves the transfer's server-side expiry to the extended lifetime.
   Future<Result<void>> extendTransfer(

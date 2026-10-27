@@ -92,46 +92,44 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('the extend button is hidden while a direct transfer is running', (
-    tester,
-  ) async {
-    final transfer = Transfer(
-      id: 'transfer-1',
-      status: TransferStatus.ready,
-      totalFiles: 1,
-      totalSize: 1024,
-      createdAt: DateTime.now(),
-      files: const [],
-    );
+  testWidgets(
+    'the extend button is hidden while a direct transfer is running',
+    (tester) async {
+      final transfer = Transfer(
+        id: 'transfer-1',
+        status: TransferStatus.ready,
+        totalFiles: 1,
+        totalSize: 1024,
+        createdAt: DateTime.now(),
+        files: const [],
+      );
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          uploadProvider.overrideWith(
-            () => _FakeUploadNotifier(
-              UploadState(
-                transfer: transfer,
-                transferMode: TransferMode.p2p,
-                p2pStage: P2PSendStage.transferring,
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            uploadProvider.overrideWith(
+              () => _FakeUploadNotifier(
+                UploadState(
+                  transfer: transfer,
+                  transferMode: TransferMode.p2p,
+                  p2pStage: P2PSendStage.transferring,
+                ),
               ),
             ),
+            senderCodeProvider.overrideWith(_FakeSenderCodeNotifier.new),
+          ],
+          child: MaterialApp(
+            home: SendQrScreen(transfer: transfer, aesKey: 'k' * 32),
           ),
-          senderCodeProvider.overrideWith(_FakeSenderCodeNotifier.new),
-        ],
-        child: MaterialApp(
-          home: SendQrScreen(transfer: transfer, aesKey: 'k' * 32),
         ),
-      ),
-    );
-    await tester.pump();
+      );
+      await tester.pump();
 
-    expect(
-      find.text('Extend Session to 30 Mins (Watch Ad)'),
-      findsNothing,
-    );
+      expect(find.text('Extend Session to 30 Mins (Watch Ad)'), findsNothing);
 
-    await tester.pumpWidget(const SizedBox());
-  });
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 
   testWidgets('the extend button is offered while waiting for the receiver', (
     tester,
@@ -166,10 +164,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(
-      find.text('Extend Session to 30 Mins (Watch Ad)'),
-      findsOneWidget,
-    );
+    expect(find.text('Extend Session to 30 Mins (Watch Ad)'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox());
   });

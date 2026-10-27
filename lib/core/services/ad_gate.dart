@@ -15,15 +15,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///
 /// The state is local and survives a restart, because the user earned it.
 class AdGate {
-  AdGate({
-    DateTime Function()? now,
-    this.window = defaultWindow,
-  }) : _now = now ?? DateTime.now;
+  AdGate({DateTime Function()? now, this.window = defaultWindow})
+    : _now = now ?? DateTime.now;
 
   /// The automatic-ad window. A device run can shorten it with
   /// `--dart-define=AD_WINDOW_SECONDS=120`; a normal build keeps 15 minutes.
-  static const int _windowSeconds =
-      int.fromEnvironment('AD_WINDOW_SECONDS', defaultValue: 900);
+  static const int _windowSeconds = int.fromEnvironment(
+    'AD_WINDOW_SECONDS',
+    defaultValue: 900,
+  );
 
   /// The window used unless a caller passes its own.
   static const Duration defaultWindow = Duration(seconds: _windowSeconds);

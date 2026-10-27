@@ -107,19 +107,21 @@ void main() {
       expect(wrapped, matches(RegExp(r'^[A-Za-z0-9_-]+$')));
     });
 
-    test('is 32 byte ephemeral key, 12 byte nonce, ciphertext and 16 byte tag',
-        () async {
-      final keyPair = await service.generateReceiverKeyPair();
+    test(
+      'is 32 byte ephemeral key, 12 byte nonce, ciphertext and 16 byte tag',
+      () async {
+        final keyPair = await service.generateReceiverKeyPair();
 
-      final wrapped = await service.wrapKey(
-        aesKey: aesKey,
-        receiverPublicKeyB64: keyPair.publicKeyB64,
-        sessionId: sessionId,
-      );
+        final wrapped = await service.wrapKey(
+          aesKey: aesKey,
+          receiverPublicKeyB64: keyPair.publicKeyB64,
+          sessionId: sessionId,
+        );
 
-      final bytes = _decodeBase64Url(wrapped);
-      expect(bytes.length, 32 + 12 + aesKey.length + 16);
-    });
+        final bytes = _decodeBase64Url(wrapped);
+        expect(bytes.length, 32 + 12 + aesKey.length + 16);
+      },
+    );
 
     test('a short payload is rejected instead of crashing', () async {
       final keyPair = await service.generateReceiverKeyPair();
@@ -287,10 +289,11 @@ Future<Uint8List> _hkdfSha256({
   var previous = const <int>[];
   var counter = 1;
   while (output.length < length) {
-    final block = await hmac.calculateMac(
-      <int>[...previous, ...info, counter],
-      secretKey: SecretKey(prk.bytes),
-    );
+    final block = await hmac.calculateMac(<int>[
+      ...previous,
+      ...info,
+      counter,
+    ], secretKey: SecretKey(prk.bytes));
     previous = block.bytes;
     output.addAll(previous);
     counter++;

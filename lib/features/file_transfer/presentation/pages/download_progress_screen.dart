@@ -48,7 +48,9 @@ class _DownloadProgressScreenState
     if (_autoStartTriggered) return;
     _autoStartTriggered = true;
 
-    ref.read(downloadProvider.notifier).startReception(aesKey: widget.aesKey, viaPairing: widget.viaPairing);
+    ref
+        .read(downloadProvider.notifier)
+        .startReception(aesKey: widget.aesKey, viaPairing: widget.viaPairing);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Download started'),
@@ -234,7 +236,10 @@ class _DownloadProgressScreenState
                           ElevatedButton(
                             onPressed: () {
                               _autoStartTriggered = false;
-                              notifier.startReception(aesKey: widget.aesKey, viaPairing: widget.viaPairing);
+                              notifier.startReception(
+                                aesKey: widget.aesKey,
+                                viaPairing: widget.viaPairing,
+                              );
                             },
                             child: const Text('Retry Download'),
                           ),

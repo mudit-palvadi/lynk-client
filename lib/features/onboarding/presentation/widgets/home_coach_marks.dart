@@ -247,9 +247,7 @@ class _SpotlightPainter extends CustomPainter {
     Path? cut;
     if (hole != null) {
       cut = Path()
-        ..addRRect(
-          RRect.fromRectAndRadius(hole, const Radius.circular(18)),
-        );
+        ..addRRect(RRect.fromRectAndRadius(hole, const Radius.circular(18)));
     }
 
     canvas.drawPath(

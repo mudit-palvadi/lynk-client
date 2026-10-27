@@ -49,20 +49,17 @@ void main() {
       },
     );
 
-    test(
-      'execute accepts a valid key with surrounding whitespace',
-      () async {
-        final paddedKey = '  $aesKey  ';
-        final result = await decryptUseCase.execute(
-          encryptedFile: encryptedFile,
-          aesKey32Bytes: paddedKey,
-          outputPath: decryptedFile.path,
-        );
+    test('execute accepts a valid key with surrounding whitespace', () async {
+      final paddedKey = '  $aesKey  ';
+      final result = await decryptUseCase.execute(
+        encryptedFile: encryptedFile,
+        aesKey32Bytes: paddedKey,
+        outputPath: decryptedFile.path,
+      );
 
-        expect(result.existsSync(), true);
-        expect(result.readAsStringSync(), testContent);
-      },
-    );
+      expect(result.existsSync(), true);
+      expect(result.readAsStringSync(), testContent);
+    });
 
     test('execute rejects a key that is not 32 bytes (#46)', () async {
       await expectLater(

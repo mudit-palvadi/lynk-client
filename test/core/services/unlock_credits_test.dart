@@ -100,8 +100,9 @@ void main() {
   group('UnlockCredits extension', () {
     test('the first extension shows the ad and keeps one credit', () async {
       final h = build();
-      final didShow =
-          await h.credits.spendExtend(() => h.unlocked.add('extend'));
+      final didShow = await h.credits.spendExtend(
+        () => h.unlocked.add('extend'),
+      );
 
       expect(didShow, isTrue);
       expect(h.shown, hasLength(1));
@@ -112,8 +113,9 @@ void main() {
       final h = build();
       await h.credits.spendExtend(() => h.unlocked.add('extend'));
       clock = clock.add(const Duration(minutes: 16));
-      final didShow =
-          await h.credits.spendExtend(() => h.unlocked.add('extend'));
+      final didShow = await h.credits.spendExtend(
+        () => h.unlocked.add('extend'),
+      );
 
       expect(didShow, isFalse);
       expect(h.shown, hasLength(1));
@@ -125,8 +127,9 @@ void main() {
       await h.credits.spendSize(() => h.unlocked.add('size'));
       clock = clock.add(const Duration(minutes: 16));
 
-      final didShow =
-          await h.credits.spendExtend(() => h.unlocked.add('extend'));
+      final didShow = await h.credits.spendExtend(
+        () => h.unlocked.add('extend'),
+      );
 
       expect(didShow, isTrue);
       expect(h.shown, hasLength(2));

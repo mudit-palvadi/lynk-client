@@ -110,7 +110,8 @@ void main() {
       // An unpinned SDK means the suite can break when Flutter ships, with
       // no change in this repository to blame.
       final setup = steps.firstWhere(
-        (step) => (step['uses'] as String?)?.contains('flutter-action') ?? false,
+        (step) =>
+            (step['uses'] as String?)?.contains('flutter-action') ?? false,
       );
       final setupOptions = setup['with'] as YamlMap;
 

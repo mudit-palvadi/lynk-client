@@ -14,11 +14,9 @@ import 'transfer_ad_gate.dart';
 /// Watching an unlock ad opens that same window, so an extension is not
 /// followed by a second ad on the transfer button.
 class UnlockCredits {
-  UnlockCredits({
-    AdGate? gate,
-    AutomaticAdShower? showRewardedAd,
-  })  : _gate = gate ?? AdGate(),
-        _showRewardedAd = showRewardedAd ?? AdService.showRewardedAd;
+  UnlockCredits({AdGate? gate, AutomaticAdShower? showRewardedAd})
+    : _gate = gate ?? AdGate(),
+      _showRewardedAd = showRewardedAd ?? AdService.showRewardedAd;
 
   final AdGate _gate;
   final AutomaticAdShower _showRewardedAd;
@@ -26,19 +24,13 @@ class UnlockCredits {
   /// Runs [onUnlocked] now when a size credit is left, otherwise after the ad.
   ///
   /// Returns true when an ad was shown.
-  Future<bool> spendSize(void Function() onUnlocked) => _spend(
-        _gate.consumeSizeCredit,
-        _gate.grantSizeCredits,
-        onUnlocked,
-      );
+  Future<bool> spendSize(void Function() onUnlocked) =>
+      _spend(_gate.consumeSizeCredit, _gate.grantSizeCredits, onUnlocked);
 
   /// Runs [onUnlocked] now when an extension credit is left, otherwise after
   /// the ad. Returns true when an ad was shown.
-  Future<bool> spendExtend(void Function() onUnlocked) => _spend(
-        _gate.consumeExtendCredit,
-        _gate.grantExtendCredits,
-        onUnlocked,
-      );
+  Future<bool> spendExtend(void Function() onUnlocked) =>
+      _spend(_gate.consumeExtendCredit, _gate.grantExtendCredits, onUnlocked);
 
   Future<bool> _spend(
     Future<bool> Function() consume,

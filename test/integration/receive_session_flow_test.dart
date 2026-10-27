@@ -65,11 +65,13 @@ void main() {
       sessionId: created.session!.id,
     );
 
-    final attached = await container.read(receiverRepositoryProvider).attachTransfer(
-      sessionId: created.session!.id,
-      transferId: 'transfer-under-test',
-      wrappedKey: wrapped,
-    );
+    final attached = await container
+        .read(receiverRepositoryProvider)
+        .attachTransfer(
+          sessionId: created.session!.id,
+          transferId: 'transfer-under-test',
+          wrappedKey: wrapped,
+        );
     expect(attached.isSuccess, isTrue);
 
     // 3. The backend now reports the session as attached.
@@ -139,9 +141,7 @@ Future<ProviderContainer> _container(FakeBackend backend) async {
   final prefs = await SharedPreferences.getInstance();
   final container = ProviderContainer(
     overrides: [
-      apiClientProvider.overrideWithValue(
-        ApiClient(dio: backend.createDio()),
-      ),
+      apiClientProvider.overrideWithValue(ApiClient(dio: backend.createDio())),
       sharedPreferencesProvider.overrideWithValue(prefs),
     ],
   );

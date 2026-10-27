@@ -62,24 +62,20 @@ void main() {
     for (final endpoint in _endpointsOf(fixtureFile)) {
       if (!(endpoint['client_uses'] as bool? ?? false)) continue;
 
-      test(
-        '${endpoint['method']} ${endpoint['path']}',
-        () async {
-          final container = await _container(endpoint);
-          addTearDown(container.dispose);
+      test('${endpoint['method']} ${endpoint['path']}', () async {
+        final container = await _container(endpoint);
+        addTearDown(container.dispose);
 
-          await _callClient(container, endpoint);
+        await _callClient(container, endpoint);
 
-          final request = container.read(_adapterProvider)!.requests.single;
-          expect(request.method, endpoint['method']);
-          expect(
-            request.path,
-            _resolve(endpoint['client_path'] as String),
-            reason: 'the client must call the path the contract declares',
-          );
-        },
-        skip: skipReason,
-      );
+        final request = container.read(_adapterProvider)!.requests.single;
+        expect(request.method, endpoint['method']);
+        expect(
+          request.path,
+          _resolve(endpoint['client_path'] as String),
+          reason: 'the client must call the path the contract declares',
+        );
+      }, skip: skipReason);
     }
   });
 
@@ -89,51 +85,47 @@ void main() {
       final sample = endpoint['response_sample'] as Map<String, dynamic>?;
       if (model == null || sample == null) continue;
 
-      test(
-        '${endpoint['method']} ${endpoint['path']} ($model)',
-        () {
-          switch (model) {
-            case 'TransferModel':
-              final parsed = TransferModel.fromJson(sample);
-              expect(parsed.id, sample['transfer_id']);
-              expect(parsed.totalFiles, sample['total_files']);
-              expect(parsed.totalSize, sample['total_size']);
-              expect(parsed.expiresMultiplier, sample['expires_in']);
-              final sampleFile =
-                  (sample['files'] as List).first as Map<String, dynamic>;
-              expect(parsed.files.first.id, sampleFile['file_id']);
-              expect(parsed.files.first.name, sampleFile['file_name']);
-              expect(parsed.files.first.uploadUrl, sampleFile['upload_url']);
-              if (sample.containsKey('sender_secret')) {
-                expect(parsed.senderSecret, sample['sender_secret']);
-                expect(parsed.accessToken, sample['access_token']);
-              }
-              break;
-            case 'FileItemModel':
-              final sampleFile =
-                  (sample['files'] as List).first as Map<String, dynamic>;
-              final parsed = FileItemModel.fromJson(sampleFile);
-              expect(parsed.id, sampleFile['file_id']);
-              expect(parsed.name, sampleFile['file_name']);
-              expect(parsed.downloadUrl, sampleFile['download_url']);
-              break;
-            case 'ReceiverSessionModel':
-              final parsed = ReceiverSessionModel.fromJson(sample);
-              expect(parsed.id, sample['session_id']);
-              expect(parsed.status.name, sample['status']);
-              if (sample['transfer_id'] != null) {
-                expect(parsed.transferId, sample['transfer_id']);
-              }
-              if (sample['wrapped_key'] != null) {
-                expect(parsed.wrappedKey, sample['wrapped_key']);
-              }
-              break;
-            default:
-              fail('unknown client model $model in the contract');
-          }
-        },
-        skip: skipReason,
-      );
+      test('${endpoint['method']} ${endpoint['path']} ($model)', () {
+        switch (model) {
+          case 'TransferModel':
+            final parsed = TransferModel.fromJson(sample);
+            expect(parsed.id, sample['transfer_id']);
+            expect(parsed.totalFiles, sample['total_files']);
+            expect(parsed.totalSize, sample['total_size']);
+            expect(parsed.expiresMultiplier, sample['expires_in']);
+            final sampleFile =
+                (sample['files'] as List).first as Map<String, dynamic>;
+            expect(parsed.files.first.id, sampleFile['file_id']);
+            expect(parsed.files.first.name, sampleFile['file_name']);
+            expect(parsed.files.first.uploadUrl, sampleFile['upload_url']);
+            if (sample.containsKey('sender_secret')) {
+              expect(parsed.senderSecret, sample['sender_secret']);
+              expect(parsed.accessToken, sample['access_token']);
+            }
+            break;
+          case 'FileItemModel':
+            final sampleFile =
+                (sample['files'] as List).first as Map<String, dynamic>;
+            final parsed = FileItemModel.fromJson(sampleFile);
+            expect(parsed.id, sampleFile['file_id']);
+            expect(parsed.name, sampleFile['file_name']);
+            expect(parsed.downloadUrl, sampleFile['download_url']);
+            break;
+          case 'ReceiverSessionModel':
+            final parsed = ReceiverSessionModel.fromJson(sample);
+            expect(parsed.id, sample['session_id']);
+            expect(parsed.status.name, sample['status']);
+            if (sample['transfer_id'] != null) {
+              expect(parsed.transferId, sample['transfer_id']);
+            }
+            if (sample['wrapped_key'] != null) {
+              expect(parsed.wrappedKey, sample['wrapped_key']);
+            }
+            break;
+          default:
+            fail('unknown client model $model in the contract');
+        }
+      }, skip: skipReason);
     }
   });
 
@@ -174,7 +166,8 @@ void main() {
 /// out. Used to generate the test names at collection time.
 List<Map<String, dynamic>> _endpointsOf(File fixtureFile) {
   if (!fixtureFile.existsSync()) return const [];
-  final decoded = jsonDecode(fixtureFile.readAsStringSync()) as Map<String, dynamic>;
+  final decoded =
+      jsonDecode(fixtureFile.readAsStringSync()) as Map<String, dynamic>;
   return (decoded['endpoints'] as List).cast<Map<String, dynamic>>();
 }
 

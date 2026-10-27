@@ -25,7 +25,9 @@ class TransferRemoteDataSourceImpl implements TransferRemoteDataSource {
   }) async {
     await dio.post(
       'transfers/$transferId/files/$fileId/complete',
-      options: Options(headers: _secretHeader('X-Lynk-Sender-Secret', senderSecret)),
+      options: Options(
+        headers: _secretHeader('X-Lynk-Sender-Secret', senderSecret),
+      ),
     );
   }
 
@@ -36,7 +38,9 @@ class TransferRemoteDataSourceImpl implements TransferRemoteDataSource {
   }) async {
     final response = await dio.get(
       'transfers/$transferId',
-      options: Options(headers: _secretHeader('X-Lynk-Access-Token', accessToken)),
+      options: Options(
+        headers: _secretHeader('X-Lynk-Access-Token', accessToken),
+      ),
     );
     return TransferModel.fromJson(response.data as Map<String, dynamic>);
   }
@@ -50,7 +54,9 @@ class TransferRemoteDataSourceImpl implements TransferRemoteDataSource {
     final response = await dio.post(
       'transfers/$transferId/downloads',
       data: fileIds != null && fileIds.isNotEmpty ? {'file_ids': fileIds} : {},
-      options: Options(headers: _secretHeader('X-Lynk-Access-Token', accessToken)),
+      options: Options(
+        headers: _secretHeader('X-Lynk-Access-Token', accessToken),
+      ),
     );
     final list = response.data['files'] as List<dynamic>;
     return list
@@ -62,7 +68,9 @@ class TransferRemoteDataSourceImpl implements TransferRemoteDataSource {
   Future<void> cancelTransfer(String transferId, {String? senderSecret}) async {
     await dio.delete(
       'transfers/$transferId',
-      options: Options(headers: _secretHeader('X-Lynk-Sender-Secret', senderSecret)),
+      options: Options(
+        headers: _secretHeader('X-Lynk-Sender-Secret', senderSecret),
+      ),
     );
   }
 
@@ -70,7 +78,9 @@ class TransferRemoteDataSourceImpl implements TransferRemoteDataSource {
   Future<void> extendTransfer(String transferId, {String? senderSecret}) async {
     await dio.post(
       'transfers/$transferId/extend',
-      options: Options(headers: _secretHeader('X-Lynk-Sender-Secret', senderSecret)),
+      options: Options(
+        headers: _secretHeader('X-Lynk-Sender-Secret', senderSecret),
+      ),
     );
   }
 }

@@ -78,7 +78,10 @@ void main() {
 
   group('control characters are removed', () {
     test('a null byte is dropped', () {
-      expect(FileNameSanitizer.safeFileName('with\x00null.txt'), 'withnull.txt');
+      expect(
+        FileNameSanitizer.safeFileName('with\x00null.txt'),
+        'withnull.txt',
+      );
     });
 
     test('a newline is dropped', () {

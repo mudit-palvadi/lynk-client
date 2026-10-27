@@ -55,9 +55,7 @@ void main() {
 
       final headers = adapter.requests.single.headers;
       expect(
-        headers.keys.where(
-          (key) => key.toLowerCase() == 'x-lynk-access-token',
-        ),
+        headers.keys.where((key) => key.toLowerCase() == 'x-lynk-access-token'),
         isEmpty,
       );
     });

@@ -26,10 +26,19 @@ void main() {
     test('rejects a key that is not 32 bytes (#46)', () {
       // The old rule padded a short key with '0', so 'short-key' and
       // 'short-key000...' sealed the same way.
-      expect(() => NameSealer.seal('report.pdf', 'short-key'), throwsArgumentError);
-      expect(() => NameSealer.seal('report.pdf', '$key extra'), throwsArgumentError);
+      expect(
+        () => NameSealer.seal('report.pdf', 'short-key'),
+        throwsArgumentError,
+      );
+      expect(
+        () => NameSealer.seal('report.pdf', '$key extra'),
+        throwsArgumentError,
+      );
       // 32 characters, but 64 UTF-8 bytes.
-      expect(() => NameSealer.seal('report.pdf', 'é' * 32), throwsArgumentError);
+      expect(
+        () => NameSealer.seal('report.pdf', 'é' * 32),
+        throwsArgumentError,
+      );
       // A key the wrong length opens nothing rather than guessing.
       expect(NameSealer.open('AAAA', 'short-key'), isNull);
     });

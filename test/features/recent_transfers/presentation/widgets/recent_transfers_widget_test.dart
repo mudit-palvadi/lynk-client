@@ -23,7 +23,10 @@ void main() {
     });
 
     test('several files show the first name and a count', () {
-      expect(recentTransferTitle(['a.bin', 'b.bin', 'c.bin']), 'a.bin + 2 files');
+      expect(
+        recentTransferTitle(['a.bin', 'b.bin', 'c.bin']),
+        'a.bin + 2 files',
+      );
     });
 
     test('no file names fall back to a safe label', () {
@@ -98,7 +101,9 @@ void main() {
     testWidgets('a single file shows its name and a file count', (
       tester,
     ) async {
-      await pumpWith(tester, [record('tx-1', ['only.jpg'])]);
+      await pumpWith(tester, [
+        record('tx-1', ['only.jpg']),
+      ]);
 
       expect(tester.takeException(), isNull);
       expect(find.text('only.jpg'), findsOneWidget);

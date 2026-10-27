@@ -20,13 +20,18 @@ void main() {
 
   test('a child document uri still names its folder', () {
     expect(
-      DownloadFolderService.displayName('$tree/document/primary%3ADownload%2FLynk'),
+      DownloadFolderService.displayName(
+        '$tree/document/primary%3ADownload%2FLynk',
+      ),
       'Download / Lynk',
     );
   });
 
   test('an unfamiliar uri is not shown as a broken path', () {
-    expect(DownloadFolderService.displayName('content://example'), 'Chosen folder');
+    expect(
+      DownloadFolderService.displayName('content://example'),
+      'Chosen folder',
+    );
   });
 
   test('common file types get a mime type the system can open', () {
@@ -42,9 +47,9 @@ void main() {
   test('choosing a folder remembers it', () async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
-      if (call.method == 'pickFolder') return tree;
-      return null;
-    });
+          if (call.method == 'pickFolder') return tree;
+          return null;
+        });
     addTearDown(() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, null);
@@ -60,9 +65,7 @@ void main() {
   });
 
   test('cancelling the picker keeps the old folder', () async {
-    SharedPreferences.setMockInitialValues({
-      'lynk_download_tree_uri': tree,
-    });
+    SharedPreferences.setMockInitialValues({'lynk_download_tree_uri': tree});
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async => null);
     addTearDown(() {
@@ -75,15 +78,13 @@ void main() {
   });
 
   test('publishing sends the folder, the file and its mime type', () async {
-    SharedPreferences.setMockInitialValues({
-      'lynk_download_tree_uri': tree,
-    });
+    SharedPreferences.setMockInitialValues({'lynk_download_tree_uri': tree});
     MethodCall? seen;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
-      seen = call;
-      return '$tree/document/primary%3ADownload%2FLynk%2Freport.pdf';
-    });
+          seen = call;
+          return '$tree/document/primary%3ADownload%2FLynk%2Freport.pdf';
+        });
     addTearDown(() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, null);
@@ -106,9 +107,9 @@ void main() {
     var calls = 0;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
-      calls++;
-      return null;
-    });
+          calls++;
+          return null;
+        });
     addTearDown(() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, null);

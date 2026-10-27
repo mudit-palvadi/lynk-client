@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// native side, which holds the grant.
 class DownloadFolderService {
   DownloadFolderService({MethodChannel? channel})
-      : _channel = channel ?? const MethodChannel(channelName);
+    : _channel = channel ?? const MethodChannel(channelName);
 
   static const String channelName = 'lynk/storage';
   static const String _treeKey = 'lynk_download_tree_uri';

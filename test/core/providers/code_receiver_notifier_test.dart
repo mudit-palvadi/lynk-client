@@ -50,10 +50,7 @@ class _FakeKeyWrap extends KeyWrapService {
 
   @override
   Future<ReceiverKeyPair> generateReceiverKeyPair() async {
-    return ReceiverKeyPair(
-      publicKeyB64: 'pk-1',
-      privateKeySeed: Uint8List(32),
-    );
+    return ReceiverKeyPair(publicKeyB64: 'pk-1', privateKeySeed: Uint8List(32));
   }
 
   @override
@@ -63,10 +60,7 @@ class _FakeKeyWrap extends KeyWrapService {
     required String sessionId,
   }) async {
     unwrappedFor = wrappedBase64;
-    return const UnwrappedDelivery(
-      aesKey: 'aes-1',
-      accessToken: 'token-1',
-    );
+    return const UnwrappedDelivery(aesKey: 'aes-1', accessToken: 'token-1');
   }
 }
 

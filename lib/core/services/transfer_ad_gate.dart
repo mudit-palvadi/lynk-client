@@ -28,8 +28,10 @@ class TransferAdGate {
                AdService.showRewardedAd(onRewardGranted: onRewardGranted)),
        _showP2pAd =
            showP2pAd ??
-           (({required void Function() onRewardGranted}) => AdService
-               .showRewardedInterstitialAd(onRewardGranted: onRewardGranted));
+           (({required void Function() onRewardGranted}) =>
+               AdService.showRewardedInterstitialAd(
+                 onRewardGranted: onRewardGranted,
+               ));
 
   final AdGate _gate;
   final AutomaticAdShower _showCloudAd;

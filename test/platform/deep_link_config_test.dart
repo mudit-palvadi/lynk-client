@@ -184,9 +184,7 @@ void main() {
 
     setUpAll(() {
       final gradle = File('android/app/build.gradle.kts').readAsStringSync();
-      final match = RegExp(
-        r'applicationId\s*=\s*"([^"]+)"',
-      ).firstMatch(gradle);
+      final match = RegExp(r'applicationId\s*=\s*"([^"]+)"').firstMatch(gradle);
       expect(match, isNotNull, reason: 'applicationId not found in Gradle');
       applicationId = match!.group(1)!;
 
@@ -198,90 +196,71 @@ void main() {
       }
     });
 
-    test(
-      'declares the same package name the app is built with',
-      () {
-        final packages = assetLinks
-            .cast<Map<String, dynamic>>()
-            .map((entry) => (entry['target'] as Map)['package_name'])
-            .toSet();
+    test('declares the same package name the app is built with', () {
+      final packages = assetLinks
+          .cast<Map<String, dynamic>>()
+          .map((entry) => (entry['target'] as Map)['package_name'])
+          .toSet();
 
+      expect(
+        packages,
+        contains(applicationId),
+        reason:
+            'Android only honours the statement whose package_name matches '
+            'the installed applicationId.',
+      );
+    }, skip: assetLinksSkipReason);
+
+    test('grants handle_all_urls for that package', () {
+      final statement = assetLinks.cast<Map<String, dynamic>>().singleWhere(
+        (entry) => (entry['target'] as Map)['package_name'] == applicationId,
+      );
+
+      expect(
+        statement['relation'],
+        contains('delegate_permission/common.handle_all_urls'),
+      );
+      expect((statement['target'] as Map)['namespace'], 'android_app');
+    }, skip: assetLinksSkipReason);
+
+    test('lists at least one well-formed SHA-256 fingerprint', () {
+      final fingerprints = assetLinks
+          .cast<Map<String, dynamic>>()
+          .expand(
+            (entry) =>
+                ((entry['target'] as Map)['sha256_cert_fingerprints'] as List)
+                    .cast<String>(),
+          )
+          .toList();
+
+      expect(fingerprints, isNotEmpty);
+
+      final sha256 = RegExp(r'^([0-9A-F]{2}:){31}[0-9A-F]{2}$');
+      for (final fingerprint in fingerprints) {
         expect(
-          packages,
-          contains(applicationId),
+          sha256.hasMatch(fingerprint),
+          isTrue,
           reason:
-              'Android only honours the statement whose package_name matches '
-              'the installed applicationId.',
+              'Fingerprints must be uppercase colon-separated SHA-256 digests; '
+              'Android compares them literally. Offending value: $fingerprint',
         );
-      },
-      skip: assetLinksSkipReason,
-    );
+      }
+    }, skip: assetLinksSkipReason);
 
-    test(
-      'grants handle_all_urls for that package',
-      () {
-        final statement = assetLinks
-            .cast<Map<String, dynamic>>()
-            .singleWhere(
-              (entry) =>
-                  (entry['target'] as Map)['package_name'] == applicationId,
-            );
+    test('lists Play app-signing and upload certificates separately', () {
+      // Play re-signs distributed builds. A single fingerprint means either
+      // Play-installed or locally-installed builds fail verification, and the
+      // link silently falls back to the browser.
+      final fingerprints = assetLinks
+          .cast<Map<String, dynamic>>()
+          .expand(
+            (entry) =>
+                ((entry['target'] as Map)['sha256_cert_fingerprints'] as List)
+                    .cast<String>(),
+          )
+          .toSet();
 
-        expect(
-          statement['relation'],
-          contains('delegate_permission/common.handle_all_urls'),
-        );
-        expect((statement['target'] as Map)['namespace'], 'android_app');
-      },
-      skip: assetLinksSkipReason,
-    );
-
-    test(
-      'lists at least one well-formed SHA-256 fingerprint',
-      () {
-        final fingerprints = assetLinks
-            .cast<Map<String, dynamic>>()
-            .expand(
-              (entry) =>
-                  ((entry['target'] as Map)['sha256_cert_fingerprints'] as List)
-                      .cast<String>(),
-            )
-            .toList();
-
-        expect(fingerprints, isNotEmpty);
-
-        final sha256 = RegExp(r'^([0-9A-F]{2}:){31}[0-9A-F]{2}$');
-        for (final fingerprint in fingerprints) {
-          expect(
-            sha256.hasMatch(fingerprint),
-            isTrue,
-            reason:
-                'Fingerprints must be uppercase colon-separated SHA-256 digests; '
-                'Android compares them literally. Offending value: $fingerprint',
-          );
-        }
-      },
-      skip: assetLinksSkipReason,
-    );
-
-    test(
-      'lists Play app-signing and upload certificates separately',
-      () {
-        // Play re-signs distributed builds. A single fingerprint means either
-        // Play-installed or locally-installed builds fail verification, and the
-        // link silently falls back to the browser.
-        final fingerprints = assetLinks
-            .cast<Map<String, dynamic>>()
-            .expand(
-              (entry) =>
-                  ((entry['target'] as Map)['sha256_cert_fingerprints'] as List)
-                      .cast<String>(),
-            )
-            .toSet();
-
-        expect(fingerprints.length, greaterThanOrEqualTo(2));
-      },
-      skip: assetLinksSkipReason,
-    );
+      expect(fingerprints.length, greaterThanOrEqualTo(2));
+    }, skip: assetLinksSkipReason);
   });
 }

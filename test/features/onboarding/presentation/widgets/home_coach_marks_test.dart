@@ -29,17 +29,9 @@ void main() {
               ListView(
                 children: [
                   const SizedBox(height: 80),
-                  Container(
-                    key: firstKey,
-                    height: 90,
-                    color: Colors.blue,
-                  ),
+                  Container(key: firstKey, height: 90, color: Colors.blue),
                   const SizedBox(height: 40),
-                  Container(
-                    key: secondKey,
-                    height: 90,
-                    color: Colors.green,
-                  ),
+                  Container(key: secondKey, height: 90, color: Colors.green),
                   const SizedBox(height: 400),
                 ],
               ),

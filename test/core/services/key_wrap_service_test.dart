@@ -53,34 +53,37 @@ void main() {
       expect(unwrapped, equals(aesKey));
     });
 
-    test('v2 wrap carries the access token and still returns the AES key', () async {
-      final pair = await service.generateReceiverKeyPair();
-      const accessToken = 'access-token-value';
+    test(
+      'v2 wrap carries the access token and still returns the AES key',
+      () async {
+        final pair = await service.generateReceiverKeyPair();
+        const accessToken = 'access-token-value';
 
-      final wrapped = await service.wrapKey(
-        aesKey: aesKey,
-        accessToken: accessToken,
-        receiverPublicKeyB64: pair.publicKeyB64,
-        sessionId: sessionId,
-      );
+        final wrapped = await service.wrapKey(
+          aesKey: aesKey,
+          accessToken: accessToken,
+          receiverPublicKeyB64: pair.publicKeyB64,
+          sessionId: sessionId,
+        );
 
-      final delivery = await service.unwrapDelivery(
-        wrappedBase64: wrapped,
-        privateKeySeed: pair.privateKeySeed,
-        sessionId: sessionId,
-      );
-
-      expect(delivery.aesKey, aesKey);
-      expect(delivery.accessToken, accessToken);
-      expect(
-        await service.unwrapKey(
+        final delivery = await service.unwrapDelivery(
           wrappedBase64: wrapped,
           privateKeySeed: pair.privateKeySeed,
           sessionId: sessionId,
-        ),
-        aesKey,
-      );
-    });
+        );
+
+        expect(delivery.aesKey, aesKey);
+        expect(delivery.accessToken, accessToken);
+        expect(
+          await service.unwrapKey(
+            wrappedBase64: wrapped,
+            privateKeySeed: pair.privateKeySeed,
+            sessionId: sessionId,
+          ),
+          aesKey,
+        );
+      },
+    );
 
     test(
       'two wraps of the same key produce different blobs (ephemeral)',

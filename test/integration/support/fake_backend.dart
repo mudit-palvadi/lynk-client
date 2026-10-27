@@ -62,7 +62,10 @@ class FakeBackend {
     if (method == 'POST' && path.endsWith('/downloads')) {
       final transferId = path
           .substring('transfers/'.length)
-          .substring(0, path.length - 'transfers/'.length - '/downloads'.length);
+          .substring(
+            0,
+            path.length - 'transfers/'.length - '/downloads'.length,
+          );
       final transfer = _transfers[transferId];
       if (transfer == null) return _notFound();
       if (!_matches(request, 'x-lynk-access-token', transfer.accessToken)) {
@@ -75,7 +78,9 @@ class FakeBackend {
       return jsonResponse(200, _downloadUrls(transfer, request.body));
     }
 
-    if (method == 'POST' && path.contains('/files/') && path.endsWith('/complete')) {
+    if (method == 'POST' &&
+        path.contains('/files/') &&
+        path.endsWith('/complete')) {
       final parts = path.split('/');
       final transfer = _transfers[parts[1]];
       if (transfer == null) return _notFound();
@@ -127,7 +132,12 @@ class FakeBackend {
     if (method == 'POST' && path.endsWith('/attach-transfer')) {
       final sessionId = path
           .substring('receiver-sessions/'.length)
-          .substring(0, path.length - 'receiver-sessions/'.length - '/attach-transfer'.length);
+          .substring(
+            0,
+            path.length -
+                'receiver-sessions/'.length -
+                '/attach-transfer'.length,
+          );
       final session = _sessions[sessionId];
       if (session == null) return _notFound();
       final body = (request.body as Map?)?.cast<String, dynamic>() ?? {};
@@ -209,9 +219,7 @@ class FakeBackend {
     final payload = (body as Map?)?.cast<String, dynamic>() ?? {};
     final requested = (payload['file_ids'] as List?)?.cast<String>();
     final files = transfer.files
-        .where(
-          (file) => requested == null || requested.contains(file.fileId),
-        )
+        .where((file) => requested == null || requested.contains(file.fileId))
         .toList();
 
     return {

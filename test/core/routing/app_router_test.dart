@@ -51,15 +51,20 @@ void main() {
       expect(target.aesKey, '');
     });
 
-    test('splits the access token out of the fragment and leaves the AES key', () {
-      final target = parseSendDeepLink(
-        Uri.parse('https://lynkshare.app/send/abc123#deadbeef&a=access-token'),
-      );
+    test(
+      'splits the access token out of the fragment and leaves the AES key',
+      () {
+        final target = parseSendDeepLink(
+          Uri.parse(
+            'https://lynkshare.app/send/abc123#deadbeef&a=access-token',
+          ),
+        );
 
-      expect(target.aesKey, 'deadbeef');
-      expect(target.accessToken, 'access-token');
-      expect(target.transferId, 'abc123');
-    });
+        expect(target.aesKey, 'deadbeef');
+        expect(target.accessToken, 'access-token');
+        expect(target.transferId, 'abc123');
+      },
+    );
 
     test('AES key in fragment never leaks into query parameters', () {
       final uri = Uri.parse('https://lynkshare.app/send/id4#client-only-key');

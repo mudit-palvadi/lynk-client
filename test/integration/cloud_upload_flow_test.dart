@@ -42,71 +42,83 @@ void main() {
   });
 
   group('cloud upload', () {
-    test('creates the transfer, uploads the ciphertext and completes the file',
-        () async {
-      final backend = FakeBackend();
-      final uploads = _FakeUploadService();
-      final container = await _container(backend: backend, uploads: uploads);
+    test(
+      'creates the transfer, uploads the ciphertext and completes the file',
+      () async {
+        final backend = FakeBackend();
+        final uploads = _FakeUploadService();
+        final container = await _container(backend: backend, uploads: uploads);
 
-      final plaintext = Uint8List.fromList(List<int>.generate(2048, (i) => i % 251));
-      final notifier = container.read(uploadProvider.notifier);
-      notifier.setFilesForTesting([
-        PlatformFile(name: 'note.bin', size: plaintext.length, bytes: plaintext),
-      ]);
+        final plaintext = Uint8List.fromList(
+          List<int>.generate(2048, (i) => i % 251),
+        );
+        final notifier = container.read(uploadProvider.notifier);
+        notifier.setFilesForTesting([
+          PlatformFile(
+            name: 'note.bin',
+            size: plaintext.length,
+            bytes: plaintext,
+          ),
+        ]);
 
-      await notifier.startUpload();
+        await notifier.startUpload();
 
-      final state = container.read(uploadProvider);
-      expect(state.phase, UploadPhase.completed, reason: state.errorMessage);
+        final state = container.read(uploadProvider);
+        expect(state.phase, UploadPhase.completed, reason: state.errorMessage);
 
-      // 1. The transfer is created first.
-      final adapter = backend.adapter!;
-      expect(adapter.requests, hasLength(2));
+        // 1. The transfer is created first.
+        final adapter = backend.adapter!;
+        expect(adapter.requests, hasLength(2));
 
-      final create = adapter.requests[0];
-      expect(create.method, 'POST');
-      expect(create.path, 'transfers');
-      expect(create.uri.toString(),
-          'https://api.test.local/api/v1/transfers');
+        final create = adapter.requests[0];
+        expect(create.method, 'POST');
+        expect(create.path, 'transfers');
+        expect(
+          create.uri.toString(),
+          'https://api.test.local/api/v1/transfers',
+        );
 
-      final body = (create.body as Map).cast<String, dynamic>();
-      final files = (body['files'] as List).cast<Map>();
-      expect(files, hasLength(1));
-      expect(files.single['file_name'], 'note.bin');
-      expect(files.single['content_type'], 'application/octet-stream');
-      // The backend must be told the size of the ciphertext, not the
-      // plaintext: the file is encrypted before it is uploaded.
-      expect(files.single['file_size'],
-          ((plaintext.length ~/ 16) + 1) * 16 + 16);
-      // The client never sends an upload url, the backend issues one.
-      expect(files.single.containsKey('upload_url'), isFalse);
+        final body = (create.body as Map).cast<String, dynamic>();
+        final files = (body['files'] as List).cast<Map>();
+        expect(files, hasLength(1));
+        expect(files.single['file_name'], 'note.bin');
+        expect(files.single['content_type'], 'application/octet-stream');
+        // The backend must be told the size of the ciphertext, not the
+        // plaintext: the file is encrypted before it is uploaded.
+        expect(
+          files.single['file_size'],
+          ((plaintext.length ~/ 16) + 1) * 16 + 16,
+        );
+        // The client never sends an upload url, the backend issues one.
+        expect(files.single.containsKey('upload_url'), isFalse);
 
-      // 2. The encrypted bytes reach the upload service.
-      expect(uploads.objects, hasLength(1));
-      final uploaded = uploads.objects.single;
-      expect(uploaded.name, 'note.bin');
-      expect(uploaded.uploadUrl, startsWith('https://r2.test/objects/'));
-      expect(uploaded.bytes, isNotNull);
+        // 2. The encrypted bytes reach the upload service.
+        expect(uploads.objects, hasLength(1));
+        final uploaded = uploads.objects.single;
+        expect(uploaded.name, 'note.bin');
+        expect(uploaded.uploadUrl, startsWith('https://r2.test/objects/'));
+        expect(uploaded.bytes, isNotNull);
 
-      // 3. The transfer is completed, with the ids the backend issued.
-      final complete = adapter.requests[1];
-      expect(complete.method, 'POST');
-      expect(
-        complete.path,
-        'transfers/${state.transfer!.id}/files/${state.transfer!.files.first.id}/complete',
-      );
-      expect(state.transfer!.senderSecret, isNotEmpty);
-      expect(state.transfer!.accessToken, isNotEmpty);
-      expect(
-        complete.headers.entries
-            .firstWhere(
-              (entry) => entry.key.toLowerCase() == 'x-lynk-sender-secret',
-            )
-            .value,
-        state.transfer!.senderSecret,
-      );
-      expect(complete.rawBody ?? '', isNot(contains(state.aesKey)));
-    });
+        // 3. The transfer is completed, with the ids the backend issued.
+        final complete = adapter.requests[1];
+        expect(complete.method, 'POST');
+        expect(
+          complete.path,
+          'transfers/${state.transfer!.id}/files/${state.transfer!.files.first.id}/complete',
+        );
+        expect(state.transfer!.senderSecret, isNotEmpty);
+        expect(state.transfer!.accessToken, isNotEmpty);
+        expect(
+          complete.headers.entries
+              .firstWhere(
+                (entry) => entry.key.toLowerCase() == 'x-lynk-sender-secret',
+              )
+              .value,
+          state.transfer!.senderSecret,
+        );
+        expect(complete.rawBody ?? '', isNot(contains(state.aesKey)));
+      },
+    );
 
     test('the uploaded bytes decrypt back to the original file', () async {
       final backend = FakeBackend();
@@ -118,7 +130,11 @@ void main() {
       );
       final notifier = container.read(uploadProvider.notifier);
       notifier.setFilesForTesting([
-        PlatformFile(name: 'payload.bin', size: plaintext.length, bytes: plaintext),
+        PlatformFile(
+          name: 'payload.bin',
+          size: plaintext.length,
+          bytes: plaintext,
+        ),
       ]);
 
       await notifier.startUpload();
@@ -161,33 +177,35 @@ void main() {
       }
     });
 
-    test('a rejected transfer surfaces as a failure, not a silent success',
-        () async {
-      final uploads = _FakeUploadService();
-      final failing = Dio();
-      failing.httpClientAdapter = FakeHttpAdapter(
-        (request) => jsonResponse(500, {'detail': 'boom'}),
-      );
+    test(
+      'a rejected transfer surfaces as a failure, not a silent success',
+      () async {
+        final uploads = _FakeUploadService();
+        final failing = Dio();
+        failing.httpClientAdapter = FakeHttpAdapter(
+          (request) => jsonResponse(500, {'detail': 'boom'}),
+        );
 
-      final container = await _container(
-        backend: FakeBackend(),
-        uploads: uploads,
-        dio: failing,
-      );
+        final container = await _container(
+          backend: FakeBackend(),
+          uploads: uploads,
+          dio: failing,
+        );
 
-      final notifier = container.read(uploadProvider.notifier);
-      notifier.setFilesForTesting([
-        PlatformFile(name: 'doomed.bin', size: 10, bytes: Uint8List(10)),
-      ]);
+        final notifier = container.read(uploadProvider.notifier);
+        notifier.setFilesForTesting([
+          PlatformFile(name: 'doomed.bin', size: 10, bytes: Uint8List(10)),
+        ]);
 
-      await notifier.startUpload();
+        await notifier.startUpload();
 
-      final state = container.read(uploadProvider);
-      expect(state.phase, UploadPhase.failed);
-      expect(state.errorMessage, isNotNull);
-      // Nothing was uploaded when the transfer could not be created.
-      expect(uploads.objects, isEmpty);
-    });
+        final state = container.read(uploadProvider);
+        expect(state.phase, UploadPhase.failed);
+        expect(state.errorMessage, isNotNull);
+        // Nothing was uploaded when the transfer could not be created.
+        expect(uploads.objects, isEmpty);
+      },
+    );
   });
 }
 
@@ -226,13 +244,15 @@ class _FakeUploadService extends UploadService {
     required void Function(int sent, int total) onProgress,
     CancelToken? cancelToken,
   }) async {
-    objects.add(_UploadedObject(
-      name: name,
-      size: size,
-      contentType: contentType,
-      uploadUrl: uploadUrl,
-      bytes: bytes ?? Uint8List.fromList(await file!.readAsBytes()),
-    ));
+    objects.add(
+      _UploadedObject(
+        name: name,
+        size: size,
+        contentType: contentType,
+        uploadUrl: uploadUrl,
+        bytes: bytes ?? Uint8List.fromList(await file!.readAsBytes()),
+      ),
+    );
     onProgress(size, size);
   }
 }

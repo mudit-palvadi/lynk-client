@@ -68,11 +68,9 @@ void main() {
       tester,
     ) async {
       await pump(tester);
-      expect(find.text('Send without the setup.'), findsOneWidget);
+      expect(find.text('Send without an account.'), findsOneWidget);
       expect(
-        find.text(
-          'Choose your files. Share a QR or six-digit code. No account needed.',
-        ),
+        find.text('Choose files. Share a QR or code. No account needed.'),
         findsOneWidget,
       );
       expect(find.text('Choose'), findsNothing);
@@ -81,15 +79,15 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Have a QR or code?'), findsOneWidget);
       expect(
-        find.text('Open Receive to scan the sender’s QR or enter their code.'),
+        find.text('Open Receive to scan the sender QR or enter the code.'),
         findsOneWidget,
       );
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
-      expect(find.text('Let the sender come to you.'), findsOneWidget);
+      expect(find.text('Let the sender start.'), findsOneWidget);
       expect(
         find.text(
-          'Show your receiving QR. They scan it and choose files. Keep this screen open to receive.',
+          'Show the receiving QR. The sender scans it and chooses files. Keep this screen open.',
         ),
         findsOneWidget,
       );

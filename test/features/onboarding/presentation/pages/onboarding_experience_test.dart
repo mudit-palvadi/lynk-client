@@ -54,11 +54,9 @@ void main() {
       tester,
     ) async {
       final prefs = await pump(tester);
-      expect(find.text('Send without the setup.'), findsOneWidget);
+      expect(find.text('Send without an account.'), findsOneWidget);
       expect(
-        find.text(
-          'Choose your files. Share a QR or six-digit code. No account needed.',
-        ),
+        find.text('Choose files. Share a QR or code. No account needed.'),
         findsOneWidget,
       );
       expect(find.text('Internet required.'), findsOneWidget);
@@ -77,7 +75,7 @@ void main() {
       expect(find.text('1'), findsNothing);
       expect(find.byIcon(Icons.pin_outlined), findsOneWidget);
       expect(
-        find.text('Open Receive to scan the sender’s QR or enter their code.'),
+        find.text('Open Receive to scan the sender QR or enter the code.'),
         findsOneWidget,
       );
       expect(find.text('Privacy Policy'), findsOneWidget);
@@ -89,10 +87,10 @@ void main() {
       final prefs = await pump(tester);
       await next(tester);
       await next(tester);
-      expect(find.text('Let the sender come to you.'), findsOneWidget);
+      expect(find.text('Let the sender start.'), findsOneWidget);
       expect(
         find.text(
-          'Show your receiving QR. They scan it and choose files. Keep this screen open to receive.',
+          'Show the receiving QR. The sender scans it and chooses files. Keep this screen open.',
         ),
         findsOneWidget,
       );
@@ -172,7 +170,7 @@ void main() {
         addTearDown(tester.view.reset);
         await pump(tester, textScale: 2);
         expect(tester.takeException(), isNull);
-        expect(find.text('Send without the setup.'), findsOneWidget);
+        expect(find.text('Send without an account.'), findsOneWidget);
         for (var page = 0; page < 3; page++) {
           await tester.ensureVisible(find.text('Privacy Policy'));
           expect(tester.takeException(), isNull);

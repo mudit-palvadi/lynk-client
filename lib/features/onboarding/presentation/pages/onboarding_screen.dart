@@ -18,18 +18,17 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   final List<_OnboardingPageData> _pages = const [
     _OnboardingPageData(
-      title: 'Send without the setup.',
-      description:
-          'Choose your files. Share a QR or six-digit code. No account needed.',
+      title: 'Send without an account.',
+      description: 'Choose files. Share a QR or code. No account needed.',
     ),
     _OnboardingPageData(
       title: 'Have a QR or code?',
-      description: 'Open Receive to scan the sender’s QR or enter their code.',
+      description: 'Open Receive to scan the sender QR or enter the code.',
     ),
     _OnboardingPageData(
-      title: 'Let the sender come to you.',
+      title: 'Let the sender start.',
       description:
-          'Show your receiving QR. They scan it and choose files. Keep this screen open to receive.',
+          'Show the receiving QR. The sender scans it and chooses files. Keep this screen open.',
     ),
   ];
 
@@ -247,7 +246,7 @@ class _TransferIllustration extends StatelessWidget {
             icon: page == 0
                 ? Icons.insert_drive_file_outlined
                 : Icons.qr_code_2,
-            label: 'You',
+            label: page == 0 ? 'Sender' : 'Receiver',
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),

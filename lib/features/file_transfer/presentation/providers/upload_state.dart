@@ -10,6 +10,41 @@ enum TransferMode { p2p, cloud }
 /// panel instead of a fake upload percentage.
 enum P2PSendStage { none, preparing, waitingForReceiver, transferring }
 
+/// Status line for a direct transfer. Cloud uploads do not use these words.
+///
+/// Progress above zero is the moment bytes are moving, so "Transferring"
+/// stays off during the connection wait.
+String? directTransferStatus(UploadState state) {
+  if (state.transferMode != TransferMode.p2p) return null;
+  switch (state.phase) {
+    case UploadPhase.completed:
+      return 'Transfer complete';
+    case UploadPhase.cancelled:
+      return 'Transfer cancelled';
+    case UploadPhase.failed:
+      return state.errorMessage == 'Connection lost'
+          ? 'Connection lost'
+          : 'Transfer failed';
+    case UploadPhase.uploading:
+      switch (state.p2pStage) {
+        case P2PSendStage.preparing:
+        case P2PSendStage.waitingForReceiver:
+          return 'Connecting to receiver device...';
+        case P2PSendStage.transferring:
+          return state.overallProgress > 0
+              ? 'Transferring files...'
+              : 'Connected to receiver device';
+        case P2PSendStage.none:
+          return state.overallProgress > 0
+              ? 'Transferring files...'
+              : 'Connecting to receiver device...';
+      }
+    case UploadPhase.idle:
+    case UploadPhase.selecting:
+      return null;
+  }
+}
+
 class UploadState extends Equatable {
   /// How many files one transfer may carry. The byte budget is checked first,
   /// so a selection that fits the size tier may still be refused by count.

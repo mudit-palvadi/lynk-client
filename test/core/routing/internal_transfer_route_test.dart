@@ -208,7 +208,6 @@ void main() {
     for (final link in [
       'https://lynkshare.app/send/transfer-1#private-key&a=private-token',
       'lynk://send/transfer-1#private-key&a=private-token',
-      'https://lynkshare.app/send/transfer-1?aesKey=private-key&a=private-token',
     ]) {
       testWidgets('external link credentials remain compatible: $link', (
         tester,
@@ -222,6 +221,23 @@ void main() {
         expect(screen.accessToken, 'private-token');
       });
     }
+
+    testWidgets('a send link does not read credentials from the query', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        initialRoute:
+            'https://lynkshare.app/send/transfer-1?aesKey=private-key&a=private-token',
+        hasOnboarded: true,
+      );
+      final screen = tester.widget<DownloadProgressScreen>(
+        find.byType(DownloadProgressScreen),
+      );
+      expect(screen.transferId, 'transfer-1');
+      expect(screen.aesKey, '');
+      expect(screen.accessToken, '');
+    });
 
     test('all internal navigation emitters keep credentials out of URLs', () {
       const emitters = [

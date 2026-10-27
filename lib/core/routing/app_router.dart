@@ -37,19 +37,16 @@ class DeepLinkTarget {
 
 /// Extracts [DeepLinkTarget] from a deep-link URI.
 ///
-/// Fragment wins over query parameter when both are present; missing values
+/// The key and the access token are read from the fragment only. A query
+/// value is ignored, because the query is sent to the host. Missing values
 /// degrade to empty strings instead of throwing. Any `?query` riding inside
 /// the fragment (e.g. appended tracking params) is stripped from the key.
 DeepLinkTarget parseSendDeepLink(Uri uri) {
   final transferId = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : '';
   final rawFragment = uri.fragment.split('?').first;
   final split = splitFragmentCapability(rawFragment);
-  final aesKey = split.aesKey.isNotEmpty
-      ? split.aesKey
-      : (uri.queryParameters['aesKey'] ?? '');
-  final accessToken = split.accessToken.isNotEmpty
-      ? split.accessToken
-      : (uri.queryParameters['a'] ?? '');
+  final aesKey = split.aesKey;
+  final accessToken = split.accessToken;
   return DeepLinkTarget(
     transferId: transferId,
     aesKey: aesKey,

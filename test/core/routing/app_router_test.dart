@@ -20,22 +20,26 @@ void main() {
       expect(target.aesKey, 'my-secret-key');
     });
 
-    test('fragment takes priority over an aesKey query parameter', () {
+    test('a query key is ignored when the fragment already has one', () {
       final target = parseSendDeepLink(
         Uri.parse('https://lynkshare.app/send/id1#frag-key?aesKey=query-key'),
       );
 
       expect(target.transferId, 'id1');
       expect(target.aesKey, 'frag-key');
+      expect(target.accessToken, '');
     });
 
-    test('falls back to aesKey query parameter when fragment is absent', () {
+    test('a key in the query string is ignored', () {
       final target = parseSendDeepLink(
-        Uri.parse('https://lynkshare.app/send/id2?aesKey=query-key'),
+        Uri.parse(
+          'https://lynkshare.app/send/id2?aesKey=query-key&a=query-token',
+        ),
       );
 
       expect(target.transferId, 'id2');
-      expect(target.aesKey, 'query-key');
+      expect(target.aesKey, '');
+      expect(target.accessToken, '');
     });
 
     test('missing fragment and query yields empty aesKey, never throws', () {

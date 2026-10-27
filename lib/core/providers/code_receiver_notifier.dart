@@ -205,8 +205,9 @@ class CodeReceiverNotifier extends _$CodeReceiverNotifier {
     if (error is DioException) {
       final status = error.response?.statusCode;
       if (status == 404) return 'That code is not valid or has expired.';
-      if (status == 409)
+      if (status == 409) {
         return 'That code is already paired with another device.';
+      }
     }
     return 'Could not pair with that code. Check it and try again.';
   }

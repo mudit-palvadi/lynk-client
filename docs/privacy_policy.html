@@ -45,7 +45,7 @@
 <li><strong>Client-side encryption:</strong> Before a file leaves your device, it is encrypted using AES-256 with a randomly generated key and a unique initialization vector. Encryption happens entirely on your device.</li>
 <li><strong>Zero-knowledge design:</strong> The encryption key exists only in the QR code link you share or in the temporary memory of the sending and receiving devices. Our servers never receive it.</li>
 <li><strong>Ciphertext-only storage:</strong> When cloud relay is used, files are stored on Cloudflare R2 object storage in encrypted form only. Neither we nor Cloudflare can read them.</li>
-<li><strong>Automatic expiry:</strong> Encrypted transfers are automatically removed when their session expires, typically within 10 to 30 minutes of creation, depending on the session type.</li>
+<li><strong>Automatic expiry:</strong> A transfer can be downloaded for 10 minutes, or 30 minutes if the sender extends it. The encrypted objects in Cloudflare R2 are deleted by the bucket every 24 hours, and a sender cancel deletes that transfer's objects immediately.</li>
 </ul>
 
 <h2>4. Transfer Metadata (Processed on Our Servers)</h2>

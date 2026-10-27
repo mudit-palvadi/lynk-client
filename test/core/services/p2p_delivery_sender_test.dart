@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:crypto/crypto.dart';
 import 'package:client/core/services/p2p_delivery_sender.dart';
 import 'package:client/core/services/transfer_framer.dart';
 import 'package:client/features/file_transfer/domain/usecases/encrypt_file_use_case.dart';
@@ -76,6 +77,21 @@ void main() {
       sender.accept(
         TransferFramer.parseText(
           TransferFramer.encodeReceipt(1, packed.length).text!,
+        )!,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 15));
+      expect(
+        finished,
+        isFalse,
+        reason: 'A receipt without the ciphertext digest is not delivery.',
+      );
+      sender.accept(
+        TransferFramer.parseText(
+          TransferFramer.encodeReceipt(
+            1,
+            packed.length,
+            sha256: sha256.convert(packed).toString(),
+          ).text!,
         )!,
       );
       await sending;

@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
+
 import 'chunk_sender.dart';
 import 'name_sealer.dart';
 import 'transfer_framer.dart';
@@ -30,6 +32,7 @@ class P2PDeliverySender {
   final _hello = Completer<ParsedFrame>();
   int? _expectedFiles;
   int? _expectedBytes;
+  String? _expectedDigest;
   bool _confirmed = false;
   bool _lost = false;
   bool _sending = false;
@@ -39,7 +42,9 @@ class P2PDeliverySender {
       _hello.complete(frame);
     } else if (frame.kind == FrameKind.receipt &&
         frame.files == _expectedFiles &&
-        frame.bytes == _expectedBytes) {
+        frame.bytes == _expectedBytes &&
+        frame.digest != null &&
+        frame.digest == _expectedDigest) {
       _confirmed = true;
     }
   }
@@ -71,6 +76,8 @@ class P2PDeliverySender {
       throw StateError('peer cannot confirm direct delivery');
     }
     var cumulative = 0;
+    final digestOut = _DigestSlot();
+    final digestIn = sha256.startChunkedConversion(digestOut);
     for (var index = 0; index < files.length; index++) {
       check();
       final file = files[index];
@@ -93,7 +100,9 @@ class P2PDeliverySender {
         onProgress: (sent) => onProgress?.call(cumulative + sent),
       );
       await for (final bytes in file.openRead()) {
-        await chunks.sendAll(Uint8List.fromList(bytes));
+        final chunk = Uint8List.fromList(bytes);
+        digestIn.add(chunk);
+        await chunks.sendAll(chunk);
       }
       cumulative += size;
       check();
@@ -103,8 +112,10 @@ class P2PDeliverySender {
         ).text!,
       );
     }
+    digestIn.close();
     _expectedFiles = files.length;
     _expectedBytes = cumulative;
+    _expectedDigest = digestOut.value.toString();
     await sendText(TransferFramer.encodeDone().text!);
     final elapsed = Stopwatch()..start();
     while (!_confirmed) {
@@ -117,4 +128,14 @@ class P2PDeliverySender {
       await Future<void>.delayed(const Duration(milliseconds: 10));
     }
   }
+}
+
+class _DigestSlot implements Sink<Digest> {
+  Digest? value;
+
+  @override
+  void add(Digest data) => value = data;
+
+  @override
+  void close() {}
 }

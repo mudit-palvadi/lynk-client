@@ -11,5 +11,7 @@
   {"wire":"{\"t\":\"ack\",\"files\":1,\"bytes\":3.5}","kind":null},
   {"wire":"{\"t\":\"ack\",\"files\":true,\"bytes\":32}","kind":null},
   {"wire":"{\"t\":\"ack\",\"files\":1,\"bytes\":\"32\"}","kind":null},
-  {"wire":"{\"t\":\"ack\",\"files\":1,\"bytes\":9007199254740992}","kind":null}
+  {"wire":"{\"t\":\"ack\",\"files\":1,\"bytes\":9007199254740992}","kind":null},
+  {"wire":"{\"t\":\"ack\",\"files\":2,\"bytes\":64,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}","kind":"receipt","files":2,"bytes":64,"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+  {"wire":"{\"t\":\"ack\",\"files\":1,\"bytes\":32,\"sha256\":\"nope\"}","kind":null}
 ]

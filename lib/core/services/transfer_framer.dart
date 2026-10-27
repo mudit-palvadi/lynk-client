@@ -79,10 +79,18 @@ class TransferFramer {
     jsonEncode({'t': _typeHello, 'v': version, if (receipts) 'receipts': true}),
   );
 
-  static TransferFrame encodeReceipt(int files, int bytes) {
+  static TransferFrame encodeReceipt(int files, int bytes, {String? sha256}) {
     if (!_validReceipt(files, bytes)) throw ArgumentError('invalid receipt');
+    if (sha256 != null && !_validDigest(sha256)) {
+      throw ArgumentError('invalid receipt');
+    }
     return TransferFrame.text(
-      jsonEncode({'t': 'ack', 'files': files, 'bytes': bytes}),
+      jsonEncode({
+        't': 'ack',
+        'files': files,
+        'bytes': bytes,
+        'sha256': ?sha256,
+      }),
     );
   }
 
@@ -97,6 +105,15 @@ class TransferFramer {
       bytes == bytes.truncateToDouble() &&
       bytes > 0 &&
       bytes <= 9007199254740991;
+
+  static bool _validDigest(String value) {
+    if (value.length != 64) return false;
+    for (final unit in value.codeUnits) {
+      final hex = (unit >= 48 && unit <= 57) || (unit >= 97 && unit <= 102);
+      if (!hex) return false;
+    }
+    return true;
+  }
 
   /// Lenient parse of an inbound text frame; `null` for anything that is not
   /// a valid protocol frame (never throws).
@@ -148,11 +165,16 @@ class TransferFramer {
         );
       case 'ack':
         if (!_validReceipt(json['files'], json['bytes'])) return null;
+        final digest = json['sha256'];
+        if (digest != null && (digest is! String || !_validDigest(digest))) {
+          return null;
+        }
         return ParsedFrame(
           FrameKind.receipt,
           null,
           files: (json['files'] as num).toInt(),
           bytes: (json['bytes'] as num).toInt(),
+          digest: digest as String?,
         );
       default:
         return null;
@@ -168,6 +190,9 @@ class ParsedFrame {
   final int? files;
   final int? bytes;
 
+  /// Lowercase sha256 of the ciphertext, when the peer sent one.
+  final String? digest;
+
   const ParsedFrame(
     this.kind,
     this.meta, {
@@ -175,5 +200,6 @@ class ParsedFrame {
     this.version = 1,
     this.files,
     this.bytes,
+    this.digest,
   });
 }

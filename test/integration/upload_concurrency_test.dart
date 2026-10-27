@@ -28,6 +28,83 @@ void main() {
   });
 
   group('upload attempt isolation', () {
+    for (final failure in ['connection', 'stream', 'bytes-only']) {
+      test(
+        '$failure recovery starts Cloud with fresh non-failed state',
+        () async {
+          final sender = _FailedSender(failOpening: failure == 'connection');
+          final run = await _Run.create(
+            factory:
+                ({
+                  required signalingUrl,
+                  required sessionId,
+                  accessToken,
+                  aesKey,
+                  required onFallbackToCloud,
+                }) async => sender,
+          );
+          final directory = await Directory.systemTemp.createTemp(
+            'lynk-recovery-',
+          );
+          addTearDown(() => directory.delete(recursive: true));
+          final source = await File(
+            '${directory.path}/sample.bin',
+          ).writeAsBytes([1, 2, 3]);
+          run.notifier.setFilesForTesting([
+            PlatformFile(
+              name: 'sample.bin',
+              size: 3,
+              path: failure == 'bytes-only' ? null : source.path,
+              bytes: failure == 'bytes-only'
+                  ? Uint8List.fromList([1, 2, 3])
+                  : null,
+            ),
+          ]);
+          run.notifier.setTransferMode(TransferMode.p2p);
+          run.uploads.holdFirst = true;
+          final states = <UploadState>[];
+          final subscription = run.container.listen(
+            uploadProvider,
+            (_, next) => states.add(next),
+          );
+          final operation = run.notifier.startUpload();
+          await run.createEntered.future;
+          run.releaseCreate.complete();
+          await run.uploads.entered.future;
+          try {
+            final uploading = run.container.read(uploadProvider);
+            expect(uploading.transferMode, TransferMode.cloud);
+            expect(uploading.phase, UploadPhase.uploading);
+            expect(uploading.p2pStage, P2PSendStage.none);
+            expect(uploading.overallProgress, 0);
+            expect(uploading.currentFileProgress, 0);
+            expect(uploading.errorMessage, isNull);
+            expect(
+              states.where((state) => state.phase == UploadPhase.failed),
+              isEmpty,
+            );
+            expect(directTransferStatus(uploading), isNull);
+          } finally {
+            run.uploads.release.complete();
+            await operation;
+            subscription.close();
+          }
+          final completed = run.container.read(uploadProvider);
+          expect(completed.phase, UploadPhase.completed);
+          expect(completed.transferMode, TransferMode.cloud);
+          expect(completed.errorMessage, isNull);
+          expect(run.completeCalls, 1);
+          expect(
+            DecryptFileUseCase().executeBytes(
+              encryptedBytes: run.uploads.payloads.single,
+              aesKey32Bytes: completed.aesKey!,
+            ),
+            [1, 2, 3],
+          );
+        },
+      );
+    }
+
     test(
       'a repeated start while create is pending creates only one transfer',
       () async {
@@ -326,5 +403,26 @@ class _HeldSender implements P2PSenderSession {
     progress = onProgress;
     entered.complete();
     await release.future;
+  }
+}
+
+class _FailedSender extends _HeldSender {
+  _FailedSender({required this.failOpening});
+  final bool failOpening;
+
+  @override
+  Future<void> waitUntilOpen({required Duration timeout}) async {
+    if (failOpening) throw TimeoutException('connection interrupted');
+  }
+
+  @override
+  Future<void> sendFiles(
+    List<File> files, {
+    List<String>? names,
+    void Function(int)? onProgress,
+    bool Function()? shouldAbort,
+  }) async {
+    onProgress?.call(16);
+    throw const SocketException('channel interrupted');
   }
 }

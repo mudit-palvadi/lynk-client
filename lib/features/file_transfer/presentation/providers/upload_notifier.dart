@@ -308,9 +308,25 @@ class UploadNotifier extends _$UploadNotifier {
           sessionId: transfer.id,
           aesKey: aesKey,
           accessToken: transfer.accessToken,
+          recoverWithCloud: true,
         );
         if (!_isCurrent(attempt)) return;
         if (p2pCompleted) return;
+      }
+
+      if (attempt.mode == TransferMode.p2p) {
+        // The direct attempt is over. R2 has its own mode and progress, not
+        // a failed direct state that can trigger failure UI during recovery.
+        state = UploadState(
+          selectedFiles: selectedFiles,
+          transfer: updatedTransfer,
+          aesKey: aesKey,
+          phase: UploadPhase.uploading,
+          transferMode: TransferMode.cloud,
+          isSizeLimitUnlocked: state.isSizeLimitUnlocked,
+          notice: state.notice,
+          noticeSeq: state.noticeSeq,
+        );
       }
 
       int cumulativeBytes = 0;
@@ -527,6 +543,7 @@ class UploadNotifier extends _$UploadNotifier {
     required String sessionId,
     required String aesKey,
     String? accessToken,
+    bool recoverWithCloud = false,
   }) async {
     if (kIsWeb) return false;
 
@@ -616,7 +633,7 @@ class UploadNotifier extends _$UploadNotifier {
       if (!_isCurrent(attempt)) return false;
       debugPrint('runP2PSession failed: $e');
       _setStage(P2PSendStage.none);
-      if (enteredTransfer) {
+      if (enteredTransfer && !recoverWithCloud) {
         state = state.copyWith(
           phase: UploadPhase.failed,
           errorMessage: e is SocketException

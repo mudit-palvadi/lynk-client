@@ -1,3 +1,5 @@
+import 'package:client/core/providers/ad_consent_provider.dart';
+import 'support/fake_ad_consent.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:client/main.dart';
@@ -26,6 +28,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          adConsentServiceProvider.overrideWithValue(FakeAdConsent()),
           if (uploadNotifier != null)
             uploadProvider.overrideWith(uploadNotifier),
           onboardingProvider.overrideWith(() => MockOnboardingNotifier()),

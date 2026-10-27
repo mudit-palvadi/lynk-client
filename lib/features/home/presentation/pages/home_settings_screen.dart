@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/services/config_service.dart';
+import '../../../../core/providers/ad_consent_provider.dart';
 import '../providers/home_navigation_provider.dart';
 import '../widgets/download_folder_tile.dart';
 
@@ -12,20 +13,30 @@ class HomeSettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final version = ref.watch(homeVersionProvider).asData?.value ?? '';
+    final consent = ref.watch(adConsentProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
-            Text(
-              'Saved files',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            Text('Saved files', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
             const Text('Choose where received files are saved.'),
             const SizedBox(height: 20),
             const DownloadFolderTile(),
+            if (consent.privacyOptionsRequired) ...[
+              const SizedBox(height: 24),
+              OutlinedButton.icon(
+                onPressed: consent.busy
+                    ? null
+                    : () => ref
+                          .read(adConsentProvider.notifier)
+                          .showPrivacyOptions(),
+                icon: const Icon(Icons.privacy_tip_outlined),
+                label: const Text('Ad privacy options'),
+              ),
+            ],
             const SizedBox(height: 32),
             Center(
               child: GestureDetector(

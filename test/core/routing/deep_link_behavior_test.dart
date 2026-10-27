@@ -1,6 +1,8 @@
 import 'package:client/core/errors/failures.dart';
 import 'package:client/core/errors/result.dart';
 import 'package:client/core/providers/transfer_providers.dart';
+import 'package:client/core/providers/ad_consent_provider.dart';
+import '../../support/fake_ad_consent.dart';
 import 'package:client/core/routing/pending_deep_link.dart';
 import 'package:client/features/file_transfer/domain/entities/file_item.dart';
 import 'package:client/features/file_transfer/domain/entities/transfer.dart';
@@ -235,6 +237,7 @@ Future<void> pumpApp(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        adConsentServiceProvider.overrideWithValue(FakeAdConsent()),
         sharedPreferencesProvider.overrideWithValue(prefs),
         onboardingProvider.overrideWith(
           () => _FixedOnboardingNotifier(hasOnboarded),

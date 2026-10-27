@@ -1,3 +1,5 @@
+import 'package:client/core/providers/ad_consent_provider.dart';
+import '../../../../support/fake_ad_consent.dart';
 import 'package:client/core/providers/download_notifier.dart';
 import 'package:client/core/providers/download_state.dart';
 import 'package:client/core/providers/receiver_notifier.dart';
@@ -40,6 +42,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          adConsentServiceProvider.overrideWithValue(FakeAdConsent()),
           sharedPreferencesProvider.overrideWithValue(prefs),
           onboardingProvider.overrideWith(_Onboarded.new),
           uploadProvider.overrideWith(_Upload.new),

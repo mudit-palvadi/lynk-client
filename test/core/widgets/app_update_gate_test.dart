@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'package:client/core/providers/ad_consent_provider.dart';
+import 'package:client/core/services/ad_consent_service.dart';
+import '../../support/fake_ad_consent.dart';
 
 import 'package:client/features/home/presentation/pages/home_screen.dart';
 import 'package:client/features/onboarding/presentation/providers/onboarding_provider.dart';
@@ -22,6 +25,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+class _CountingConsent extends FakeAdConsent {
+  int refreshes = 0;
+
+  @override
+  Future<AdConsentResult> refresh() {
+    refreshes++;
+    return super.refresh();
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const channel = MethodChannel('de.ffuf.in_app_update/methods');
@@ -42,6 +55,7 @@ void main() {
     WidgetTester tester, {
     bool enabled = true,
     bool onboarded = true,
+    FakeAdConsent? consent,
   }) async {
     SharedPreferences.setMockInitialValues({
       'has_onboarded': onboarded,
@@ -52,6 +66,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          adConsentServiceProvider.overrideWithValue(
+            consent ?? FakeAdConsent(),
+          ),
           sharedPreferencesProvider.overrideWithValue(prefs),
           appUpdateEnabledProvider.overrideWithValue(enabled),
           downloadProvider.overrideWith(_OfflineDownload.new),
@@ -91,14 +108,17 @@ void main() {
   group('required Google Play update gate', () {
     testWidgets('checks Play before mounting the transfer app', (tester) async {
       final check = Completer<Object?>();
+      final consent = _CountingConsent();
       respond = (_) => check.future;
-      await launch(tester);
+      await launch(tester, consent: consent);
 
       expect(calls, ['checkForUpdate']);
       expect(find.byType(HomeScreen), findsNothing);
+      expect(consent.refreshes, 0);
       check.complete(updateInfo(1));
       await tester.pumpAndSettle();
       expect(find.byType(HomeScreen), findsOneWidget);
+      expect(consent.refreshes, 1);
     });
 
     testWidgets('cancelling an immediate update never unlocks the app', (

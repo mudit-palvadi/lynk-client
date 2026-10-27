@@ -38,6 +38,8 @@ typedef P2PReceiverSessionFactory =
       String? accessToken,
       String? aesKey,
       void Function()? onFallbackToCloud,
+      int maxFiles,
+      int maxBytes,
     });
 
 @riverpod
@@ -525,6 +527,10 @@ class DownloadNotifier extends _$DownloadNotifier {
       saveDir = await _stagingDirectory();
       if (!isCurrent()) return false;
       readinessTimer = Timer(readyPollInterval, pollCloudReadiness);
+      final expectedFiles = transfer.totalFiles > 0 ? transfer.totalFiles : 1;
+      final expectedBytes = transfer.totalSize > 0
+          ? transfer.totalSize
+          : maxP2PReceiveBytes;
       final connected = Completer<P2PFileSession?>();
       // A slow TURN lookup/peer initialization must not hold up cloud handover.
       // Dispose a connection that finishes after another outcome has won.
@@ -536,6 +542,8 @@ class DownloadNotifier extends _$DownloadNotifier {
               sessionId: transfer.id,
               accessToken: accessToken,
               aesKey: key,
+              maxFiles: expectedFiles,
+              maxBytes: expectedBytes,
             )
             .then((created) async {
               if (!isCurrent() || outcome.isCompleted) {
@@ -567,9 +575,6 @@ class DownloadNotifier extends _$DownloadNotifier {
       int deliveredBytes = 0;
       var confirming = false;
       final receivedNames = <String>[];
-      final expectedFiles = state.transfer!.totalFiles > 0
-          ? state.transfer!.totalFiles
-          : 1;
       var transportDone = false;
       void completeWhenDelivered() {
         // DataChannel "done" can arrive while the last decryption or save

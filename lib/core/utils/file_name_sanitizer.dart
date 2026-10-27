@@ -42,7 +42,9 @@ class FileNameSanitizer {
       name = name.substring(lastSeparator + 1);
     }
 
-    name = name.replaceAll(_controlCharacters, '');
+    // A colon is an alternate data stream on Windows, so it is not part of
+    // the name that gets written.
+    name = name.replaceAll(_controlCharacters, '').replaceAll(':', '');
 
     if (name.trim().isEmpty || _onlyDots.hasMatch(name)) {
       return 'file';

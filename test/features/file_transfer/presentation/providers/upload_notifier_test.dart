@@ -115,15 +115,20 @@ void main() {
       expect(state.phase, UploadPhase.idle);
     });
 
-    test('cancelUpload updates phase to cancelled', () {
+    test('cancelUpload returns to the file selection', () {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
       final notifier = container.read(uploadProvider.notifier);
+      notifier.setFilesForTesting([PlatformFile(name: 'a.txt', size: 100)]);
       notifier.cancelUpload();
 
       final state = container.read(uploadProvider);
-      expect(state.phase, UploadPhase.cancelled);
+      expect(state.phase, UploadPhase.selecting);
+      expect(state.selectedFiles.single.name, 'a.txt');
+      expect(state.overallProgress, 0);
+      expect(state.transfer, isNull);
+      expect(state.errorMessage, isNull);
     });
   });
 

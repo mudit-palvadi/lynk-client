@@ -617,7 +617,12 @@ class UploadNotifier extends _$UploadNotifier {
       debugPrint('runP2PSession failed: $e');
       _setStage(P2PSendStage.none);
       if (enteredTransfer) {
-        state = state.copyWith(phase: UploadPhase.failed);
+        state = state.copyWith(
+          phase: UploadPhase.failed,
+          errorMessage: e is SocketException
+              ? 'Connection lost'
+              : 'Transfer failed',
+        );
       }
       return false;
     } finally {
@@ -630,16 +635,22 @@ class UploadNotifier extends _$UploadNotifier {
   }
 
   void cancelUpload() {
+    final files = state.selectedFiles;
+    final unlocked = state.isSizeLimitUnlocked;
+    final transfer = state.transfer;
     _invalidateAttempt();
-    if (state.transfer != null) {
+    if (transfer != null) {
       ref
           .read(transferRepositoryProvider)
-          .cancelTransfer(
-            state.transfer!.id,
-            senderSecret: state.transfer!.senderSecret,
-          );
+          .cancelTransfer(transfer.id, senderSecret: transfer.senderSecret);
     }
-    state = const UploadState(phase: UploadPhase.cancelled);
+    // Cancellation is a normal stop. The selection stays so the send page
+    // has a real screen to show, and a late upload error cannot replace it.
+    state = UploadState(
+      selectedFiles: files,
+      isSizeLimitUnlocked: unlocked,
+      phase: files.isEmpty ? UploadPhase.idle : UploadPhase.selecting,
+    );
   }
 }
 

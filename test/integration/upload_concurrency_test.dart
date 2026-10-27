@@ -53,7 +53,8 @@ void main() {
       await first;
 
       expect(run.uploads.payloads, isEmpty);
-      expect(run.container.read(uploadProvider).phase, UploadPhase.cancelled);
+      expect(run.container.read(uploadProvider).phase, UploadPhase.selecting);
+      expect(run.container.read(uploadProvider).errorMessage, isNull);
     });
 
     test(
@@ -208,7 +209,10 @@ void main() {
         expect(await operation, isFalse);
         expect(session.disposed, isTrue);
         expect(session.entered.isCompleted, isFalse);
-        expect(run.container.read(uploadProvider).phase, UploadPhase.cancelled);
+        expect(
+          run.container.read(uploadProvider).phase,
+          isNot(UploadPhase.failed),
+        );
       },
     );
   });

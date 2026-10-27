@@ -88,6 +88,37 @@ void main() {
       );
     });
 
+    test('a newer preview is not replaced by an older one', () async {
+      final backend = FakeBackend();
+      final container = await _container(backend);
+      final olderTransfer = await _seedTransfer(container, backend, 'older.bin');
+      final newerTransfer = await _seedTransfer(container, backend, 'newer.bin');
+      final gate = Completer<void>();
+      backend.holdMetadata = gate.future;
+      final notifier = container.read(downloadProvider.notifier);
+
+      final older = notifier.loadTransferPreview(
+        olderTransfer.id,
+        accessToken: olderTransfer.accessToken ?? '',
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      await notifier.loadTransferPreview(
+        newerTransfer.id,
+        accessToken: newerTransfer.accessToken ?? '',
+      );
+      await _waitUntil(
+        () => container.read(downloadProvider).transfer?.id == newerTransfer.id,
+        description: 'the newer preview to win',
+      );
+      gate.complete();
+      await older;
+
+      final state = container.read(downloadProvider);
+      expect(state.transfer!.id, newerTransfer.id);
+      expect(state.phase, isNot(DownloadPhase.failed));
+      expect(state.errorMessage, isNull);
+    });
+
     test('a second link stops the download already running', () async {
       final backend = FakeBackend();
       final holding = _HoldingDownload();

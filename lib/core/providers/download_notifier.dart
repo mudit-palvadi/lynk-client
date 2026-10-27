@@ -73,15 +73,18 @@ class DownloadNotifier extends _$DownloadNotifier {
     String accessToken = '',
   }) async {
     _invalidateReception();
+    final generation = _receiveGeneration;
     state = DownloadState(phase: DownloadPhase.idle, accessToken: accessToken);
     final repo = ref.read(transferRepositoryProvider);
     final result = await repo.getTransferMetadata(
       transferId,
       accessToken: accessToken,
     );
+    if (generation != _receiveGeneration) return;
 
     result.fold(
       (transfer) async {
+        if (generation != _receiveGeneration) return;
         state = state.copyWith(
           transfer: transfer,
           phase: DownloadPhase.preview,
@@ -98,11 +101,13 @@ class DownloadNotifier extends _$DownloadNotifier {
           transferId: transfer.id,
           accessToken: state.accessToken,
         );
+        if (generation != _receiveGeneration) return;
         urlResult.fold((downloadFiles) {
           state = state.copyWith(downloadFiles: downloadFiles);
         }, (_) {});
       },
       (failure) {
+        if (generation != _receiveGeneration) return;
         state = state.copyWith(
           phase: DownloadPhase.failed,
           errorMessage: failure.message,
@@ -134,17 +139,24 @@ class DownloadNotifier extends _$DownloadNotifier {
     TransferRepository repo,
     String transferId,
     String accessToken,
+    int generation,
   ) async {
     final result = await repo.getDownloadUrls(
       transferId: transferId,
       accessToken: accessToken,
     );
+    if (generation != _receiveGeneration) return null;
 
     if (result.isSuccess) return result.value!;
 
     final failure = result.failure;
     if (failure is ServerFailure && failure.statusCode == 409) {
-      return _waitForSenderToFinishUploading(repo, transferId, accessToken);
+      return _waitForSenderToFinishUploading(
+        repo,
+        transferId,
+        accessToken,
+        generation,
+      );
     }
 
     state = state.copyWith(
@@ -164,17 +176,21 @@ class DownloadNotifier extends _$DownloadNotifier {
     TransferRepository repo,
     String transferId,
     String accessToken,
+    int generation,
   ) async {
+    if (generation != _receiveGeneration) return null;
     state = state.copyWith(phase: DownloadPhase.waiting);
 
     final deadline = DateTime.now().add(readyTimeout);
     while (DateTime.now().isBefore(deadline)) {
       await Future<void>.delayed(readyPollInterval);
+      if (generation != _receiveGeneration) return null;
 
       final result = await repo.getTransferMetadata(
         transferId,
         accessToken: accessToken,
       );
+      if (generation != _receiveGeneration) return null;
       if (result.isFailure) {
         state = state.copyWith(
           phase: DownloadPhase.failed,
@@ -199,6 +215,7 @@ class DownloadNotifier extends _$DownloadNotifier {
         transferId: transfer.id,
         accessToken: accessToken,
       );
+      if (generation != _receiveGeneration) return null;
       if (urls.isFailure) {
         state = state.copyWith(
           phase: DownloadPhase.failed,
@@ -209,6 +226,7 @@ class DownloadNotifier extends _$DownloadNotifier {
       return urls.value!;
     }
 
+    if (generation != _receiveGeneration) return null;
     state = state.copyWith(
       phase: DownloadPhase.failed,
       errorMessage:
@@ -253,6 +271,7 @@ class DownloadNotifier extends _$DownloadNotifier {
         repo,
         state.transfer!.id,
         state.accessToken ?? '',
+        generation,
       );
       if (files == null || stopped()) return;
       downloadFiles = files;

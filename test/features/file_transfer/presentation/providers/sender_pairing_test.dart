@@ -132,6 +132,38 @@ void main() {
       expect(pairing.receiverPublicKey, 'pk-1');
     });
 
+    test('retiring during the wrap does not attach the key', () async {
+      late SenderPairing pairing;
+      pairing = SenderPairing(
+        dataSource: data,
+        transferId: 'transfer-1',
+        aesKey: 'key',
+        accessToken: 'token-1',
+        mode: 'p2p',
+        wrapKey:
+            ({
+              required aesKey,
+              required receiverPublicKeyB64,
+              required sessionId,
+              accessToken,
+            }) async {
+              pairing.retire();
+              return 'wrapped::$sessionId';
+            },
+      );
+      await pairing.start();
+      data.nextSession = const SenderSessionModel(
+        sessionId: 'session-1',
+        status: 'joined',
+        expiresIn: 500,
+        receiverPk: 'pk-1',
+      );
+
+      expect(await pairing.poll(), isFalse);
+      expect(pairing.isAttached, isFalse);
+      expect(data.attachedKey, isNull);
+    });
+
     test('an attach that fails is reported', () async {
       final pairing = build();
       await pairing.start();

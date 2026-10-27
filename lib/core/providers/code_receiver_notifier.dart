@@ -180,7 +180,7 @@ class CodeReceiverNotifier extends _$CodeReceiverNotifier {
         viaPairing: !key.isP2p,
       );
     } catch (e) {
-      if (!ref.mounted) return;
+      if (!ref.mounted || _activeSessionId != sessionId) return;
       _fail(_messageFor(e));
     }
   }

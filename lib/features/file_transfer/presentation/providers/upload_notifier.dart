@@ -146,7 +146,8 @@ class UploadNotifier extends _$UploadNotifier {
     state = state.copyWith(isSizeLimitUnlocked: true);
   }
 
-  /// Enforces the per-mode size tiers against the current unlocked state:
+  /// Enforces the per-mode size tiers against the current unlocked state.
+  /// The budget is the sum of the selected file sizes:
   /// - Cloud/R2: free 15 MB -> unlocked 30 MB
   /// - P2P: free 20 MB -> unlocked 50 MB
   ///
@@ -161,15 +162,7 @@ class UploadNotifier extends _$UploadNotifier {
     if (totalSize > maxLimit) {
       return state.isSizeLimitUnlocked
           ? 'Total transfer limit is $maxMb MB'
-          : 'Free limit is $freeMb MB. Watch an ad to unlock up to $unlockedMb MB!';
-    }
-
-    for (var f in files) {
-      if (f.size > maxLimit) {
-        return state.isSizeLimitUnlocked
-            ? 'File "${f.name}" exceeds $maxMb MB limit'
-            : 'File "${f.name}" exceeds the $freeMb MB free limit. Watch an ad to unlock up to $unlockedMb MB!';
-      }
+          : 'Free limit is $freeMb MB total. Watch an ad to unlock up to $unlockedMb MB total!';
     }
 
     return null;

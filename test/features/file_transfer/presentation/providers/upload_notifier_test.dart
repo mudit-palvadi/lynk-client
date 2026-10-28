@@ -145,6 +145,27 @@ void main() {
       }
 
       test(
+        'cloud free tier: two files under 15 MB are refused when the sum is over',
+        () async {
+          final container = makeContainer();
+          addTearDown(container.dispose);
+
+          fakePicker.nextResult = FilePickerResult([
+            fileOf('a.bin', 8 * mb),
+            fileOf('b.bin', 8 * mb),
+          ]);
+
+          final notifier = container.read(uploadProvider.notifier);
+          await notifier.pickFiles();
+
+          final state = container.read(uploadProvider);
+          expect(state.selectedFiles, isEmpty);
+          expect(state.phase, UploadPhase.failed);
+          expect(state.errorMessage, contains('15 MB total'));
+        },
+      );
+
+      test(
         'cloud free tier: total over 15 MB is rejected with unlock hint',
         () async {
           final container = makeContainer();

@@ -45,7 +45,7 @@ device picks it up. *P2P* means the two devices send it to each other
 directly, with no storage in between.
 
 The app can raise a limit for you on request; the website always works at the
-free limit.
+free limit. Each number is the sum of the files in one transfer.
 
 ---
 

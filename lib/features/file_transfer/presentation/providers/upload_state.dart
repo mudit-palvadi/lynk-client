@@ -93,12 +93,12 @@ class UploadState extends Equatable {
   /// The selected bytes before encryption padding.
   int get rawTotalSize => selectedFiles.fold(0, (sum, f) => sum + f.size);
 
-  /// Size tiers (bytes):
+  /// Size tiers, in bytes. Each number is the sum of every file in one
+  /// transfer, not a limit on a single file.
   /// - Cloud/R2: free = 15 MB, rewarded-ad unlocked = 30 MB
   /// - P2P:      free = 20 MB, rewarded-ad unlocked = 50 MB
   ///
-  /// Both unlocked tiers stay inside the server's 50 MB per-file cap, so every
-  /// advertised tier is actually accepted by the API.
+  /// Both unlocked totals stay inside the server's 50 MB transfer ceiling.
   int get maxTotalSizeFree =>
       transferMode == TransferMode.p2p ? 20 * 1024 * 1024 : 15 * 1024 * 1024;
 

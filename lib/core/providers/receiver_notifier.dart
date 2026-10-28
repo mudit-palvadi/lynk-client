@@ -71,6 +71,10 @@ class ReceiverNotifier extends _$ReceiverNotifier with WidgetsBindingObserver {
   int _pollCount = 0;
   String? _activeSessionId;
 
+  /// Tests poll immediately. Production keeps the backoff below.
+  @visibleForTesting
+  Duration? pollDelayOverride;
+
   @override
   ReceiverState build() {
     WidgetsBinding.instance.addObserver(this);
@@ -105,6 +109,8 @@ class ReceiverNotifier extends _$ReceiverNotifier with WidgetsBindingObserver {
   }
 
   Future<void> createSession() async {
+    _pollingTimer?.cancel();
+    _activeSessionId = null;
     state = const ReceiverState(isPolling: true);
     _pollCount = 0;
 
@@ -147,11 +153,13 @@ class ReceiverNotifier extends _$ReceiverNotifier with WidgetsBindingObserver {
       return;
     }
 
-    final Duration delay = _pollCount < 10
-        ? const Duration(seconds: 2)
-        : (_pollCount < 30
-              ? const Duration(seconds: 4)
-              : const Duration(seconds: 6));
+    final Duration delay =
+        pollDelayOverride ??
+        (_pollCount < 10
+            ? const Duration(seconds: 2)
+            : (_pollCount < 30
+                  ? const Duration(seconds: 4)
+                  : const Duration(seconds: 6)));
 
     _pollingTimer = Timer(delay, () async {
       if (_activeSessionId != sessionId || state.attachedTransferId != null) {
@@ -164,6 +172,7 @@ class ReceiverNotifier extends _$ReceiverNotifier with WidgetsBindingObserver {
 
       result.fold(
         (session) async {
+          if (_activeSessionId != sessionId) return;
           if (session.status == ReceiverSessionStatus.attached &&
               session.transferId != null) {
             _pollingTimer?.cancel();
@@ -187,6 +196,7 @@ class ReceiverNotifier extends _$ReceiverNotifier with WidgetsBindingObserver {
                 unwrappedKey = null;
               }
             }
+            if (_activeSessionId != sessionId) return;
 
             state = state.copyWith(
               isPolling: false,

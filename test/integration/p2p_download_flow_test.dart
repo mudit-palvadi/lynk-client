@@ -224,6 +224,84 @@ void main() {
       );
     }
   });
+
+  test('cancelling during decrypt deletes the plaintext', () async {
+    final sandbox = await Directory.systemTemp.createTemp('lynk-p2p-cancel');
+    final oldPaths = PathProviderPlatform.instance;
+    PathProviderPlatform.instance = _FakePaths(sandbox.path);
+    addTearDown(() async {
+      PathProviderPlatform.instance = oldPaths;
+      await sandbox.delete(recursive: true);
+    });
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final backend = FakeBackend();
+    final session = _FakeReceiver();
+    final decryptor = _HeldDecryption();
+    final container = ProviderContainer(
+      overrides: [
+        apiClientProvider.overrideWithValue(ApiClient(dio: backend.createDio())),
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        decryptFileUseCaseProvider.overrideWithValue(decryptor),
+        p2pReceiverSessionFactoryProvider.overrideWithValue(({
+          required Uri signalingUrl,
+          required PeerRole role,
+          required String sessionId,
+          String? accessToken,
+          String? aesKey,
+          void Function()? onFallbackToCloud,
+          int maxFiles = 10,
+          int maxBytes = 0,
+        }) async {
+          return session;
+        }),
+      ],
+    );
+    addTearDown(container.dispose);
+    final created = await container.read(transferRepositoryProvider).createTransfer([
+      FileItem(
+        id: '',
+        name: 'note.txt',
+        size: 32,
+        contentType: 'text/plain',
+        status: FileStatus.pending,
+      ),
+    ]);
+    final transfer = created.value!;
+    final notifier = container.read(downloadProvider.notifier)
+      ..readyTimeout = Duration.zero;
+    await notifier.loadTransferPreview(
+      transfer.id,
+      accessToken: transfer.accessToken ?? '',
+    );
+    final reception = notifier.startReception(aesKey: key);
+    addTearDown(() async {
+      if (!decryptor.release.isCompleted) decryptor.release.complete();
+      if (!session.releaseReceipt.isCompleted) session.releaseReceipt.complete();
+      await reception;
+    });
+    await _until(() => session.files.hasListener);
+    final encrypted = EncryptFileUseCase().executeBytes(
+      inputBytes: Uint8List.fromList([1, 2, 3, 4]),
+      aesKey32Bytes: key,
+    );
+    final file = File('${sandbox.path}/held.enc');
+    await file.writeAsBytes(encrypted);
+    session.files.add(
+      ReceivedFile(file: file, name: 'note.txt', expectedSize: encrypted.length),
+    );
+    await decryptor.started.future;
+    expect(decryptor.writtenTo, contains('-note.txt'));
+
+    notifier.cancelDownload();
+    decryptor.release.complete();
+    await decryptor.settled.future;
+    await _until(() => !File(decryptor.writtenTo!).existsSync());
+
+    expect(container.read(downloadProvider).phase, DownloadPhase.cancelled);
+    expect(container.read(downloadProvider).downloadedPaths, isEmpty);
+    await reception;
+  });
 }
 
 Future<void> _until(bool Function() ready) async {
@@ -274,6 +352,7 @@ class _HeldDecryption extends DecryptFileUseCase {
   final started = Completer<void>();
   final release = Completer<void>();
   final settled = Completer<void>();
+  String? writtenTo;
 
   @override
   Future<File> execute({
@@ -281,6 +360,7 @@ class _HeldDecryption extends DecryptFileUseCase {
     required String aesKey32Bytes,
     required String outputPath,
   }) async {
+    writtenTo = outputPath;
     if (encryptedFile.path.endsWith('held.enc')) {
       started.complete();
       await release.future;

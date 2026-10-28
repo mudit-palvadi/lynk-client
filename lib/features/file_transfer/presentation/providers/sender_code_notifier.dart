@@ -171,7 +171,7 @@ class SenderCodeNotifier extends _$SenderCodeNotifier {
     _polling = true;
     try {
       final keepGoing = await pairing.poll();
-      if (!ref.mounted) return;
+      if (!ref.mounted || !identical(pairing, _pairing)) return;
 
       if (keepGoing) return;
 
@@ -205,9 +205,12 @@ class SenderCodeNotifier extends _$SenderCodeNotifier {
 
   void _reset() {
     _cancelTimer();
-    _pairing?.retire();
+    final pairing = _pairing;
     _pairing = null;
     _expiresAt = null;
+    if (pairing != null) {
+      unawaited(pairing.abandon());
+    }
   }
 
   void _cancelTimer() {

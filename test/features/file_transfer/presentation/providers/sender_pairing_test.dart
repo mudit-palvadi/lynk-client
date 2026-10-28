@@ -1,4 +1,5 @@
 import 'package:client/features/file_transfer/data/datasources/sender_session_remote_data_source.dart';
+import 'package:dio/dio.dart';
 import 'package:client/features/file_transfer/data/models/sender_session_model.dart';
 import 'package:client/features/file_transfer/presentation/providers/sender_pairing.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -41,6 +42,7 @@ class _FakeDataSource implements SenderSessionRemoteDataSource {
     required String wrappedKey,
     required String mode,
     required String senderSecret,
+    CancelToken? cancelToken,
   }) async {
     if (attachFails) throw Exception('nope');
     attachedSession = sessionId;
@@ -49,6 +51,12 @@ class _FakeDataSource implements SenderSessionRemoteDataSource {
     attachedMode = mode;
     attachedSecret = senderSecret;
   }
+
+  @override
+  Future<void> cancelSession({
+    required String sessionId,
+    required String senderSecret,
+  }) async {}
 }
 
 void main() {

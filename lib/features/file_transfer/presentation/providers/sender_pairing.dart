@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+
 import '../../../../core/services/key_wrap_service.dart';
 import '../../data/datasources/sender_session_remote_data_source.dart';
 
@@ -60,6 +62,7 @@ class SenderPairing {
   String? error;
   SenderPairingStatus status = SenderPairingStatus.idle;
   int _epoch = 0;
+  CancelToken? _attachCancel;
 
   bool get isAttached => status == SenderPairingStatus.attached;
 
@@ -67,6 +70,22 @@ class SenderPairing {
   /// attach a key for a code the person is no longer showing.
   void retire() {
     _epoch++;
+    _attachCancel?.cancel();
+  }
+
+  /// Retires this code and asks the server to drop the session.
+  ///
+  /// An attach that already reached the server is removed under the same
+  /// lock, so it cannot be written back afterwards. A server that has no
+  /// delete route answers 404 and the local retire still stands.
+  Future<void> abandon() async {
+    retire();
+    final id = sessionId;
+    final secret = senderSecret;
+    if (id == null || secret == null || secret.isEmpty) return;
+    try {
+      await dataSource.cancelSession(sessionId: id, senderSecret: secret);
+    } catch (_) {}
   }
 
   /// Creates the session and exposes the code to show on screen.
@@ -116,12 +135,15 @@ class SenderPairing {
       if (retired()) {
         return false;
       }
+      final cancelToken = CancelToken();
+      _attachCancel = cancelToken;
       await dataSource.attachKey(
         sessionId: id,
         transferId: transferId,
         wrappedKey: wrapped,
         mode: mode,
         senderSecret: senderSecret ?? '',
+        cancelToken: cancelToken,
       );
       if (retired()) {
         return false;

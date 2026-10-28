@@ -325,8 +325,11 @@ class DownloadNotifier extends _$DownloadNotifier {
         } else {
           // The name came from the sender, so it is reduced to a single safe
           // path segment before it is joined onto the download directory.
-          final savePath =
-              '${saveDir!.path}/${FileNameSanitizer.safeFileName(item.name)}';
+          // The generation keeps two receives of the same name from
+          // decrypting into one file. The name handed to the user stays
+          // the safe name, without this prefix.
+          final safeName = FileNameSanitizer.safeFileName(item.name);
+          final savePath = '${saveDir!.path}/$generation-$safeName';
           final tempSavePath = '$savePath.enc';
 
           await downloadService.downloadFileFromR2(
@@ -345,7 +348,10 @@ class DownloadNotifier extends _$DownloadNotifier {
               );
             },
           );
-          if (stopped()) return;
+          if (stopped()) {
+            await _discardStaging(tempSavePath);
+            return;
+          }
 
           if (key.isNotEmpty) {
             await decryptUseCase.execute(
@@ -353,21 +359,19 @@ class DownloadNotifier extends _$DownloadNotifier {
               aesKey32Bytes: key,
               outputPath: savePath,
             );
-            if (stopped()) return;
-            final tempFile = File(tempSavePath);
-            if (await tempFile.exists()) {
-              await tempFile.delete();
+            if (stopped()) {
+              await _discardStaging(savePath);
+              await _discardStaging(tempSavePath);
+              return;
             }
+            await _discardStaging(tempSavePath);
           } else {
             throw Exception(
               'Decryption key missing for file "${item.name}". Please scan QR code again.',
             );
           }
 
-          final delivered = await _deliverToUser(
-            savePath,
-            FileNameSanitizer.safeFileName(item.name),
-          );
+          final delivered = await _deliverToUser(savePath, safeName);
           if (stopped()) return;
           downloadedPaths.add(delivered);
         }
@@ -425,6 +429,18 @@ class DownloadNotifier extends _$DownloadNotifier {
   Future<Directory> _stagingDirectory() async {
     if (Platform.isAndroid) return getTemporaryDirectory();
     return getApplicationDocumentsDirectory();
+  }
+
+  /// Removes a staging file left behind when this receive is no longer current.
+  Future<void> _discardStaging(String path) async {
+    try {
+      final file = File(path);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (_) {
+      // A staging file that is already gone does not block the next receive.
+    }
   }
 
   /// Hands a decrypted file to the user.
@@ -627,7 +643,7 @@ class DownloadNotifier extends _$DownloadNotifier {
           // The name came straight from the peer, with no server in the
           // middle to vouch for it.
           final safeName = FileNameSanitizer.safeFileName(received.name);
-          final savePath = '${saveDir!.path}/$safeName';
+          final savePath = '${saveDir!.path}/$generation-$safeName';
           await ref
               .read(decryptFileUseCaseProvider)
               .execute(
@@ -635,9 +651,16 @@ class DownloadNotifier extends _$DownloadNotifier {
                 aesKey32Bytes: key,
                 outputPath: savePath,
               );
-          if (!isCurrent() || outcome.isCompleted) return;
+          if (!isCurrent() || outcome.isCompleted) {
+            await _discardStaging(savePath);
+            await _discardStaging(received.file.path);
+            return;
+          }
           await received.file.delete();
-          if (!isCurrent() || outcome.isCompleted) return;
+          if (!isCurrent() || outcome.isCompleted) {
+            await _discardStaging(savePath);
+            return;
+          }
           final delivered = await _deliverToUser(savePath, safeName);
           if (!isCurrent() || outcome.isCompleted) return;
           decryptedPaths.add(delivered);

@@ -74,6 +74,16 @@ void main() {
     test('a whitespace-only name falls back', () {
       expect(FileNameSanitizer.safeFileName('   '), 'file');
     });
+
+    test('trailing spaces cannot hide a directory name', () {
+      expect(FileNameSanitizer.safeFileName('.. '), 'file');
+      expect(FileNameSanitizer.safeFileName('... '), 'file');
+      expect(FileNameSanitizer.safeFileName('. '), 'file');
+    });
+
+    test('a real name keeps its text after a trailing space', () {
+      expect(FileNameSanitizer.safeFileName('file.txt '), 'file.txt');
+    });
   });
 
   group('control characters are removed', () {

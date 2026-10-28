@@ -1,4 +1,5 @@
 import 'package:client/features/file_transfer/data/models/sender_session_model.dart';
+import 'package:dio/dio.dart';
 
 /// The sender side of code pairing: mint a session, watch it for a receiver,
 /// and hand over the wrapped key once one joins.
@@ -15,6 +16,12 @@ abstract class SenderSessionRemoteDataSource {
     required String transferId,
     required String wrappedKey,
     required String mode,
+    required String senderSecret,
+    CancelToken? cancelToken,
+  });
+
+  Future<void> cancelSession({
+    required String sessionId,
     required String senderSecret,
   });
 }

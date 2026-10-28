@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:client/core/providers/transfer_providers.dart';
+import 'package:dio/dio.dart';
 import 'package:client/core/services/key_fingerprint.dart';
 import 'package:client/core/services/key_wrap_service.dart';
 import 'package:client/features/file_transfer/data/datasources/sender_session_remote_data_source.dart';
@@ -20,8 +23,11 @@ class _FakeDataSource implements SenderSessionRemoteDataSource {
   );
 
   int createCalls = 0;
+  int cancelCalls = 0;
+  int getCalls = 0;
   String? attachedKey;
   String? attachedMode;
+  Completer<SenderSessionModel>? holdGet;
 
   @override
   Future<SenderSessionModel> createSession() async {
@@ -31,7 +37,12 @@ class _FakeDataSource implements SenderSessionRemoteDataSource {
   }
 
   @override
-  Future<SenderSessionModel> getSession(String sessionId) async => nextSession;
+  Future<SenderSessionModel> getSession(String sessionId) {
+    getCalls++;
+    final hold = holdGet;
+    if (hold != null) return hold.future;
+    return Future.value(nextSession);
+  }
 
   @override
   Future<void> attachKey({
@@ -40,9 +51,18 @@ class _FakeDataSource implements SenderSessionRemoteDataSource {
     required String wrappedKey,
     required String mode,
     required String senderSecret,
+    CancelToken? cancelToken,
   }) async {
     attachedKey = wrappedKey;
     attachedMode = mode;
+  }
+
+  @override
+  Future<void> cancelSession({
+    required String sessionId,
+    required String senderSecret,
+  }) async {
+    cancelCalls++;
   }
 }
 
@@ -195,5 +215,39 @@ void main() {
 
     expect(read().phase, SenderCodePhase.idle);
     expect(read().code, isNull);
+  });
+
+  test('a poll that finishes after stop does not fail the next code', () async {
+    data.nextSession = const SenderSessionModel(
+      sessionId: 'session-1',
+      code: '123456',
+      status: 'waiting',
+      expiresIn: 600,
+      senderSecret: 'sender-secret',
+    );
+    data.holdGet = Completer<SenderSessionModel>();
+    await notifier().ensureStarted(
+      transferId: 'transfer-1',
+      aesKey: 'aes-1',
+      mode: TransferMode.cloud,
+    );
+    await waitFor(() => data.getCalls > 0);
+
+    notifier().stop();
+    data.holdGet!.complete(
+      const SenderSessionModel(
+        sessionId: 'session-1',
+        status: 'joined',
+        expiresIn: 500,
+        receiverPk: 'pk-1',
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(read().phase, SenderCodePhase.idle);
+    expect(read().code, isNull);
+    expect(data.attachedKey, isNull);
+    expect(data.cancelCalls, 1);
   });
 }

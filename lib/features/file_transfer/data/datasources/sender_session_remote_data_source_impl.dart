@@ -26,6 +26,7 @@ class SenderSessionRemoteDataSourceImpl
     required String wrappedKey,
     required String mode,
     required String senderSecret,
+    CancelToken? cancelToken,
   }) async {
     await dio.post(
       'sender-sessions/$sessionId/attach',
@@ -34,7 +35,24 @@ class SenderSessionRemoteDataSourceImpl
         'wrapped_key': wrappedKey,
         'mode': mode,
       },
+      cancelToken: cancelToken,
       options: Options(headers: {'X-Lynk-Sender-Secret': senderSecret}),
     );
+  }
+
+  @override
+  Future<void> cancelSession({
+    required String sessionId,
+    required String senderSecret,
+  }) async {
+    try {
+      await dio.delete(
+        'sender-sessions/$sessionId',
+        options: Options(headers: {'X-Lynk-Sender-Secret': senderSecret}),
+      );
+    } on DioException catch (error) {
+      if (error.response?.statusCode == 404) return;
+      rethrow;
+    }
   }
 }

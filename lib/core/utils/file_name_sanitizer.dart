@@ -43,10 +43,15 @@ class FileNameSanitizer {
     }
 
     // A colon is an alternate data stream on Windows, so it is not part of
-    // the name that gets written.
-    name = name.replaceAll(_controlCharacters, '').replaceAll(':', '');
+    // the name that gets written. Windows also drops trailing dots and
+    // spaces, so ".. " would otherwise land as "..".
+    name = name
+        .replaceAll(_controlCharacters, '')
+        .replaceAll(':', '')
+        .trim()
+        .replaceAll(RegExp(r'[. ]+$'), '');
 
-    if (name.trim().isEmpty || _onlyDots.hasMatch(name)) {
+    if (name.isEmpty || _onlyDots.hasMatch(name)) {
       return 'file';
     }
 

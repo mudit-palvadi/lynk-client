@@ -63,17 +63,17 @@ class _EnterCodeScreenState extends ConsumerState<EnterCodeScreen> {
         child: ScrollableFill(
           children: [
             const Spacer(),
-            const Icon(Icons.dialpad, size: 64, color: AppTheme.primary),
+            Icon(Icons.dialpad, size: 64, color: AppTheme.of(context).primary),
             const SizedBox(height: 16),
             const Text(
               'Enter code',
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'The sender shows it next to the QR code.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppTheme.textSecondary),
+              style: TextStyle(color: AppTheme.of(context).textSecondary),
             ),
             const SizedBox(height: 32),
             TextField(
@@ -95,10 +95,12 @@ class _EnterCodeScreenState extends ConsumerState<EnterCodeScreen> {
                 hintStyle: TextStyle(
                   fontSize: 36,
                   letterSpacing: 14,
-                  color: AppTheme.textSecondary.withValues(alpha: 0.4),
+                  color: AppTheme.of(
+                    context,
+                  ).textSecondary.withValues(alpha: 0.4),
                 ),
                 filled: true,
-                fillColor: AppTheme.cardBg,
+                fillColor: AppTheme.of(context).cardBg,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
@@ -111,7 +113,7 @@ class _EnterCodeScreenState extends ConsumerState<EnterCodeScreen> {
               Text(
                 state.errorMessage!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: AppTheme.error),
+                style: TextStyle(color: AppTheme.of(context).error),
               ),
               const SizedBox(height: 16),
             ],
@@ -126,10 +128,13 @@ class _EnterCodeScreenState extends ConsumerState<EnterCodeScreen> {
                 ),
               ),
               const SizedBox(height: 4),
-              const Text(
+              Text(
                 'The sender shows the same check.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+                style: TextStyle(
+                  color: AppTheme.of(context).textSecondary,
+                  fontSize: 12,
+                ),
               ),
               const SizedBox(height: 16),
             ],
@@ -141,7 +146,7 @@ class _EnterCodeScreenState extends ConsumerState<EnterCodeScreen> {
                     ? 'Checking the code...'
                     : 'Waiting for the sender to share the key...',
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: AppTheme.textSecondary),
+                style: TextStyle(color: AppTheme.of(context).textSecondary),
               ),
               const SizedBox(height: 16),
               OutlinedButton(

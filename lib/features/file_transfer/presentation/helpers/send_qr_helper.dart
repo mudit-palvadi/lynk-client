@@ -70,7 +70,7 @@ class SendQrHelper {
           content: Text(
             result.failure?.message ?? 'Could not extend the session.',
           ),
-          backgroundColor: AppTheme.error,
+          backgroundColor: AppTheme.of(context).error,
         ),
       );
       return;
@@ -78,9 +78,9 @@ class SendQrHelper {
 
     secondsNotifier.value = 1800;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
+      SnackBar(
         content: Text('Session extended to 30 minutes!'),
-        backgroundColor: AppTheme.secondary,
+        backgroundColor: AppTheme.of(context).secondary,
       ),
     );
   }

@@ -40,7 +40,7 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(next.notice!),
-            backgroundColor: AppTheme.error,
+            backgroundColor: AppTheme.of(context).error,
           ),
         );
       }
@@ -69,9 +69,9 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
         if (widget.attachToSessionId != null &&
             widget.attachToSessionId!.isNotEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               content: Text('Transfer sent to receiver successfully!'),
-              backgroundColor: AppTheme.secondary,
+              backgroundColor: AppTheme.of(context).secondary,
             ),
           );
           context.go('/home');
@@ -90,7 +90,7 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
           showDialog(
             context: context,
             builder: (ctx) => AlertDialog(
-              backgroundColor: AppTheme.cardBg,
+              backgroundColor: AppTheme.of(context).cardBg,
               title: const Text('Unlock Larger Transfers'),
               content: Text('$msg This applies for this session.'),
               actions: [
@@ -122,7 +122,7 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(next.errorMessage!),
-              backgroundColor: AppTheme.error,
+              backgroundColor: AppTheme.of(context).error,
             ),
           );
         }
@@ -145,13 +145,18 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: AppTheme.secondary.withValues(alpha: 0.1),
+                        color: AppTheme.of(
+                          context,
+                        ).secondary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Column(
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.link, color: AppTheme.secondary),
+                          Icon(
+                            Icons.link,
+                            color: AppTheme.of(context).secondary,
+                          ),
                           SizedBox(height: 8),
                           Text(
                             'Receiver linked',
@@ -169,13 +174,13 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                     Container(
                       padding: const EdgeInsets.all(32),
                       decoration: BoxDecoration(
-                        color: AppTheme.accentSurface,
+                        color: AppTheme.of(context).accentSurface,
                         borderRadius: BorderRadius.circular(28),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.file_present_outlined,
                         size: 72,
-                        color: AppTheme.primary,
+                        color: AppTheme.of(context).primary,
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -184,9 +189,11 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: 8),
-                    const Text(
+                    Text(
                       'Choose files, then choose a transfer method.',
-                      style: TextStyle(color: AppTheme.textSecondary),
+                      style: TextStyle(
+                        color: AppTheme.of(context).textSecondary,
+                      ),
                     ),
                     const SizedBox(height: 24),
                     ElevatedButton.icon(
@@ -200,17 +207,19 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: 8),
-                    const Text(
+                    Text(
                       'Check the selection, then choose a transfer method.',
-                      style: TextStyle(color: AppTheme.textSecondary),
+                      style: TextStyle(
+                        color: AppTheme.of(context).textSecondary,
+                      ),
                     ),
                     const SizedBox(height: 20),
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: AppTheme.cardBg,
+                        color: AppTheme.of(context).cardBg,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppTheme.border),
+                        border: Border.all(color: AppTheme.of(context).border),
                       ),
                       child: Wrap(
                         spacing: 20,
@@ -221,8 +230,8 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                           ),
                           Text(
                             '${FileSizeFormatter.format(uploadState.totalSize)} / ${uploadState.maxTotalSizeMb} MB',
-                            style: const TextStyle(
-                              color: AppTheme.primary,
+                            style: TextStyle(
+                              color: AppTheme.of(context).primary,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -243,9 +252,9 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                           subtitle: Text(FileSizeFormatter.format(f.size)),
                           trailing: IconButton(
                             tooltip: 'Remove ${f.name}',
-                            icon: const Icon(
+                            icon: Icon(
                               Icons.close,
-                              color: AppTheme.error,
+                              color: AppTheme.of(context).error,
                             ),
                             onPressed: () => notifier.removeFile(index),
                           ),
@@ -269,7 +278,7 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                       description:
                           'Share files with multiple recipients simultaneously while the session is active. All files are encrypted.',
                       icon: Icons.cloud_upload_outlined,
-                      color: AppTheme.secondary,
+                      color: AppTheme.of(context).secondary,
                       onPressed: () =>
                           _startTransfer(uploadState, TransferMode.cloud),
                     ),
@@ -279,7 +288,7 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                       description:
                           'Files transfer directly between devices without passing through a server, providing higher privacy. Both devices must remain online throughout the transfer.',
                       icon: Icons.swap_horiz,
-                      color: AppTheme.primary,
+                      color: AppTheme.of(context).primary,
                       onPressed: () =>
                           _startTransfer(uploadState, TransferMode.p2p),
                     ),
@@ -291,16 +300,16 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                         children: [
                           Text(
                             '${(uploadState.overallProgress * 100).toStringAsFixed(1)}%',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 48,
                               fontWeight: FontWeight.bold,
-                              color: AppTheme.primary,
+                              color: AppTheme.of(context).primary,
                             ),
                           ),
                           const SizedBox(height: 16),
                           LinearProgressIndicator(
                             value: uploadState.overallProgress,
-                            backgroundColor: AppTheme.cardBg,
+                            backgroundColor: AppTheme.of(context).cardBg,
                           ),
                           const SizedBox(height: 24),
                           Text(
@@ -314,8 +323,10 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                           OutlinedButton(
                             onPressed: () => notifier.cancelUpload(),
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: AppTheme.error,
-                              side: const BorderSide(color: AppTheme.error),
+                              foregroundColor: AppTheme.of(context).error,
+                              side: BorderSide(
+                                color: AppTheme.of(context).error,
+                              ),
                             ),
                             child: Text(
                               uploadState.transferMode == TransferMode.p2p
@@ -333,10 +344,10 @@ class _FileUploadScreenState extends ConsumerState<FileUploadScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.error_outline,
                               size: 70,
-                              color: AppTheme.error,
+                              color: AppTheme.of(context).error,
                             ),
                             const SizedBox(height: 16),
                             Text(
@@ -415,7 +426,7 @@ class _SendChoice extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
-      color: AppTheme.cardBg,
+      color: AppTheme.of(context).cardBg,
       borderRadius: BorderRadius.circular(20),
       border: Border.all(color: color.withValues(alpha: 0.35)),
     ),
@@ -433,7 +444,7 @@ class _SendChoice extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           description,
-          style: const TextStyle(color: AppTheme.textSecondary),
+          style: TextStyle(color: AppTheme.of(context).textSecondary),
         ),
         const SizedBox(height: 12),
         ElevatedButton.icon(

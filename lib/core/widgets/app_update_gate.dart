@@ -7,6 +7,7 @@ import '../providers/app_update_provider.dart';
 import '../routing/app_router.dart';
 import '../routing/pending_deep_link.dart';
 import '../theme/app_theme.dart';
+import '../theme/theme_mode_provider.dart';
 
 class AppUpdateGate extends ConsumerStatefulWidget {
   const AppUpdateGate({required this.child, super.key});
@@ -68,6 +69,8 @@ class _AppUpdateGateState extends ConsumerState<AppUpdateGate>
           MaterialApp(
             debugShowCheckedModeBanner: false,
             theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: ref.watch(themeModeProvider),
             home: PopScope(
               canPop: false,
               child: Scaffold(

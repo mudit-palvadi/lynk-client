@@ -23,18 +23,18 @@ class NotFoundScreen extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(
+                Icon(
                   Icons.find_in_page_outlined,
                   size: 96,
-                  color: AppTheme.primary,
+                  color: AppTheme.of(context).primary,
                 ),
                 const SizedBox(height: 24),
-                const Text(
+                Text(
                   '404 - Page Not Found',
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
-                    color: AppTheme.textPrimary,
+                    color: AppTheme.of(context).textPrimary,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -43,8 +43,8 @@ class NotFoundScreen extends StatelessWidget {
                       ? 'The requested path "$path" could not be found.'
                       : 'The page or link does not exist or has expired.',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: AppTheme.textSecondary,
+                  style: TextStyle(
+                    color: AppTheme.of(context).textSecondary,
                     fontSize: 14,
                   ),
                 ),

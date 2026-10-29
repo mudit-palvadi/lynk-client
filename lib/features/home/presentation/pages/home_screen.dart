@@ -86,8 +86,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             onDestinationSelected: (index) => ref
                 .read(homeNavigationProvider.notifier)
                 .select(HomeDestination.values[index]),
-            backgroundColor: AppTheme.darkBg,
-            indicatorColor: AppTheme.primary.withValues(alpha: 0.22),
+            backgroundColor: AppTheme.of(context).darkBg,
+            indicatorColor: AppTheme.of(
+              context,
+            ).primary.withValues(alpha: 0.22),
             destinations: [
               const NavigationDestination(
                 icon: Icon(Icons.arrow_upward_rounded),
@@ -118,9 +120,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     children: [
                       Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.link_rounded,
-                            color: AppTheme.primary,
+                            color: AppTheme.of(context).primary,
                             size: 30,
                           ),
                           const SizedBox(width: 8),
@@ -208,13 +210,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppTheme.cardBg,
+        color: AppTheme.of(context).cardBg,
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppTheme.border),
+        border: Border.all(color: AppTheme.of(context).border),
       ),
       child: Column(
         children: [
-          const Row(
+          Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               _DeviceBadge(icon: Icons.phone_android_rounded, label: 'Sender'),
@@ -222,7 +224,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 padding: EdgeInsets.symmetric(horizontal: 20),
                 child: Icon(
                   Icons.arrow_forward_rounded,
-                  color: AppTheme.primary,
+                  color: AppTheme.of(context).primary,
                 ),
               ),
               _DeviceBadge(icon: Icons.devices_rounded, label: 'Receiver'),
@@ -338,14 +340,14 @@ class _ActivityContent extends ConsumerWidget {
         const Text('Find received files and earlier shares.'),
         const SizedBox(height: 24),
         if (recent.asData?.value.isEmpty ?? false)
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(vertical: 32),
             child: Column(
               children: [
                 Icon(
                   Icons.history_rounded,
                   size: 48,
-                  color: AppTheme.textSecondary,
+                  color: AppTheme.of(context).textSecondary,
                 ),
                 SizedBox(height: 16),
                 Text('Transfers appear here.'),
@@ -371,10 +373,10 @@ class _DeviceBadge extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppTheme.darkBg,
+            color: AppTheme.of(context).darkBg,
             borderRadius: BorderRadius.circular(20),
           ),
-          child: Icon(icon, color: AppTheme.primary, size: 32),
+          child: Icon(icon, color: AppTheme.of(context).primary, size: 32),
         ),
         const SizedBox(height: 8),
         Text(label, textAlign: TextAlign.center),
@@ -398,10 +400,10 @@ class _ActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-    color: AppTheme.cardBg,
+    color: AppTheme.of(context).cardBg,
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(20),
-      side: const BorderSide(color: AppTheme.border),
+      side: BorderSide(color: AppTheme.of(context).border),
     ),
     clipBehavior: Clip.antiAlias,
     child: InkWell(
@@ -410,7 +412,7 @@ class _ActionCard extends StatelessWidget {
         padding: const EdgeInsets.all(18),
         child: Row(
           children: [
-            Icon(icon, color: AppTheme.primary, size: 28),
+            Icon(icon, color: AppTheme.of(context).primary, size: 28),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -418,10 +420,10 @@ class _ActionCard extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.textPrimary,
+                      color: AppTheme.of(context).textPrimary,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -430,10 +432,10 @@ class _ActionCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            const Icon(
+            Icon(
               Icons.arrow_forward_rounded,
               size: 18,
-              color: AppTheme.textSecondary,
+              color: AppTheme.of(context).textSecondary,
             ),
           ],
         ),

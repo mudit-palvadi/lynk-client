@@ -5,9 +5,11 @@ import 'package:client/core/services/ad_consent_service.dart';
 import 'package:client/core/services/ad_service.dart';
 import 'package:client/features/home/presentation/pages/home_settings_screen.dart';
 import 'package:client/features/home/presentation/providers/home_navigation_provider.dart';
+import 'package:client/features/onboarding/presentation/providers/onboarding_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class _Consent extends AdConsentService {
   int requests = 0;
@@ -26,6 +28,11 @@ class _Required extends AdConsentNotifier {
 }
 
 void main() {
+  late SharedPreferences prefs;
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    prefs = await SharedPreferences.getInstance();
+  });
   tearDown(() => AdService.updateConsent(false));
 
   testWidgets('privacy control is absent when UMP does not require it', (
@@ -33,7 +40,10 @@ void main() {
   ) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [homeVersionProvider.overrideWith((ref) async => 'test')],
+        overrides: [
+          homeVersionProvider.overrideWith((ref) async => 'test'),
+          sharedPreferencesProvider.overrideWithValue(prefs),
+        ],
         child: const MaterialApp(home: HomeSettingsScreen()),
       ),
     );
@@ -48,6 +58,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
             homeVersionProvider.overrideWith((ref) async => 'test'),
             adConsentProvider.overrideWith(_Required.new),
             adConsentServiceProvider.overrideWithValue(service),

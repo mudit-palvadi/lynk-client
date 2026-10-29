@@ -78,13 +78,13 @@ class _DownloadFolderTileState extends State<DownloadFolderTile> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: AppTheme.cardBg,
+          color: AppTheme.of(context).cardBg,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.border),
+          border: Border.all(color: AppTheme.of(context).border),
         ),
         child: Row(
           children: [
-            const Icon(Icons.folder_outlined, color: AppTheme.primary),
+            Icon(Icons.folder_outlined, color: AppTheme.of(context).primary),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -97,8 +97,8 @@ class _DownloadFolderTileState extends State<DownloadFolderTile> {
                   const SizedBox(height: 2),
                   Text(
                     label,
-                    style: const TextStyle(
-                      color: AppTheme.textSecondary,
+                    style: TextStyle(
+                      color: AppTheme.of(context).textSecondary,
                       fontSize: 12,
                     ),
                   ),
@@ -112,10 +112,10 @@ class _DownloadFolderTileState extends State<DownloadFolderTile> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
             else
-              const Icon(
+              Icon(
                 Icons.arrow_forward_ios,
                 size: 14,
-                color: AppTheme.textSecondary,
+                color: AppTheme.of(context).textSecondary,
               ),
           ],
         ),

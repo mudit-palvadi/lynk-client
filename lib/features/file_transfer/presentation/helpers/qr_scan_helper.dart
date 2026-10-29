@@ -107,9 +107,9 @@ class QrScanHelper {
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text('No valid Lynk QR code found in selected photo.'),
-            backgroundColor: AppTheme.error,
+            backgroundColor: AppTheme.of(context).error,
           ),
         );
       }
@@ -117,9 +117,9 @@ class QrScanHelper {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text('Failed to read image from gallery.'),
-            backgroundColor: AppTheme.error,
+            backgroundColor: AppTheme.of(context).error,
           ),
         );
       }
@@ -226,9 +226,9 @@ class QrScanHelper {
       if (context.mounted) {
         if (result.isSuccess) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               content: Text('Files successfully sent to receiver!'),
-              backgroundColor: AppTheme.secondary,
+              backgroundColor: AppTheme.of(context).secondary,
             ),
           );
           context.pop();
@@ -237,7 +237,7 @@ class QrScanHelper {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Failed to pair: ${result.failure?.message}'),
-              backgroundColor: AppTheme.error,
+              backgroundColor: AppTheme.of(context).error,
             ),
           );
           return false;

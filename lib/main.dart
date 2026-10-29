@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/theme_mode_provider.dart';
 import 'core/widgets/app_update_gate.dart';
 import 'core/widgets/ad_consent_gate.dart';
 import 'features/onboarding/presentation/providers/onboarding_provider.dart';
@@ -23,31 +24,40 @@ void main() async {
   };
 
   ErrorWidget.builder = (FlutterErrorDetails details) {
-    return Material(
-      color: AppTheme.darkBg,
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
-              Icon(Icons.error_outline, size: 64, color: AppTheme.error),
-              SizedBox(height: 16),
-              Text(
-                'Something went wrong',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.textPrimary,
+    return Builder(
+      builder: (context) => Material(
+        color: AppTheme.of(context).darkBg,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  size: 64,
+                  color: AppTheme.of(context).error,
                 ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'An unexpected error occurred. Please restart or try again.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
-              ),
-            ],
+                const SizedBox(height: 16),
+                Text(
+                  'Something went wrong',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.of(context).textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'An unexpected error occurred. Please restart or try again.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppTheme.of(context).textSecondary,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -89,6 +99,8 @@ class _RoutedApp extends ConsumerWidget {
       title: 'Lynk',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ref.watch(themeModeProvider),
       routerConfig: router,
     );
   }

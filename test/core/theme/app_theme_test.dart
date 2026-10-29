@@ -31,10 +31,33 @@ void main() {
     }
   });
 
-  test('legacy theme entry uses the same light palette', () {
-    expect(AppTheme.darkTheme.colorScheme, AppTheme.lightTheme.colorScheme);
-    expect(AppTheme.darkBg, AppTheme.background);
-  });
+  test(
+    'dark palette is distinct while legacy light tokens stay compatible',
+    () {
+      expect(AppTheme.darkTheme.brightness, Brightness.dark);
+      expect(
+        AppTheme.darkTheme.colorScheme,
+        isNot(AppTheme.lightTheme.colorScheme),
+      );
+      expect(AppTheme.darkBg, AppTheme.background);
+      final colors = AppTheme.darkTheme.colorScheme;
+      for (final background in [
+        colors.surface,
+        AppTheme.darkTheme.scaffoldBackgroundColor,
+      ]) {
+        for (final text in [colors.onSurface, colors.onSurfaceVariant]) {
+          expect(contrast(text, background), greaterThan(4.5));
+        }
+      }
+      expect(contrast(colors.onPrimary, colors.primary), greaterThan(4.5));
+      expect(contrast(colors.onError, colors.error), greaterThan(4.5));
+      final indicator = Color.alphaBlend(
+        colors.primary.withValues(alpha: .22),
+        AppTheme.darkTheme.scaffoldBackgroundColor,
+      );
+      expect(contrast(colors.onSecondaryContainer, indicator), greaterThan(3));
+    },
+  );
 
   test('selected navigation icons contrast with their light indicator', () {
     final colors = AppTheme.lightTheme.colorScheme;

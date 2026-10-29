@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/services/config_service.dart';
 import '../../../../core/providers/ad_consent_provider.dart';
+import '../../../../core/theme/theme_mode_provider.dart';
 import '../providers/home_navigation_provider.dart';
 import '../widgets/download_folder_tile.dart';
 
@@ -14,12 +15,44 @@ class HomeSettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final version = ref.watch(homeVersionProvider).asData?.value ?? '';
     final consent = ref.watch(adConsentProvider);
+    final mode = ref.watch(themeModeProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
+            Text('Appearance', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.contrast),
+              title: const Text('Theme'),
+              subtitle: Text(_themeLabel(mode)),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => showDialog<void>(
+                context: context,
+                builder: (context) => SimpleDialog(
+                  title: const Text('Theme'),
+                  children: [
+                    for (final choice in ThemeMode.values)
+                      SimpleDialogOption(
+                        onPressed: () {
+                          ref.read(themeModeProvider.notifier).select(choice);
+                          Navigator.of(context).pop();
+                        },
+                        child: Row(
+                          children: [
+                            Expanded(child: Text(_themeLabel(choice))),
+                            if (mode == choice) const Icon(Icons.check),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
             Text('Saved files', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
             const Text('Choose where received files are saved.'),
@@ -61,6 +94,12 @@ class HomeSettingsScreen extends ConsumerWidget {
     );
   }
 }
+
+String _themeLabel(ThemeMode mode) => switch (mode) {
+  ThemeMode.light => 'Light',
+  ThemeMode.dark => 'Dark',
+  ThemeMode.system => 'System',
+};
 
 class _DiagnosticDialog extends StatefulWidget {
   const _DiagnosticDialog();

@@ -128,7 +128,12 @@ class _HomeCoachMarksState extends State<HomeCoachMarks> {
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () {},
-              child: CustomPaint(painter: _SpotlightPainter(hole: hole)),
+              child: CustomPaint(
+                painter: _SpotlightPainter(
+                  hole: hole,
+                  color: AppTheme.of(context).primary,
+                ),
+              ),
             ),
           ),
           Positioned(
@@ -149,10 +154,10 @@ class _HomeCoachMarksState extends State<HomeCoachMarks> {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
       decoration: BoxDecoration(
-        color: AppTheme.cardBg,
+        color: AppTheme.of(context).cardBg,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: AppTheme.primary.withValues(alpha: 0.55),
+          color: AppTheme.of(context).primary.withValues(alpha: 0.55),
           width: 1,
         ),
         boxShadow: [
@@ -169,16 +174,16 @@ class _HomeCoachMarksState extends State<HomeCoachMarks> {
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.touch_app_outlined,
                 size: 16,
-                color: AppTheme.primary,
+                color: AppTheme.of(context).primary,
               ),
               const SizedBox(width: 6),
               Text(
                 '${_index + 1} of ${widget.steps.length}',
-                style: const TextStyle(
-                  color: AppTheme.textSecondary,
+                style: TextStyle(
+                  color: AppTheme.of(context).textSecondary,
                   fontSize: 12,
                 ),
               ),
@@ -187,17 +192,17 @@ class _HomeCoachMarksState extends State<HomeCoachMarks> {
           const SizedBox(height: 8),
           Text(
             step.title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: AppTheme.textPrimary,
+              color: AppTheme.of(context).textPrimary,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             step.description,
-            style: const TextStyle(
-              color: AppTheme.textSecondary,
+            style: TextStyle(
+              color: AppTheme.of(context).textSecondary,
               fontSize: 14,
               height: 1.35,
             ),
@@ -207,9 +212,9 @@ class _HomeCoachMarksState extends State<HomeCoachMarks> {
             children: [
               TextButton(
                 onPressed: _finish,
-                child: const Text(
+                child: Text(
                   'Skip',
-                  style: TextStyle(color: AppTheme.textSecondary),
+                  style: TextStyle(color: AppTheme.of(context).textSecondary),
                 ),
               ),
               const Spacer(),
@@ -238,7 +243,8 @@ class _HomeCoachMarksState extends State<HomeCoachMarks> {
 class _SpotlightPainter extends CustomPainter {
   final Rect? hole;
 
-  const _SpotlightPainter({this.hole});
+  const _SpotlightPainter({this.hole, required this.color});
+  final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -247,9 +253,7 @@ class _SpotlightPainter extends CustomPainter {
     Path? cut;
     if (hole != null) {
       cut = Path()
-        ..addRRect(
-          RRect.fromRectAndRadius(hole, const Radius.circular(18)),
-        );
+        ..addRRect(RRect.fromRectAndRadius(hole, const Radius.circular(18)));
     }
 
     canvas.drawPath(
@@ -263,11 +267,12 @@ class _SpotlightPainter extends CustomPainter {
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2
-          ..color = AppTheme.primary,
+          ..color = color,
       );
     }
   }
 
   @override
-  bool shouldRepaint(_SpotlightPainter oldDelegate) => oldDelegate.hole != hole;
+  bool shouldRepaint(_SpotlightPainter oldDelegate) =>
+      oldDelegate.hole != hole || oldDelegate.color != color;
 }

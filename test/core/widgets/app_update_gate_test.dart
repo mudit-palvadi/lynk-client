@@ -56,11 +56,13 @@ void main() {
     bool enabled = true,
     bool onboarded = true,
     FakeAdConsent? consent,
+    String theme = 'system',
   }) async {
     SharedPreferences.setMockInitialValues({
       'has_onboarded': onboarded,
       'has_seen_home_tutorial': true,
       'ads_enabled': false,
+      'theme_mode': theme,
     });
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(
@@ -106,6 +108,18 @@ void main() {
   });
 
   group('required Google Play update gate', () {
+    testWidgets('the blocked update screen honors the saved dark theme', (
+      tester,
+    ) async {
+      respond = (_) async => updateInfo(0);
+      await launch(tester, theme: 'dark');
+      await tester.pumpAndSettle();
+      expect(
+        Theme.of(tester.element(find.text('Update required'))).brightness,
+        Brightness.dark,
+      );
+      expect(find.byType(HomeScreen), findsNothing);
+    });
     testWidgets('checks Play before mounting the transfer app', (tester) async {
       final check = Completer<Object?>();
       final consent = _CountingConsent();

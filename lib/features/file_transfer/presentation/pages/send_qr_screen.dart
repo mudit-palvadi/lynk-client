@@ -89,8 +89,8 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
                 ? '$message ${(state.overallProgress * 100).toStringAsFixed(0)}%'
                 : message,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppTheme.secondary,
+            style: TextStyle(
+              color: AppTheme.of(context).secondary,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -118,9 +118,12 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
         ),
         if (waiting) ...[
           const SizedBox(height: 4),
-          const Text(
+          Text(
             'Keep this screen open',
-            style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+            style: TextStyle(
+              color: AppTheme.of(context).textSecondary,
+              fontSize: 12,
+            ),
           ),
         ],
       ],
@@ -133,24 +136,33 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
       return Text(
         codeState.errorMessage ?? 'The code is unavailable.',
         textAlign: TextAlign.center,
-        style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+        style: TextStyle(
+          color: AppTheme.of(context).textSecondary,
+          fontSize: 12,
+        ),
       );
     }
 
     final code = codeState.code;
     if (code == null || code.isEmpty) {
-      return const Text(
+      return Text(
         'Creating a code…',
-        style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+        style: TextStyle(
+          color: AppTheme.of(context).textSecondary,
+          fontSize: 13,
+        ),
       );
     }
 
     return Column(
       children: [
-        const Text(
+        Text(
           'Share Code',
           textAlign: TextAlign.center,
-          style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+          style: TextStyle(
+            color: AppTheme.of(context).textSecondary,
+            fontSize: 13,
+          ),
         ),
         const SizedBox(height: 6),
         Text(
@@ -169,8 +181,8 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
           textAlign: TextAlign.center,
           style: TextStyle(
             color: codeState.isAttached
-                ? AppTheme.secondary
-                : AppTheme.textSecondary,
+                ? AppTheme.of(context).secondary
+                : AppTheme.of(context).textSecondary,
             fontSize: 12,
           ),
         ),
@@ -179,7 +191,10 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
           Text(
             'Key check ${codeState.keyCheck}',
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+            style: TextStyle(
+              color: AppTheme.of(context).textSecondary,
+              fontSize: 12,
+            ),
           ),
         ],
       ],
@@ -250,11 +265,11 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
               if (uploadState.transferMode == TransferMode.cloud &&
                   (uploadState.phase == UploadPhase.completed ||
                       widget.transfer.status == TransferStatus.ready)) ...[
-                const Text(
+                Text(
                   'Ready to receive',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: AppTheme.secondary,
+                    color: AppTheme.of(context).secondary,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -269,8 +284,8 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
                     children: [
                       Text(
                         'Expires in ${SendQrHelper.formatRemainingTime(seconds)}',
-                        style: const TextStyle(
-                          color: AppTheme.secondary,
+                        style: TextStyle(
+                          color: AppTheme.of(context).secondary,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -287,16 +302,16 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
                             transferId: widget.transfer.id,
                             secondsNotifier: _secondsRemainingNotifier,
                           ),
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.timer_outlined,
                             size: 16,
-                            color: AppTheme.primary,
+                            color: AppTheme.of(context).primary,
                           ),
-                          label: const Text(
+                          label: Text(
                             'Extend Session to 30 Mins (Watch Ad)',
                             style: TextStyle(
                               fontSize: 13,
-                              color: AppTheme.primary,
+                              color: AppTheme.of(context).primary,
                             ),
                           ),
                         ),
@@ -309,7 +324,7 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
               Text(
                 '${widget.transfer.totalFiles} files · ${FileSizeFormatter.format(widget.transfer.totalSize)}',
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: AppTheme.textSecondary),
+                style: TextStyle(color: AppTheme.of(context).textSecondary),
               ),
               if (uploadState.transferMode == TransferMode.p2p) ...[
                 const SizedBox(height: 16),
@@ -344,7 +359,7 @@ class _SendQrScreenState extends ConsumerState<SendQrScreen> {
                   );
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.error,
+                  backgroundColor: AppTheme.of(context).error,
                 ),
                 child: const Text('Cancel Session'),
               ),

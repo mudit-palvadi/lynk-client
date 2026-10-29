@@ -111,10 +111,10 @@ class _ReceiveQrScreenState extends ConsumerState<ReceiveQrScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppTheme.cardBg,
+                  color: AppTheme.of(context).cardBg,
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Column(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Sender: scan this QR in LynkShare.'),
@@ -123,7 +123,9 @@ class _ReceiveQrScreenState extends ConsumerState<ReceiveQrScreen> {
                     SizedBox(height: 8),
                     Text(
                       'Keep this screen open. Receiving starts automatically.',
-                      style: TextStyle(color: AppTheme.textSecondary),
+                      style: TextStyle(
+                        color: AppTheme.of(context).textSecondary,
+                      ),
                     ),
                   ],
                 ),
@@ -135,15 +137,15 @@ class _ReceiveQrScreenState extends ConsumerState<ReceiveQrScreen> {
                   return Text(
                     'Session expires in ${ReceiveQrHelper.formatTime(seconds)}',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: AppTheme.secondary,
+                    style: TextStyle(
+                      color: AppTheme.of(context).secondary,
                       fontWeight: FontWeight.bold,
                     ),
                   );
                 },
               ),
               const SizedBox(height: 16),
-              const Row(
+              Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   SizedBox(
@@ -156,19 +158,25 @@ class _ReceiveQrScreenState extends ConsumerState<ReceiveQrScreen> {
                     child: Text(
                       'Waiting for sender to connect...',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: AppTheme.textSecondary),
+                      style: TextStyle(
+                        color: AppTheme.of(context).textSecondary,
+                      ),
                     ),
                   ),
                 ],
               ),
             ] else if (state.errorMessage != null) ...[
-              const Icon(Icons.error_outline, size: 60, color: AppTheme.error),
+              Icon(
+                Icons.error_outline,
+                size: 60,
+                color: AppTheme.of(context).error,
+              ),
               const SizedBox(height: 16),
               Text(
                 state.errorMessage!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppTheme.textPrimary,
+                style: TextStyle(
+                  color: AppTheme.of(context).textPrimary,
                   fontSize: 16,
                 ),
               ),
@@ -183,10 +191,10 @@ class _ReceiveQrScreenState extends ConsumerState<ReceiveQrScreen> {
             ] else ...[
               const CircularProgressIndicator(),
               const SizedBox(height: 16),
-              const Text(
+              Text(
                 'Creating the receiving QR…',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: AppTheme.textSecondary),
+                style: TextStyle(color: AppTheme.of(context).textSecondary),
               ),
             ],
             const Spacer(),
@@ -194,8 +202,8 @@ class _ReceiveQrScreenState extends ConsumerState<ReceiveQrScreen> {
               onPressed: () =>
                   ReceiveQrHelper.cancelSessionAndPop(context, ref),
               style: OutlinedButton.styleFrom(
-                foregroundColor: AppTheme.error,
-                side: const BorderSide(color: AppTheme.error),
+                foregroundColor: AppTheme.of(context).error,
+                side: BorderSide(color: AppTheme.of(context).error),
               ),
               child: const Text('Cancel Session'),
             ),

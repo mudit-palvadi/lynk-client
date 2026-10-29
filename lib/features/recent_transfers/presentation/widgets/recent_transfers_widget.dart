@@ -42,26 +42,26 @@ class RecentTransfersWidget extends ConsumerWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Recent Activity',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: AppTheme.textPrimary,
+                    color: AppTheme.of(context).textPrimary,
                   ),
                 ),
                 TextButton.icon(
                   onPressed: () => _confirmClearHistory(context, ref),
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.delete_outline,
                     size: 16,
-                    color: AppTheme.textSecondary,
+                    color: AppTheme.of(context).textSecondary,
                   ),
-                  label: const Text(
+                  label: Text(
                     'Clear',
                     style: TextStyle(
                       fontSize: 12,
-                      color: AppTheme.textSecondary,
+                      color: AppTheme.of(context).textSecondary,
                     ),
                   ),
                 ),
@@ -97,23 +97,25 @@ class RecentTransfersWidget extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppTheme.cardBg,
+        color: AppTheme.of(context).cardBg,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isSent
-              ? AppTheme.primary.withValues(alpha: 0.3)
-              : AppTheme.secondary.withValues(alpha: 0.3),
+              ? AppTheme.of(context).primary.withValues(alpha: 0.3)
+              : AppTheme.of(context).secondary.withValues(alpha: 0.3),
         ),
       ),
       child: Row(
         children: [
           CircleAvatar(
             backgroundColor: isSent
-                ? AppTheme.primary.withValues(alpha: 0.15)
-                : AppTheme.secondary.withValues(alpha: 0.15),
+                ? AppTheme.of(context).primary.withValues(alpha: 0.15)
+                : AppTheme.of(context).secondary.withValues(alpha: 0.15),
             child: Icon(
               isSent ? Icons.upload_file : Icons.download_for_offline,
-              color: isSent ? AppTheme.primary : AppTheme.secondary,
+              color: isSent
+                  ? AppTheme.of(context).primary
+                  : AppTheme.of(context).secondary,
               size: 20,
             ),
           ),
@@ -126,17 +128,17 @@ class RecentTransfersWidget extends ConsumerWidget {
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary,
+                    color: AppTheme.of(context).textPrimary,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   '${isSent ? 'Sent' : 'Received'} · ${FileSizeFormatter.format(item.totalSize)}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: AppTheme.textSecondary,
+                    color: AppTheme.of(context).textSecondary,
                   ),
                 ),
               ],
@@ -186,9 +188,9 @@ class RecentTransfersWidget extends ConsumerWidget {
   ) async {
     if (item.filePaths == null || item.filePaths!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text('Original file locations unavailable for re-sending.'),
-          backgroundColor: AppTheme.error,
+          backgroundColor: AppTheme.of(context).error,
         ),
       );
       return;
@@ -207,9 +209,9 @@ class RecentTransfersWidget extends ConsumerWidget {
     if (validFiles.isEmpty) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text('Original files were moved or deleted from device.'),
-            backgroundColor: AppTheme.error,
+            backgroundColor: AppTheme.of(context).error,
           ),
         );
       }
@@ -226,7 +228,7 @@ class RecentTransfersWidget extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.cardBg,
+        backgroundColor: AppTheme.of(context).cardBg,
         title: const Text('Clear History'),
         content: const Text(
           'Clear all recent transfer logs? Original files will not be deleted.',
@@ -241,7 +243,9 @@ class RecentTransfersWidget extends ConsumerWidget {
               Navigator.pop(ctx);
               ref.read(recentTransfersProvider.notifier).clearHistory();
             },
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.of(context).error,
+            ),
             child: const Text('Clear All'),
           ),
         ],

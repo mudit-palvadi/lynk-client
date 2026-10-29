@@ -72,7 +72,10 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> {
               width: 260,
               height: 260,
               decoration: BoxDecoration(
-                border: Border.all(color: AppTheme.primary, width: 3),
+                border: Border.all(
+                  color: AppTheme.of(context).primary,
+                  width: 3,
+                ),
                 borderRadius: BorderRadius.circular(16),
               ),
             ),

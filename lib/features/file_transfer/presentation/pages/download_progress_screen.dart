@@ -70,9 +70,9 @@ class _DownloadProgressScreenState
         .read(downloadProvider.notifier)
         .startReception(aesKey: widget.aesKey, viaPairing: widget.viaPairing);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
+      SnackBar(
         content: Text('Download started'),
-        backgroundColor: AppTheme.secondary,
+        backgroundColor: AppTheme.of(context).secondary,
         duration: Duration(seconds: 2),
       ),
     );
@@ -122,7 +122,7 @@ class _DownloadProgressScreenState
                     ),
                   ),
                 ] else if (state.phase == DownloadPhase.waiting) ...[
-                  const Expanded(
+                  Expanded(
                     child: Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -134,7 +134,9 @@ class _DownloadProgressScreenState
                           Text(
                             'This will start on its own once the sender is ready.',
                             textAlign: TextAlign.center,
-                            style: TextStyle(color: AppTheme.textSecondary),
+                            style: TextStyle(
+                              color: AppTheme.of(context).textSecondary,
+                            ),
                           ),
                         ],
                       ),
@@ -147,16 +149,16 @@ class _DownloadProgressScreenState
                       children: [
                         Text(
                           '${(state.overallProgress * 100).toStringAsFixed(1)}%',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 48,
                             fontWeight: FontWeight.bold,
-                            color: AppTheme.primary,
+                            color: AppTheme.of(context).primary,
                           ),
                         ),
                         const SizedBox(height: 16),
                         LinearProgressIndicator(
                           value: state.overallProgress,
-                          backgroundColor: AppTheme.cardBg,
+                          backgroundColor: AppTheme.of(context).cardBg,
                         ),
                         const SizedBox(height: 24),
                         Text(
@@ -176,8 +178,8 @@ class _DownloadProgressScreenState
                             context.go('/home');
                           },
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: AppTheme.error,
-                            side: const BorderSide(color: AppTheme.error),
+                            foregroundColor: AppTheme.of(context).error,
+                            side: BorderSide(color: AppTheme.of(context).error),
                           ),
                           child: const Text('Cancel Download'),
                         ),
@@ -188,10 +190,10 @@ class _DownloadProgressScreenState
                   Expanded(
                     child: Column(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.check_circle_outline,
                           size: 70,
-                          color: AppTheme.secondary,
+                          color: AppTheme.of(context).secondary,
                         ),
                         const SizedBox(height: 16),
                         const Text(
@@ -211,9 +213,9 @@ class _DownloadProgressScreenState
                               return Card(
                                 margin: const EdgeInsets.only(bottom: 8),
                                 child: ListTile(
-                                  leading: const Icon(
+                                  leading: Icon(
                                     Icons.insert_drive_file,
-                                    color: AppTheme.primary,
+                                    color: AppTheme.of(context).primary,
                                   ),
                                   title: Text(
                                     fileName,
@@ -242,10 +244,10 @@ class _DownloadProgressScreenState
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.error_outline,
                             size: 70,
-                            color: AppTheme.error,
+                            color: AppTheme.of(context).error,
                           ),
                           const SizedBox(height: 16),
                           Text(

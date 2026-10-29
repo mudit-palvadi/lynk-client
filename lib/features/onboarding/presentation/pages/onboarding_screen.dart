@@ -61,9 +61,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text('Could not open the privacy policy page.'),
-            backgroundColor: AppTheme.error,
+            backgroundColor: AppTheme.of(context).error,
           ),
         );
       }
@@ -100,13 +100,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       ),
                       child: Row(
                         children: [
-                          const Expanded(
+                          Expanded(
                             child: Text(
                               'lynk',
                               style: TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.w700,
-                                color: AppTheme.textPrimary,
+                                color: AppTheme.of(context).textPrimary,
                                 letterSpacing: -1,
                               ),
                             ),
@@ -156,10 +156,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                                 style: Theme.of(context).textTheme.bodyLarge,
                               ),
                               const SizedBox(height: 20),
-                              const Text(
+                              Text(
                                 'Internet required.',
                                 style: TextStyle(
-                                  color: AppTheme.textSecondary,
+                                  color: AppTheme.of(context).textSecondary,
                                   fontSize: 13,
                                 ),
                               ),
@@ -188,8 +188,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     color: index == currentIndex
-                                        ? AppTheme.primary
-                                        : AppTheme.border,
+                                        ? AppTheme.of(context).primary
+                                        : AppTheme.of(context).border,
                                   ),
                                 ),
                               ),
@@ -254,7 +254,7 @@ class _TransferIllustration extends StatelessWidget {
               page == 0
                   ? Icons.arrow_forward_rounded
                   : Icons.arrow_back_rounded,
-              color: AppTheme.primary,
+              color: AppTheme.of(context).primary,
               size: 24,
             ),
           ),
@@ -279,19 +279,22 @@ class _Device extends StatelessWidget {
       width: 112,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
       decoration: BoxDecoration(
-        color: AppTheme.cardBg,
-        border: Border.all(color: AppTheme.border),
+        color: AppTheme.of(context).cardBg,
+        border: Border.all(color: AppTheme.of(context).border),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 32, color: AppTheme.primary),
+          Icon(icon, size: 32, color: AppTheme.of(context).primary),
           const SizedBox(height: 8),
           Text(
             label,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+            style: TextStyle(
+              color: AppTheme.of(context).textSecondary,
+              fontSize: 12,
+            ),
           ),
         ],
       ),

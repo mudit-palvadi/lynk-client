@@ -23,7 +23,7 @@ class TransferRoleHeading extends StatelessWidget {
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: AppTheme.primary.withValues(alpha: 0.12),
+          color: AppTheme.of(context).primary.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(24),
         ),
         child: Wrap(
@@ -32,7 +32,7 @@ class TransferRoleHeading extends StatelessWidget {
           alignment: WrapAlignment.center,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            Icon(icon, color: AppTheme.primary, size: 20),
+            Icon(icon, color: AppTheme.of(context).primary, size: 20),
             Text(role, textAlign: TextAlign.center),
           ],
         ),
@@ -47,7 +47,7 @@ class TransferRoleHeading extends StatelessWidget {
       Text(
         instruction,
         textAlign: TextAlign.center,
-        style: const TextStyle(color: AppTheme.textSecondary),
+        style: TextStyle(color: AppTheme.of(context).textSecondary),
       ),
     ],
   );

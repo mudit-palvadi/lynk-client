@@ -34,21 +34,41 @@ class _DownloadProgressScreenState
   @override
   void initState() {
     super.initState();
-    Future.microtask(
-      () => ref
+    _loadCurrentLink();
+  }
+
+  @override
+  void didUpdateWidget(covariant DownloadProgressScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.transferId != widget.transferId ||
+        oldWidget.aesKey != widget.aesKey ||
+        oldWidget.accessToken != widget.accessToken ||
+        oldWidget.viaPairing != widget.viaPairing) {
+      _loadCurrentLink();
+    }
+  }
+
+  void _loadCurrentLink() {
+    final link = widget;
+    // Ignore preview notifications belonging to the previous link until the
+    // notifier starts the new generation, outside the widget build lifecycle.
+    _autoStartTriggered = true;
+    Future.microtask(() {
+      if (!mounted || !identical(widget, link)) return;
+      _autoStartTriggered = false;
+      ref
           .read(downloadProvider.notifier)
-          .loadTransferPreview(
-            widget.transferId,
-            accessToken: widget.accessToken,
-          ),
-    );
+          .loadTransferPreview(link.transferId, accessToken: link.accessToken);
+    });
   }
 
   void _autoStartDownload(DownloadState next) {
     if (_autoStartTriggered) return;
     _autoStartTriggered = true;
 
-    ref.read(downloadProvider.notifier).startReception(aesKey: widget.aesKey, viaPairing: widget.viaPairing);
+    ref
+        .read(downloadProvider.notifier)
+        .startReception(aesKey: widget.aesKey, viaPairing: widget.viaPairing);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Download started'),
@@ -64,7 +84,9 @@ class _DownloadProgressScreenState
     final notifier = ref.read(downloadProvider.notifier);
 
     ref.listen<DownloadState>(downloadProvider, (previous, next) {
-      if (next.phase == DownloadPhase.preview && next.transfer != null) {
+      if (next.phase == DownloadPhase.preview &&
+          next.transfer?.id == widget.transferId &&
+          next.accessToken == widget.accessToken) {
         _autoStartDownload(next);
       }
     });
@@ -234,7 +256,10 @@ class _DownloadProgressScreenState
                           ElevatedButton(
                             onPressed: () {
                               _autoStartTriggered = false;
-                              notifier.startReception(aesKey: widget.aesKey, viaPairing: widget.viaPairing);
+                              notifier.startReception(
+                                aesKey: widget.aesKey,
+                                viaPairing: widget.viaPairing,
+                              );
                             },
                             child: const Text('Retry Download'),
                           ),

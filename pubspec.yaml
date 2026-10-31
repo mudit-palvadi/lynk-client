@@ -53,6 +53,7 @@ flutter:
 
   assets:
     - .env
+    - shorebird.yaml
   # fonts:
   #   - family: Schyler
   #     fonts:

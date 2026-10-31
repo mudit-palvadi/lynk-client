@@ -170,16 +170,17 @@ cancels a run that is still going, and a failing check blocks the merge.
 
 Releases are built separately by Codemagic (`codemagic.yaml`, manual trigger).
 
-### Build a release
+### Release baselines and Dart patches
 
-```bash
-flutter build appbundle --release --obfuscate --split-debug-info=build/symbols
-```
+Use Codemagic's manual `lynk-android-release` workflow for a Shorebird-enabled
+Play open-testing baseline. Ordinary `flutter build` binaries are not patchable.
+The separate manual `lynk-android-patch` workflow targets an exact installed
+baseline and publishes to Shorebird staging only; it does not upload to Play.
 
-The release build shrinks and obfuscates the app, so keep `build/symbols` and
-upload it to Play — without it, crash reports cannot be read.
-
-`docs/release-process.md` lists everything the release pipeline needs.
+Retain the AAB, Dart symbols, R8 mapping and baseline configuration fingerprint.
+Native changes, assets and Flutter SDK changes require a new Play baseline.
+`docs/release-process.md` covers secure CI access, staging preview, explicit
+promotion/rollback and the required device checks. No release or patch runs on push.
 
 ---
 

@@ -1,22 +1,24 @@
-# Lynk — Android release pipeline
+# Lynk — manual Shorebird baseline and staging-patch pipelines
 #
 # Manually triggered only: it builds a signed release AAB and uploads it to the
-# Google Play open testing track. Nothing runs on push.
+# Google Play open testing track. The separate patch workflow publishes only
+# to Shorebird staging, never Google Play. Nothing runs on push.
 #
 # One-time setup required in the Codemagic UI:
 #   1. Team settings > codemagic.yaml settings > Code signing identities >
 #      Android keystores: upload android/app/upload-keystore.jks with the
 #      reference name `lynk_upload_keystore` (paths/passwords from android/key.properties).
 #   2. Env group `lynk_config`: API_BASE_URL, PRIVACY_POLICY_URL, DEEP_LINK_BASE_URL,
-#      and ADMOB_APP_ID, ADMOB_BANNER_ID, ADMOB_INTERSTITIAL_ID,
-#      ADMOB_REWARDED_ID, ADMOB_REWARDED_INTERSTITIAL_ID.
-#      All five must be real IDs from the same AdMob publisher. Sample IDs and
-#      missing configuration stop the release; debug/profile retain test ads.
+#      optionally override the public AdMob IDs below with matching real IDs.
+#      Sample IDs and missing configuration stop the build; debug/profile retain test ads.
 #   3. Env group `google_play`: GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS (service account JSON key content)
+#   4. Secure env group `shorebird`: SHOREBIRD_TOKEN (xynix service-account API key).
+#      Patch builds also require SHOREBIRD_RELEASE_VERSION and SHOREBIRD_ENV_SHA256
+#      copied from that baseline's retained build/shorebird-baseline.txt artifact.
 
 workflows:
   lynk-android-release:
-    name: Lynk Android Release (Open Testing)
+    name: Lynk Shorebird Baseline (Open Testing)
     max_build_duration: 60
     # Mac mini M2 is the only machine included in the Codemagic free plan
     # (500 min/month). Linux X2 requires enabling pay-as-you-go billing.
@@ -27,7 +29,7 @@ workflows:
       java: 21
       # Public AdMob identifiers, not account credentials. Environment-group
       # overrides must pass the same release validation.
-      vars:
+      vars: &public_config
         ADMOB_APP_ID: ca-app-pub-9472143004063972~5082510676
         ADMOB_BANNER_ID: ca-app-pub-9472143004063972/3345777238
         ADMOB_INTERSTITIAL_ID: ca-app-pub-9472143004063972/9528042202
@@ -36,16 +38,18 @@ workflows:
       groups:
         - lynk_config
         - google_play
-      android_signing:
+        - shorebird
+      android_signing: &upload_signing
         - lynk_upload_keystore
 
-    cache:
+    cache: &build_cache
       cache_paths:
         - $HOME/.pub-cache
         - $HOME/.gradle/caches
 
     scripts:
-      - name: Resolve AdMob configuration
+      - &resolve_ads
+        name: Resolve AdMob configuration
         script: |
           set -eu
           if [ "${GOOGLE_PLAY_TRACK:-beta}" != beta ]; then
@@ -83,7 +87,8 @@ workflows:
             echo "export ORG_GRADLE_PROJECT_admobAppId=\"$ADMOB_APP_ID\""
           } > "$CM_BUILD_DIR/.admob-release.env"
 
-      - name: Recreate .env
+      - &recreate_env
+        name: Recreate .env
         script: |
           . $CM_BUILD_DIR/.admob-release.env
           # DEV_CONFIG_KEY is gone: the ad bypass is a compile-time define
@@ -100,7 +105,8 @@ workflows:
           ADMOB_REWARDED_INTERSTITIAL_ID=$ADMOB_REWARDED_INTERSTITIAL_ID
           EOF
 
-      - name: Set up Android signing (key.properties)
+      - &android_signing
+        name: Set up Android signing (key.properties)
         script: |
           cat > $CM_BUILD_DIR/android/key.properties <<EOF
           storePassword=$CM_KEYSTORE_PASSWORD
@@ -109,15 +115,43 @@ workflows:
           storeFile=$CM_KEYSTORE_PATH
           EOF
 
-      - name: Get Flutter packages
+      - &verify_keystore
+        name: Verify upload keystore before Shorebird publication
+        script: |
+          set -eu
+          expected='74:25:40:24:ED:53:EF:1F:A7:8F:00:B7:D1:72:7B:6A:CC:4B:12:B9:20:8D:EB:8D:48:11:58:6C:6C:C8:F0:94'
+          certificate="$(keytool -J-Duser.language=en -list -v -keystore "$CM_KEYSTORE_PATH" -storepass:env CM_KEYSTORE_PASSWORD -alias "$CM_KEY_ALIAS")"
+          actual="$(printf '%s\n' "$certificate" | sed -n 's/.*SHA256: //p' | tr -d '\r')"
+          if [ "$actual" != "$expected" ]; then
+            echo "ERROR: the configured upload keystore has an unexpected certificate."
+            exit 1
+          fi
+
+      - &install_shorebird
+        name: Install pinned Shorebird CLI
+        script: |
+          set -eu
+          if [ -z "${SHOREBIRD_TOKEN:-}" ]; then
+            echo "ERROR: configure SHOREBIRD_TOKEN in the secure shorebird group."
+            exit 1
+          fi
+          git clone --depth 1 --branch v1.6.134 https://github.com/shorebirdtech/shorebird.git "$HOME/.shorebird"
+          export PATH="$HOME/.shorebird/bin:$PATH"
+          echo "PATH=$PATH" >> "$CM_ENV"
+          shorebird --version
+
+      - &get_packages
+        name: Get Flutter packages
         script: |
           flutter pub get
 
-      - name: Analyze
+      - &analyze
+        name: Analyze
         script: |
           flutter analyze
 
-      - name: Run tests
+      - &test
+        name: Run tests
         script: |
           flutter test
 
@@ -129,12 +163,14 @@ workflows:
           # --obfuscate + --split-debug-info keep the Dart symbols out of the
           # AAB and write them to build/symbols, which is uploaded as an
           # artifact so a Play crash report can still be de-obfuscated.
-          flutter build appbundle --release \
+          set -eu
+          shorebird release android --flutter-version=3.44.6 -- \
             --build-number=$(($PROJECT_BUILD_NUMBER + 100)) \
             --obfuscate \
             --split-debug-info=build/symbols
 
-      - name: Verify release upload signing certificate
+      - &verify_signing
+        name: Verify release upload signing certificate
         script: |
           set -eu
           aab=build/app/outputs/bundle/release/app-release.aab
@@ -147,7 +183,8 @@ workflows:
           fi
           jarsigner -J-Duser.language=en -verify "$aab" | grep -q 'jar verified'
 
-      - name: Verify the release manifest carries the configured AdMob app id
+      - &verify_admob
+        name: Verify the release manifest carries the configured AdMob app id
         script: |
           . $CM_BUILD_DIR/.admob-release.env
           # The manifest is merged at build time, so read it back from the
@@ -170,6 +207,18 @@ workflows:
           fi
           echo "OK: the release manifest carries the configured AdMob app id ($ADMOB_APP_ID)."
 
+      - name: Retain baseline identity and configuration fingerprint
+        script: |
+          set -eu
+          release_name="$(sed -n 's/^version:[[:space:]]*//p' pubspec.yaml | cut -d+ -f1)"
+          mkdir -p build
+          {
+            echo "SHOREBIRD_RELEASE_VERSION=${release_name}+$(($PROJECT_BUILD_NUMBER + 100))"
+            echo "SHOREBIRD_ENV_SHA256=$(openssl dgst -sha256 .env | awk '{print $NF}')"
+            echo "FLUTTER_VERSION=3.44.6"
+            echo "SOURCE_COMMIT=$(git rev-parse HEAD)"
+          } > build/shorebird-baseline.txt
+
     artifacts:
       - build/app/outputs/bundle/release/app-release.aab
       # Dart obfuscation symbols: needed to read a Play stack trace.
@@ -179,6 +228,7 @@ workflows:
       # cannot be de-obfuscated without this file. It is large (~60 MB) but
       # it is the only way to read a minified stack trace.
       - build/app/outputs/mapping/release/mapping.txt
+      - build/shorebird-baseline.txt
 
     publishing:
       google_play:

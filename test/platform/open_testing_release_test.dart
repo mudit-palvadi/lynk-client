@@ -1,20 +1,16 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:yaml/yaml.dart';
 
 void main() {
   final workflow = File('codemagic.yaml').readAsStringSync();
-  final block = workflow
-      .split('      - name: Resolve AdMob configuration\n')
-      .last
-      .split('      - name: Recreate .env')
-      .first;
-  final script = block
-      .split('        script: |\n')
-      .last
-      .split('\n')
-      .map((line) => line.startsWith('          ') ? line.substring(10) : line)
-      .join('\n');
+  final release = loadYaml(workflow)['workflows']['lynk-android-release'];
+  final script =
+      (release['scripts'] as YamlList).singleWhere(
+            (step) => step['name'] == 'Resolve AdMob configuration',
+          )['script']
+          as String;
   const names = [
     'ADMOB_APP_ID',
     'ADMOB_BANNER_ID',

@@ -1,189 +1,177 @@
-# LynkShare
-
 <p align="center">
-  <img src="https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=flutter&logoColor=white" alt="Flutter" />
-  <img src="https://img.shields.io/badge/Dart-0175C2?style=for-the-badge&logo=dart&logoColor=white" alt="Dart" />
-  <img src="https://img.shields.io/badge/Riverpod-4A154B?style=for-the-badge" alt="Riverpod" />
-  <img src="https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge" alt="License" />
+  <img src="store_assets/png/app_icon_512.png" width="112" alt="LynkShare logo" />
 </p>
 
-LynkShare sends files straight from one device to another. No account, no
-sign-up, no password. Open the app, pick your files, and share a QR code.
+<h1 align="center">LynkShare</h1>
 
-The files are encrypted on the device that sends them. The key that unlocks
-them travels inside the QR code and never reaches the server, so what is
-stored is unreadable without the code.
+<p align="center">Encrypted file sharing. No account required.</p>
 
----
+<p align="center">
+  <a href="https://play.google.com/store/apps/details?id=app.xynix.lynk&pli=1"><img src="https://img.shields.io/badge/Get_it_on-Google_Play-414141?logo=googleplay&logoColor=white" alt="Get LynkShare on Google Play" /></a>
+  <a href="https://lynkshare.app"><img src="https://img.shields.io/badge/Open-LynkShare_Web-3455DB" alt="Open LynkShare in a browser" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0--only-blue.svg" alt="GPL-3.0-only license" /></a>
+  <img src="https://img.shields.io/badge/Built_with-Flutter-02569B?logo=flutter&logoColor=white" alt="Built with Flutter" />
+</p>
 
-## What it does
+## What is LynkShare?
 
-* **No account.** Open the app and start sending.
-* **Encrypted on the device.** Files are scrambled before they leave the phone,
-  and only the person holding the QR code can read them.
-* **Send several files at once.** Pick them, review the list, remove anything
-  you changed your mind about.
-* **Two ways to move the bytes.** Two devices talk directly to each other when
-  they can, and fall back to Cloudflare storage when they cannot.
-* **QR codes do the pairing.** Either you show a code and the other person
-  scans it, or the other person shows one and you scan it.
-* **Honest progress.** The progress bar follows the bytes actually sent.
-* **Dark interface.** A calm slate-and-indigo theme. A fuller visual pass is
-  still planned.
+LynkShare is a file-sharing app for Android, with a companion browser experience
+at [lynkshare.app](https://lynkshare.app). Select files, choose **Cloud** or
+**Direct**, and connect using a QR or Share Code—without creating an account.
 
----
+The interface separates **Send**, **Receive** and **Activity**. Receiving can
+start by scanning a sender QR, entering a Code, or displaying a receiving QR for
+the sender to scan. The receiving-QR flow uses Cloud delivery.
 
-## Size limits
+## Screenshots
 
-| Device | Cloud (Free) | Cloud (Raised) | P2P (Free) | P2P (Raised) |
-|---|---|---|---|---|
-| App | 15 MB | 30 MB | 20 MB | 50 MB |
-| Website | 10 MB | 10 MB | 10 MB | 10 MB |
+<p align="center">
+  <img src="https://play-lh.googleusercontent.com/-5ts6iFdML-_AhXRmDV00gwLiuJNa4ffaVKJG9cxz5803hR8r1g2ZNcW1BAHFtJMb7bYbi6Blw4tJQxadxUP1g=w526-h296" width="190" alt="LynkShare screenshot from the Google Play listing, image 1" />
+  <img src="https://play-lh.googleusercontent.com/jjW9NJ-SYUJo3fcYb2h5_x0jYuwLASlm5f-xiFXq09YCNDO3kOa_D6tmGwb2lGAefnx_uUFxBENAWfvwN9rx=w526-h296" width="190" alt="LynkShare screenshot from the Google Play listing, image 2" />
+  <img src="https://play-lh.googleusercontent.com/iuZllbODdxbWKVnGt5w3n_-rMyYxqqXOC3V35gpS-to9CXGryeqCY50Nx-gL_Tov4y7Nuo_K5Ayz5jorHLur=w526-h296" width="190" alt="LynkShare screenshot from the Google Play listing, image 3" />
+  <img src="https://play-lh.googleusercontent.com/k1o0C9aopd84O8Va6ofitNV9fHuWH0tOQ5kV0Mon6G1zBLMMXMQxCieN1B2pL9BSbR1Wx_fKoy03epVA-oMo=w526-h296" width="190" alt="LynkShare screenshot from the Google Play listing, image 4" />
+</p>
 
-*Cloud* means the file is stored on the server for a moment and the other
-device picks it up. *P2P* means the two devices send it to each other
-directly, with no storage in between.
+Screenshots are hosted by Google Play and show the published store presentation;
+appearance can differ between releases and themes.
 
-The app can raise a limit for you on request; the website always works at the
-free limit. Each number is the sum of the files in one transfer.
+## Features
 
----
+- **Cloud sharing:** encrypted uploads remain available to multiple recipients
+  while the session is active.
+- **Direct transfer:** WebRTC connects devices for encrypted transfer while both
+  remain online. A TURN relay may carry encrypted traffic when a direct network
+  path is unavailable; this is not a guarantee of server-free networking.
+- **QR and Code pairing:** scan using the camera, pick a QR image from the gallery,
+  or enter a Code. Sender QR and receiving QR have distinct instructions.
+- **File review:** select multiple files, review the combined size and remove
+  items before starting a transfer.
+- **Activity:** recent sent and received transfers, with file opening and re-send
+  actions where the original files remain available.
+- **Light, Dark and System:** a saved appearance preference, with System following
+  device appearance.
+- **Device-side encryption:** file contents are encrypted before transfer and
+  decrypted on the receiving device.
 
-## Privacy
+An internet connection is required. Nearby-device discovery and offline LAN
+sharing are not current features. Native app distribution is Android; iOS access
+is through the browser, not an App Store app.
 
-* Files are encrypted on the device that sends them. The key stays on the
-  phone and travels only inside the QR code.
-* The server keeps encrypted files, plus the name and size of each file. It
-  cannot read the contents.
-* The app and the website share the same transfers, so you can send from one
-  and receive on the other.
+## Transfer limits
 
----
+Each limit is the **combined size of all files in one transfer**, not an allowance
+for each file.
 
-## Project layout
+| Client | Cloud | Direct |
+| --- | --- | --- |
+| Android, free | 15 MB | 20 MB |
+| Android, unlocked | 30 MB | 50 MB |
+| Website | 10 MB | 10 MB |
 
-```text
-lib/
-├── core/                     # Shared building blocks
-│   ├── theme/                 # Colors, typography, spacing
-│   ├── network/               # The HTTP client and its settings
-│   ├── errors/                # Failure types and a Result wrapper
-│   ├── providers/             # Transfer, download and receive state
-│   ├── routing/               # The screens, their URLs and deep links
-│   ├── services/              # Upload, download, encryption, peer-to-peer
-│   ├── utils/                 # Formatting, file names, links, permissions
-│   └── widgets/               # Small shared pieces of UI
-└── features/
-    ├── home/                  # The home screen
-    ├── onboarding/            # The intro screens
-    ├── file_transfer/         # Sending: pick, encrypt, upload, show the code
-    ├── file_receive/          # Receiving: scan, download, decrypt
-    └── recent_transfers/      # The history list
-```
+Transfers support up to **10 files**, subject to the combined size limit. The
+backend ceiling is **50 MB per transfer**. Website transfers currently have no
+unlock flow. App unlocks and advertising availability follow the in-app policy;
+no account or subscription is required to start sharing.
 
-Each feature is split into three layers:
+## Privacy and security
 
-* **domain/** — the rules. Plain Dart, no widgets and no network. It defines
-  what a transfer is and what may be done with one.
-* **data/** — the plumbing. It turns the API's replies into the domain's
-  objects and back, and implements the interfaces the domain declares.
-* **presentation/** — what the user sees and touches: the screens, the
-  widgets, and the providers that hold the state.
+- File contents use device-side AES-256-CBC encryption with a random IV. The
+  backend does not receive the file-decryption key. This file format does not
+  include an authenticated-encryption tag; it is not a claim of an independent
+  security audit.
+- Shared links carry decryption credentials in the URL fragment. Code pairing
+  exchanges wrapped credentials. **Treat complete links, QR images and Codes as
+  sensitive** and share only with intended recipients.
+- The service processes metadata, including file names, sizes, types, transfer
+  identifiers and network addresses. Encryption does not make that metadata
+  private or make the service anonymous.
+- Cloud session availability is separate from storage cleanup. Sessions normally
+  last 10 minutes and can be extended to 30 minutes; encrypted objects may remain
+  until the bucket's cleanup policy runs, rather than disappearing at expiry.
+- Direct connections can expose network addresses to the other peer and signaling
+  infrastructure. Relay services can observe connection metadata, not plaintext
+  file contents.
+- The Android app contains advertising and Google consent/privacy controls.
+  Third-party SDK data practices are covered by the
+  [privacy policy](https://sites.google.com/view/lynk-privacy-policy/).
 
-A screen never talks to the network itself. It asks a use case, the use case
-asks the domain, and the data layer does the talking.
+Report suspected vulnerabilities privately using [SECURITY.md](SECURITY.md),
+not a public issue. No transfer tool can guarantee safety for untrusted files.
 
----
+## Build and run
 
-## Tech stack
+The release pipeline pins Flutter **3.44.6**. Use a Flutter/Dart toolchain that
+satisfies `pubspec.yaml`, plus the Android SDK. Dependencies retain their own
+licenses and any applicable setup requirements.
 
-* **State management:** `flutter_riverpod` (the providers hold the state, and
-  `riverpod_generator` writes the repetitive parts)
-* **Routing:** `go_router` (one URL per screen, so a link can open the right
-  one)
-* **HTTP client:** `dio` (custom timeouts, and upload and download progress)
-* **File picking:** `file_picker` (native file and directory selection)
-* **QR generation:** `qr_flutter` (draws the code from the data)
-* **QR scanning:** `mobile_scanner` (camera-based scanning)
-* **Encryption:** `cryptography` and `encrypt` (file encryption and key
-  wrapping)
-* **Peer to peer:** `flutter_webrtc` and `web_socket_channel` (the direct
-  connection, and the short chat that introduces the two devices)
-* **On the device:** `shared_preferences` and `path_provider` (settings,
-  history, and where the files live)
-* **Opening a file:** `open_filex` (opens a finished download in the system
-  viewer)
-* **Sharing:** `share_plus` and `url_launcher` (send a link out, open one)
-* **Configuration:** `flutter_dotenv` (public settings read from a `.env`
-  file)
-* **Identifiers:** `uuid`
-
----
-
-## Getting started
-
-### What you need
-
-* Flutter 3.44.6 or later
-* The Android SDK, or Xcode if you are building for a device that is not
-  Android
-
-### Configure
-
-Clone the repository and open the `client` folder. Create a `.env` file next
-to `pubspec.yaml`:
+Clone this repository, open its root (the directory containing `pubspec.yaml`),
+and create an ignored `.env` file:
 
 ```env
-API_BASE_URL=http://localhost:8000/api/v1
+API_BASE_URL=https://api.lynkshare.app/api/v1/
+PRIVACY_POLICY_URL=https://sites.google.com/view/lynk-privacy-policy/
+DEEP_LINK_BASE_URL=https://lynkshare.app
 ```
 
-On an Android emulator, use `http://10.0.2.2:8000/api/v1` to reach a backend
-running on your computer.
+For a local backend on an Android emulator, use
+`http://10.0.2.2:8000/api/v1/` in a debug build. Never add storage credentials,
+publishing tokens or private signing keys to the app's bundled configuration.
+Debug/profile builds use test ad identifiers.
 
-### Run it
-
-```bash
+```sh
 flutter pub get
 flutter run
 ```
 
-### Check it
+Development does not require publishing a Shorebird baseline. Keep the existing
+`shorebird.yaml` app identity unchanged; do not reinitialize it with `--force`.
 
-```bash
+## Development and contributions
+
+State is managed with Riverpod, navigation with GoRouter, and HTTP with Dio.
+Features are organized into domain, data and presentation layers under
+`lib/features`; shared routing, services, providers and widgets live in `lib/core`.
+
+```sh
 flutter analyze
 flutter test
 ```
 
-The tests cover routing and deep links, the file-name rules, the release
-configuration, and the CI pipeline. To run one part:
+Tests cover routing, cancellation, encryption interoperability, transfer lifecycle,
+appearance, consent and release guards. Mocked transports are not a substitute for
+real-device transfer and browser testing.
 
-```bash
-flutter test test/core/routing/    # routing and deep links
-flutter test test/platform/        # release and CI configuration
-```
+For bug reports, include the app version, device/OS and sanitized reproduction
+steps. Keep changes focused and include regression tests. Do not attach private
+files, complete QR payloads, tokens or signed URLs to issues or pull requests.
+Security-sensitive reports must follow [SECURITY.md](SECURITY.md).
 
-### Continuous integration
+### Releases and Dart patches
 
-`.github/workflows/ci.yml` runs on every push to `main`, on every pull
-request, and on demand. It checks the code and runs the tests. A newer commit
-cancels a run that is still going, and a failing check blocks the merge.
+Codemagic's manual `lynk-android-release` workflow creates a Shorebird-enabled
+baseline and publishes to Play open testing. The separate manual
+`lynk-android-patch` workflow targets an **exact baseline version and build** and
+publishes to **Shorebird staging only**, without uploading to Play.
 
-Releases are built separately by Codemagic (`codemagic.yaml`, manual trigger).
+Existing ordinary Flutter installations need a Shorebird-enabled Play baseline
+before receiving patches. Native code, assets (including `.env`) and Flutter SDK
+changes require a new store baseline. Patches apply on a subsequent process
+launch, not by restarting an active transfer. Play tracks and Shorebird patch
+tracks are separate.
 
-### Release baselines and Dart patches
-
-Use Codemagic's manual `lynk-android-release` workflow for a Shorebird-enabled
-Play open-testing baseline. Ordinary `flutter build` binaries are not patchable.
-The separate manual `lynk-android-patch` workflow targets an exact installed
-baseline and publishes to Shorebird staging only; it does not upload to Play.
-
-Retain the AAB, Dart symbols, R8 mapping and baseline configuration fingerprint.
-Native changes, assets and Flutter SDK changes require a new Play baseline.
-`docs/release-process.md` covers secure CI access, staging preview, explicit
-promotion/rollback and the required device checks. No release or patch runs on push.
-
----
+Retain AABs, Dart symbols, R8 mappings and the baseline configuration fingerprint.
+See the [release runbook](docs/release-process.md) for secure CI access, staging
+preview, explicit promotion/rollback and device checks. Nothing publishes on push.
 
 ## License
 
-MIT
+Copyright (c) 2026 Mudit Palvadi
+
+The LynkShare client source in this repository is licensed under the **GNU General
+Public License, version 3 only** (`GPL-3.0-only`). See [LICENSE](LICENSE) for the
+full terms. Third-party components retain their respective licenses and notices.
+
+Distribution of covered modifications requires compliance with GPLv3, including
+the corresponding-source and notice requirements. GPLv3 permits commercial use
+and sale; this is **not** a non-commercial license. Earlier valid license grants
+are not revoked by this change. No trademark permission is granted here.

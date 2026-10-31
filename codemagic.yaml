@@ -237,3 +237,60 @@ workflows:
         # is rejected by the first script, including production.
         track: beta
         submit_as_draft: false
+
+  lynk-android-patch:
+    name: Lynk Shorebird Patch (Staging Only)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      flutter: 3.44.6
+      java: 21
+      vars: *public_config
+      groups:
+        - lynk_config
+        - shorebird
+      android_signing: *upload_signing
+    cache: *build_cache
+    scripts:
+      - name: Validate exact patch baseline
+        script: |
+          set -eu
+          if ! printf '%s' "${SHOREBIRD_RELEASE_VERSION:-}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?\+[0-9]+$'; then
+            echo "ERROR: SHOREBIRD_RELEASE_VERSION must be an exact version+build, not latest."
+            exit 1
+          fi
+          if ! printf '%s' "${SHOREBIRD_ENV_SHA256:-}" | grep -Eq '^[0-9a-f]{64}$'; then
+            echo "ERROR: copy SHOREBIRD_ENV_SHA256 from the baseline artifact."
+            exit 1
+          fi
+      - *resolve_ads
+      - *recreate_env
+      - name: Verify unchanged bundled configuration
+        script: |
+          set -eu
+          actual="$(openssl dgst -sha256 .env | awk '{print $NF}')"
+          if [ "$actual" != "$SHOREBIRD_ENV_SHA256" ]; then
+            echo "ERROR: .env differs from the baseline; restore its values or create a new Play baseline."
+            exit 1
+          fi
+      - *android_signing
+      - *verify_keystore
+      - *install_shorebird
+      - *get_packages
+      - *analyze
+      - *test
+      - name: Build and publish a staging patch
+        script: |
+          set -eu
+          . "$CM_BUILD_DIR/.admob-release.env"
+          shorebird patch android \
+            --release-version="$SHOREBIRD_RELEASE_VERSION" \
+            --track staging \
+            --build-name="${SHOREBIRD_RELEASE_VERSION%+*}" \
+            --build-number="${SHOREBIRD_RELEASE_VERSION##*+}" \
+            -- --obfuscate --split-debug-info=build/symbols
+      - *verify_signing
+      - *verify_admob
+    artifacts:
+      - build/symbols
+      - build/app/outputs/mapping/release/mapping.txt

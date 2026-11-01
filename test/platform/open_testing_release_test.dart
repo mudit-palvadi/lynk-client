@@ -154,7 +154,16 @@ void main() {
     });
     test('release signing cannot silently select the debug key', () {
       final gradle = File('android/app/build.gradle.kts').readAsStringSync();
-      expect(gradle, isNot(contains('signingConfigs.getByName("debug")')));
+      // The release build type must point at the release config; the debug
+      // config only appears inside the debug build type (and its own test).
+      expect(
+        RegExp(
+          r'release\s*\{[^}]*signingConfigs\.getByName\("debug"\)',
+          dotAll: true,
+        ).hasMatch(gradle),
+        isFalse,
+      );
+      expect(gradle, contains('requireReleaseSigning'));
     });
   });
 }

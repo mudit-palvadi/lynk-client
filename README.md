@@ -1,61 +1,85 @@
+<div align="center">
+
+<img src="store_assets/png/app_icon_512.png" alt="LynkShare logo" height="80" />
+
+# LynkShare
+
+**Encrypted file sharing for Android and the web, without an account**
+
+[![Stars](https://img.shields.io/github/stars/mudit-palvadi/lynk-client?style=flat-square&color=FFD700)](https://github.com/mudit-palvadi/lynk-client/stargazers)
+[![Forks](https://img.shields.io/github/forks/mudit-palvadi/lynk-client?style=flat-square)](https://github.com/mudit-palvadi/lynk-client/network/members)
+[![Issues](https://img.shields.io/github/issues/mudit-palvadi/lynk-client?style=flat-square)](https://github.com/mudit-palvadi/lynk-client/issues)
+[![License](https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square)](LICENSE)
+[![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?style=flat-square&logo=flutter)](https://flutter.dev)
+
+<br/>
+
+[<img src="store_assets/png/google_play_badge.png" height="50" alt="Get it on Google Play" />](https://play.google.com/store/apps/details?id=app.xynix.lynk)
+
+[Open LynkShare in your browser](https://lynkshare.app)
+
+</div>
+
+---
+
 <p align="center">
-  <img src="store_assets/png/app_icon_512.png" width="112" alt="LynkShare logo" />
+  <img src="https://play-lh.googleusercontent.com/-5ts6iFdML-_AhXRmDV00gwLiuJNa4ffaVKJG9cxz5803hR8r1g2ZNcW1BAHFtJMb7bYbi6Blw4tJQxadxUP1g=w526" width="150" alt="LynkShare screenshot from the Google Play listing, image 1" />
+  <img src="https://play-lh.googleusercontent.com/jjW9NJ-SYUJo3fcYb2h5_x0jYuwLASlm5f-xiFXq09YCNDO3kOa_D6tmGwb2lGAefnx_uUFxBENAWfvwN9rx=w526" width="150" alt="LynkShare screenshot from the Google Play listing, image 2" />
+  <img src="https://play-lh.googleusercontent.com/iuZllbODdxbWKVnGt5w3n_-rMyYxqqXOC3V35gpS-to9CXGryeqCY50Nx-gL_Tov4y7Nuo_K5Ayz5jorHLur=w526" width="150" alt="LynkShare screenshot from the Google Play listing, image 3" />
+  <img src="https://play-lh.googleusercontent.com/k1o0C9aopd84O8Va6ofitNV9fHuWH0tOQ5kV0Mon6G1zBLMMXMQxCieN1B2pL9BSbR1Wx_fKoy03epVA-oMo=w526" width="150" alt="LynkShare screenshot from the Google Play listing, image 4" />
 </p>
 
-<h1 align="center">LynkShare</h1>
-
-<p align="center">Encrypted file sharing. No account required.</p>
-
-<p align="center">
-  <a href="https://play.google.com/store/apps/details?id=app.xynix.lynk&pli=1"><img src="https://img.shields.io/badge/Get_it_on-Google_Play-414141?logo=googleplay&logoColor=white" alt="Get LynkShare on Google Play" /></a>
-  <a href="https://lynkshare.app"><img src="https://img.shields.io/badge/Open-LynkShare_Web-3455DB" alt="Open LynkShare in a browser" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0--only-blue.svg" alt="GPL-3.0-only license" /></a>
-  <img src="https://img.shields.io/badge/Built_with-Flutter-02569B?logo=flutter&logoColor=white" alt="Built with Flutter" />
-</p>
+Screenshots come from the Google Play listing. Appearance can vary by release and theme.
 
 ## What is LynkShare?
 
-LynkShare is a file-sharing app for Android, with a companion browser experience
-at [lynkshare.app](https://lynkshare.app). Select files, choose **Cloud** or
-**Direct**, and connect using a QR or Share Code—without creating an account.
+LynkShare is a fast, privacy-conscious file-sharing app for Android and the web.
+No account or sign-up is required. Pick your files, choose **Cloud** or **Direct**,
+and connect with a QR code or short Share Code.
 
-The interface separates **Send**, **Receive** and **Activity**. Receiving can
-start by scanning a sender QR, entering a Code, or displaying a receiving QR for
-the sender to scan. The receiving-QR flow uses Cloud delivery.
-
-## Screenshots
-
-<p align="center">
-  <img src="https://play-lh.googleusercontent.com/-5ts6iFdML-_AhXRmDV00gwLiuJNa4ffaVKJG9cxz5803hR8r1g2ZNcW1BAHFtJMb7bYbi6Blw4tJQxadxUP1g=w526-h296" width="190" alt="LynkShare screenshot from the Google Play listing, image 1" />
-  <img src="https://play-lh.googleusercontent.com/jjW9NJ-SYUJo3fcYb2h5_x0jYuwLASlm5f-xiFXq09YCNDO3kOa_D6tmGwb2lGAefnx_uUFxBENAWfvwN9rx=w526-h296" width="190" alt="LynkShare screenshot from the Google Play listing, image 2" />
-  <img src="https://play-lh.googleusercontent.com/iuZllbODdxbWKVnGt5w3n_-rMyYxqqXOC3V35gpS-to9CXGryeqCY50Nx-gL_Tov4y7Nuo_K5Ayz5jorHLur=w526-h296" width="190" alt="LynkShare screenshot from the Google Play listing, image 3" />
-  <img src="https://play-lh.googleusercontent.com/k1o0C9aopd84O8Va6ofitNV9fHuWH0tOQ5kV0Mon6G1zBLMMXMQxCieN1B2pL9BSbR1Wx_fKoy03epVA-oMo=w526-h296" width="190" alt="LynkShare screenshot from the Google Play listing, image 4" />
-</p>
-
-Screenshots are hosted by Google Play and show the published store presentation;
-appearance can differ between releases and themes.
+File contents are encrypted on the sending device and decrypted on the receiving
+device. The backend does not receive the file-decryption key. Cloud sharing keeps
+encrypted files available to recipients while the session is active. Direct
+transfer connects devices over WebRTC while both remain online.
 
 ## Features
 
-- **Cloud sharing:** encrypted uploads remain available to multiple recipients
-  while the session is active.
-- **Direct transfer:** WebRTC connects devices for encrypted transfer while both
-  remain online. A TURN relay may carry encrypted traffic when a direct network
-  path is unavailable; this is not a guarantee of server-free networking.
-- **QR and Code pairing:** scan using the camera, pick a QR image from the gallery,
-  or enter a Code. Sender QR and receiving QR have distinct instructions.
-- **File review:** select multiple files, review the combined size and remove
-  items before starting a transfer.
-- **Activity:** recent sent and received transfers, with file opening and re-send
-  actions where the original files remain available.
-- **Light, Dark and System:** a saved appearance preference, with System following
-  device appearance.
-- **Device-side encryption:** file contents are encrypted before transfer and
-  decrypted on the receiving device.
+### ☁️ Cloud sharing
 
-An internet connection is required. Nearby-device discovery and offline LAN
-sharing are not current features. Native app distribution is Android; iOS access
-is through the browser, not an App Store app.
+- Upload encrypted files once and share them with one or more recipients while
+  the session is active.
+- Start with a sender QR, a receiving QR, or a Share Code.
+- Sessions normally last 10 minutes and can be extended to 30 minutes.
+- The receiving-QR flow uses Cloud delivery.
+
+### ⚡ Direct transfer
+
+- Connect two devices over WebRTC for an encrypted transfer while both remain
+  online.
+- A TURN relay may carry encrypted traffic when a direct network path is
+  unavailable. This is not a guarantee of server-free networking.
+
+### 🔗 Pairing and files
+
+- Scan a QR with the camera, pick a QR image from the gallery, or enter a Code.
+- Sender QR and receiving QR have distinct instructions.
+- Select up to 10 files, review the combined size, and remove items before
+  starting.
+- Open received files and re-send recent transfers where the originals remain
+  available.
+
+### 🎨 Personalization
+
+- Choose **Light**, **Dark**, or **System** appearance.
+- The selected theme is saved, and **System** follows your device appearance.
+
+### 📱 Android and web
+
+- The native app is distributed on Android through Google Play.
+- Open [lynkshare.app](https://lynkshare.app) in a browser to use LynkShare on
+  other devices, including iOS.
+- An internet connection is required. Nearby-device discovery and offline LAN
+  sharing are not current features.
 
 ## Transfer limits
 
@@ -98,11 +122,13 @@ no account or subscription is required to start sharing.
 Report suspected vulnerabilities privately using [SECURITY.md](SECURITY.md),
 not a public issue. No transfer tool can guarantee safety for untrusted files.
 
-## Build and run
+## Building from source
 
-The release pipeline pins Flutter **3.44.6**. Use a Flutter/Dart toolchain that
-satisfies `pubspec.yaml`, plus the Android SDK. Dependencies retain their own
-licenses and any applicable setup requirements.
+**Requirements**
+
+- Flutter **3.44.6** (the release pipeline's pinned version)
+- A Dart toolchain that satisfies `pubspec.yaml`
+- The Android SDK
 
 Clone this repository, open its root (the directory containing `pubspec.yaml`),
 and create an ignored `.env` file:
@@ -126,25 +152,28 @@ flutter run
 Development does not require publishing a Shorebird baseline. Keep the existing
 `shorebird.yaml` app identity unchanged; do not reinitialize it with `--force`.
 
-## Development and contributions
+## Contributing
 
-State is managed with Riverpod, navigation with GoRouter, and HTTP with Dio.
-Features are organized into domain, data and presentation layers under
-`lib/features`; shared routing, services, providers and widgets live in `lib/core`.
+Contributions are welcome. Here is how to help:
+
+- **Bug reports and feature requests** → [open an issue](https://github.com/mudit-palvadi/lynk-client/issues).
+- **Code contributions** → fork the repository, create a focused branch, and open
+  a pull request. Please open an issue first for large changes.
+- **Security reports** → follow [SECURITY.md](SECURITY.md); do not open a public
+  issue containing vulnerability details.
+
+For bug reports, include the app version, device/OS and sanitized reproduction
+steps. Keep changes focused and include regression tests. Do not attach private
+files, complete QR payloads, tokens or signed URLs to issues or pull requests.
 
 ```sh
 flutter analyze
 flutter test
 ```
 
-Tests cover routing, cancellation, encryption interoperability, transfer lifecycle,
-appearance, consent and release guards. Mocked transports are not a substitute for
-real-device transfer and browser testing.
-
-For bug reports, include the app version, device/OS and sanitized reproduction
-steps. Keep changes focused and include regression tests. Do not attach private
-files, complete QR payloads, tokens or signed URLs to issues or pull requests.
-Security-sensitive reports must follow [SECURITY.md](SECURITY.md).
+Tests cover routing, cancellation, encryption interoperability, transfer
+lifecycle, appearance, consent and release guards. Mocked transports are not a
+substitute for real-device transfer and browser testing.
 
 ### Releases and Dart patches
 
@@ -163,15 +192,31 @@ Retain AABs, Dart symbols, R8 mappings and the baseline configuration fingerprin
 See the [release runbook](docs/release-process.md) for secure CI access, staging
 preview, explicit promotion/rollback and device checks. Nothing publishes on push.
 
+## Support the project
+
+- ⭐ Star the repository to help others find LynkShare.
+- 💬 Leave a review on [Google Play](https://play.google.com/store/apps/details?id=app.xynix.lynk).
+- 🐛 [Report a bug or suggest a feature](https://github.com/mudit-palvadi/lynk-client/issues).
+
 ## License
 
 Copyright (c) 2026 Mudit Palvadi
 
-The LynkShare client source in this repository is licensed under the **GNU General
-Public License, version 3 only** (`GPL-3.0-only`). See [LICENSE](LICENSE) for the
-full terms. Third-party components retain their respective licenses and notices.
+LynkShare is released under the
+[GNU General Public License v3.0 only](LICENSE) (`GPL-3.0-only`). Third-party
+components retain their respective licenses and notices.
 
 Distribution of covered modifications requires compliance with GPLv3, including
 the corresponding-source and notice requirements. GPLv3 permits commercial use
 and sale; this is **not** a non-commercial license. Earlier valid license grants
 are not revoked by this change. No trademark permission is granted here.
+
+---
+
+<div align="center">
+
+**[lynkshare.app](https://lynkshare.app)** &nbsp;·&nbsp; [Privacy Policy](https://sites.google.com/view/lynk-privacy-policy/) &nbsp;·&nbsp; [Security Policy](SECURITY.md)
+
+Made with ❤️ by [Mudit Palvadi](https://github.com/mudit-palvadi)
+
+</div>

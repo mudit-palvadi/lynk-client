@@ -26,7 +26,7 @@ person's files or credentials.
 If you discover a security vulnerability in LynkShare:
 
 1. **Do not open a public issue.**
-2. Use [GitHub's private vulnerability reporting form](https://github.com/mudit-palvadi/lynk-client/security/advisories/new),
+2. Use [GitHub's private vulnerability reporting form](https://github.com/mudit-palvadi/lynkshare-mobile/security/advisories/new),
    or go to the repository's **Security** tab and choose **Report a vulnerability**.
 3. Include enough detail for a safe reproduction:
    - App version/build, and the Shorebird patch number if known

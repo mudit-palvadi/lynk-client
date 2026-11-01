@@ -113,14 +113,32 @@ class ReceiveWatchdog {
   }
 }
 
+/// TURN credentials returned by the backend.
+typedef TurnCredentials = ({
+  List<String> urls,
+  String username,
+  String credential,
+});
+
+/// Looks up the TURN relay credentials for one transfer.
+typedef TurnCredentialsFetcher =
+    Future<TurnCredentials?> Function(
+      String sessionId, {
+      String? accessToken,
+      Dio? dio,
+    });
+
 /// Fetches short-lived TURN credentials from the backend. Returns null when
 /// TURN is disabled, unreachable, or the response is malformed -- the caller
 /// then degrades to STUN-only (transfer still succeeds via R2 fallback).
 ///
 /// The endpoint requires the transfer access token, so a caller that holds one
 /// must pass it: TURN credentials are the relay's bandwidth budget (#47).
-Future<({List<String> urls, String username, String credential})?>
-fetchTurnCredentials(String sessionId, {String? accessToken, Dio? dio}) async {
+Future<TurnCredentials?> fetchTurnCredentials(
+  String sessionId, {
+  String? accessToken,
+  Dio? dio,
+}) async {
   // Resolve configuration before the catch: a missing API_BASE_URL is a setup
   // error, not an unreachable TURN server, and must not be silently swallowed.
   final base = ConfigService.apiBase;
@@ -202,17 +220,26 @@ class ReceivedFile {
   });
 }
 
+/// Opens the native peer connection. Injectable so the candidate handling can
+/// be tested without the WebRTC plugin.
+typedef PeerConnectionFactory =
+    Future<RTCPeerConnection> Function(Map<String, dynamic> configuration);
+
 /// Thin `flutter_webrtc` glue implementing [PeerActions]. All decision logic
 /// lives in [WebrtcPeerCoordinator]; this class only translates calls.
 class FlutterWebrtcPeerActions implements PeerActions {
   final SignalingChannel signaling;
+  final PeerConnectionFactory createConnection;
   final LocalSignalingOrder _outbound = LocalSignalingOrder();
   final RemoteCandidateQueue _inbound = RemoteCandidateQueue();
   RTCPeerConnection? _pc;
   RTCDataChannel? _dataChannel;
   void Function(String reason)? _onTransportLost;
 
-  FlutterWebrtcPeerActions({required this.signaling});
+  FlutterWebrtcPeerActions({
+    required this.signaling,
+    this.createConnection = createPeerConnection,
+  });
 
   /// Creates the peer connection. Only the SENDER creates the DataChannel --
   /// the receiver receives it via `onDataChannel`.
@@ -225,10 +252,13 @@ class FlutterWebrtcPeerActions implements PeerActions {
     void Function(String reason)? onTransportLost,
   }) async {
     _onTransportLost = onTransportLost;
-    final pc = await createPeerConnection({
+    final pc = await createConnection({
       'iceServers': iceServers,
       'sdpSemantics': 'unified-plan',
     });
+    // Published before the DataChannel setup below: if that throws, dispose
+    // still has the connection to close (#75).
+    _pc = pc;
 
     pc.onConnectionState = (state) {
       if (isDeadConnectionState(state)) {
@@ -278,7 +308,6 @@ class FlutterWebrtcPeerActions implements PeerActions {
       );
     }
 
-    _pc = pc;
     return pc;
   }
 
@@ -379,13 +408,30 @@ class FlutterWebrtcPeerActions implements PeerActions {
   }
 
   Future<void> _addCandidateNow(Map<String, dynamic> candidate) async {
-    await _pc?.addCandidate(
-      RTCIceCandidate(
-        candidate['candidate'] as String?,
-        candidate['sdpMid'] as String?,
-        candidate['sdpMLineIndex'] as int?,
-      ),
-    );
+    final pc = _pc;
+    if (pc == null) return;
+    // Android reports a closed connection by throwing (or returning false)
+    // from `addCandidate`. A candidate still queued behind
+    // `setRemoteDescription` when the peer goes away must not escape as an
+    // unhandled future error (#75).
+    if (isDeadConnectionState(pc.connectionState)) return;
+    try {
+      await pc.addCandidate(
+        RTCIceCandidate(
+          candidate['candidate'] as String?,
+          candidate['sdpMid'] as String?,
+          candidate['sdpMLineIndex'] as int?,
+        ),
+      );
+    } catch (_) {
+      // Closed while the candidate was in flight: the connection-state
+      // listener already failed the transport, so ignore it. Otherwise the
+      // rejection means ICE can no longer complete, which is a transport
+      // failure rather than a thrown signalling handler.
+      if (!isDeadConnectionState(pc.connectionState)) {
+        _onTransportLost?.call('the peer connection rejected an ICE candidate');
+      }
+    }
   }
 
   @override
@@ -401,6 +447,32 @@ class FlutterWebrtcPeerActions implements PeerActions {
     await _pc?.close();
     _pc = null;
     _dataChannel = null;
+  }
+}
+
+/// Opens the production signaling socket. Tests inject an in-memory socket
+/// through [P2PFileSession.connect]'s factory seam instead.
+WebSocketLike _openSignalingSocket(Uri url) =>
+    WebSocketChannelAdapter(WebSocketChannel.connect(url));
+
+/// Releases the transport resources acquired while connecting.
+///
+/// Null-safe when `peer.init` never completed or the socket never opened, and
+/// a failure from one closer still lets the other run so a failed connect
+/// never leaks either (#75).
+Future<void> disposeP2PConnectResources({
+  FlutterWebrtcPeerActions? peer,
+  SignalingChannel? signaling,
+}) async {
+  try {
+    await peer?.dispose();
+  } catch (_) {
+    // Cleanup must never replace the error that aborted the connect.
+  }
+  try {
+    await signaling?.close();
+  } catch (_) {
+    // Ditto.
   }
 }
 
@@ -489,68 +561,106 @@ class P2PFileSession implements P2PSenderSession {
     void Function()? onFallbackToCloud,
     int maxFiles = 10,
     int maxBytes = maxP2PReceiveBytes,
+    // Factory seams: production uses the platform WebRTC plugin and a real
+    // WebSocket; tests inject fakes so failures are observable (#75).
+    WebSocketLike Function(Uri url)? connectSocket,
+    FlutterWebrtcPeerActions Function(SignalingChannel signaling)? createPeer,
+    TurnCredentialsFetcher turnCredentials = fetchTurnCredentials,
   }) async {
-    final socket = WebSocketChannel.connect(signalingUrl);
-    final signaling = SignalingChannel(WebSocketChannelAdapter(socket));
-    if (accessToken != null && accessToken.isNotEmpty) {
-      // The room refuses a socket that does not present this token first (#32).
-      await signaling.sendAuth(accessToken);
-    }
-    final peer = FlutterWebrtcPeerActions(signaling: signaling);
-    final session = P2PFileSession._(signaling, peer, aesKey)
-      ..onFallbackToCloud = onFallbackToCloud
-      .._budget = ReceiveBudget(maxFiles: maxFiles, maxBytes: maxBytes);
+    FlutterWebrtcPeerActions? peer;
+    SignalingChannel? signaling;
+    P2PFileSession? session;
+    try {
+      signaling = SignalingChannel(
+        (connectSocket ?? _openSignalingSocket)(signalingUrl),
+      );
+      if (accessToken != null && accessToken.isNotEmpty) {
+        // The room refuses a socket that does not present this token first
+        // (#32).
+        await signaling.sendAuth(accessToken);
+      }
+      peer =
+          createPeer?.call(signaling) ??
+          FlutterWebrtcPeerActions(signaling: signaling);
+      final created = P2PFileSession._(signaling, peer, aesKey)
+        ..onFallbackToCloud = onFallbackToCloud
+        .._budget = ReceiveBudget(maxFiles: maxFiles, maxBytes: maxBytes);
+      session = created;
 
-    final turn = await fetchTurnCredentials(
-      sessionId,
-      accessToken: accessToken,
-    );
-    final iceServers = buildIceServers(
-      turnEnabled: turn != null,
-      urls: turn?.urls ?? const [],
-      username: turn?.username ?? '',
-      credential: turn?.credential ?? '',
-    );
+      final turn = await turnCredentials(sessionId, accessToken: accessToken);
+      final iceServers = buildIceServers(
+        turnEnabled: turn != null,
+        urls: turn?.urls ?? const [],
+        username: turn?.username ?? '',
+        credential: turn?.credential ?? '',
+      );
 
-    await peer.init(
-      role: role,
-      iceServers: iceServers,
-      onDataChannelOpen: (_) {
-        if (role == PeerRole.receiver) {
-          session._watchdog.start();
-          // A sender that sees this seals the file name in the header (#32).
-          unawaited(
-            session.peer
-                .sendText(TransferFramer.encodeHello(2, true).text!)
-                .catchError((Object _) {}),
+      await peer.init(
+        role: role,
+        iceServers: iceServers,
+        onDataChannelOpen: (_) {
+          if (role == PeerRole.receiver) {
+            created._watchdog.start();
+            // A sender that sees this seals the file name in the header (#32).
+            unawaited(
+              created.peer
+                  .sendText(TransferFramer.encodeHello(2, true).text!)
+                  .catchError((Object _) {}),
+            );
+          }
+          created.coordinator.notifyConnected();
+        },
+        onBinaryMessage: created._onBinary,
+        onTextMessage: created._onText,
+        // The sender hears nothing back while it streams, so only the receiver
+        // runs the idle timer. A sender still stops on a dead link.
+        onTransportLost: role == PeerRole.receiver
+            ? created._watchdog.lost
+            : created._failTransport,
+      );
+
+      // Handle each message inside the listener: an async callback that throws
+      // would surface as an unhandled error on the root zone (or kill a
+      // background isolate). A handler or socket failure ends the transfer,
+      // which is the same path as a lost transport (#75).
+      signaling.messages.listen(
+        (message) async {
+          try {
+            await created.coordinator.handleMessage(message);
+          } catch (_) {
+            created._failTransport('the signaling handler failed');
+          }
+        },
+        onError: (Object _, StackTrace _) {
+          created._failTransport('the signaling channel failed');
+        },
+      );
+      await created.coordinator.start(
+        role: role,
+        armConnectionTimeout: role == PeerRole.receiver,
+      );
+
+      created.coordinator.onP2PFailed = () {
+        onFallbackToCloud?.call();
+        if (!created._transferDone.isCompleted) {
+          created._transferDone.completeError(
+            const SocketException('P2P connect timeout'),
           );
         }
-        session.coordinator.notifyConnected();
-      },
-      onBinaryMessage: session._onBinary,
-      onTextMessage: session._onText,
-      // The sender hears nothing back while it streams, so only the receiver
-      // runs the idle timer. A sender still stops on a dead link.
-      onTransportLost: role == PeerRole.receiver
-          ? session._watchdog.lost
-          : session._failTransport,
-    );
-
-    signaling.messages.listen(session.coordinator.handleMessage);
-    await session.coordinator.start(
-      role: role,
-      armConnectionTimeout: role == PeerRole.receiver,
-    );
-
-    session.coordinator.onP2PFailed = () {
-      onFallbackToCloud?.call();
-      if (!session._transferDone.isCompleted) {
-        session._transferDone.completeError(
-          const SocketException('P2P connect timeout'),
-        );
+      };
+      return created;
+    } catch (error, stackTrace) {
+      // A failed setup must not leak the socket or peer connection. Session
+      // dispose also stops the coordinator's fallback timer; the individual
+      // closers below repeat it harmlessly if that first teardown throws.
+      try {
+        await session?.dispose();
+      } catch (_) {
+        // Fall through to the individual closers.
       }
-    };
-    return session;
+      await disposeP2PConnectResources(peer: peer, signaling: signaling);
+      Error.throwWithStackTrace(error, stackTrace);
+    }
   }
 
   /// Sender-side factory matching [P2PSenderSessionFactory].

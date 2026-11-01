@@ -172,6 +172,17 @@ class UploadNotifier extends _$UploadNotifier {
     state = state.copyWith(transferMode: mode);
   }
 
+  /// Replaces the staged selection with [files], such as a history re-send.
+  /// The batch goes through the same size and file-count rules as a fresh
+  /// pick, so an oversized or too-large batch is refused instead of staged.
+  void replaceFiles(List<PlatformFile> files) {
+    // A re-send is a new selection rather than an addition to the old one, so
+    // clear first and let the rules run against the incoming batch alone.
+    state = state.copyWith(selectedFiles: const []);
+    _addPicked(files);
+  }
+
+  @visibleForTesting
   void setFilesForTesting(List<PlatformFile> files) {
     // Preserve mode + unlock state so staged flows see the same config the
     // user picked (mirrors pickMedia/pickFiles behavior).

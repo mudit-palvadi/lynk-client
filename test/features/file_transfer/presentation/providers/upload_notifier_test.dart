@@ -424,4 +424,67 @@ void main() {
       expect(notifier.hasRejectedFiles, isFalse);
     });
   });
+
+  group('UploadNotifier history re-send', () {
+    ProviderContainer makeContainer() {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      return container;
+    }
+
+    test('a batch over the total-size tier is refused like a pick', () {
+      final container = makeContainer();
+      final notifier = container.read(uploadProvider.notifier);
+
+      notifier.replaceFiles([fileOf('big.bin', 16 * mb)]);
+
+      final state = container.read(uploadProvider);
+      expect(state.selectedFiles, isEmpty);
+      expect(state.phase, UploadPhase.failed);
+      expect(state.errorMessage, contains('15 MB'));
+      expect(state.errorMessage, contains('Watch an ad to unlock'));
+    });
+
+    test('more than ten files are refused like a pick', () {
+      final container = makeContainer();
+      final notifier = container.read(uploadProvider.notifier);
+
+      notifier.replaceFiles([
+        for (var i = 0; i < 11; i++) fileOf('f$i.txt', 10),
+      ]);
+
+      final state = container.read(uploadProvider);
+      expect(state.selectedFiles, isEmpty);
+      expect(state.phase, UploadPhase.failed);
+      expect(state.errorMessage, contains('10 files'));
+    });
+
+    test('a valid batch is staged for review', () {
+      final container = makeContainer();
+      final notifier = container.read(uploadProvider.notifier);
+
+      notifier.replaceFiles([fileOf('a.txt', 10), fileOf('b.txt', 20)]);
+
+      final state = container.read(uploadProvider);
+      expect(state.selectedFiles.map((f) => f.name).toList(), [
+        'a.txt',
+        'b.txt',
+      ]);
+      expect(state.phase, UploadPhase.selecting);
+    });
+
+    test('a re-send replaces the previous selection instead of appending', () {
+      // A finished send leaves its files in the notifier, so appending a
+      // history re-send would stage duplicates of the same batch.
+      final container = makeContainer();
+      final notifier = container.read(uploadProvider.notifier);
+
+      notifier.replaceFiles([fileOf('old.txt', 10)]);
+      notifier.replaceFiles([fileOf('history.txt', 20)]);
+
+      final state = container.read(uploadProvider);
+      expect(state.selectedFiles.map((f) => f.name).toList(), ['history.txt']);
+      expect(state.phase, UploadPhase.selecting);
+    });
+  });
 }

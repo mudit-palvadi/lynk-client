@@ -43,80 +43,90 @@ class DecryptFileUseCase {
         await outFile.delete();
       }
 
-      final key = enc.Key.fromUtf8(keyStr);
-      final encrypterStandard = enc.Encrypter(
-        enc.AES(key, mode: enc.AESMode.cbc, padding: 'PKCS7'),
-      );
-      final encrypterNoPadding = enc.Encrypter(
-        enc.AES(key, mode: enc.AESMode.cbc, padding: null),
-      );
+      try {
+        final key = enc.Key.fromUtf8(keyStr);
+        final encrypterStandard = enc.Encrypter(
+          enc.AES(key, mode: enc.AESMode.cbc, padding: 'PKCS7'),
+        );
+        final encrypterNoPadding = enc.Encrypter(
+          enc.AES(key, mode: enc.AESMode.cbc, padding: null),
+        );
 
-      final inputStream = inFile.openRead();
-      final buffer = BytesBuilder(copy: false);
-      Uint8List? initialIvBytes;
-      enc.IV? currentIv;
-      final sink = outFile.openWrite();
-      const chunkSize = 1024 * 1024;
+        final inputStream = inFile.openRead();
+        final buffer = BytesBuilder(copy: false);
+        Uint8List? initialIvBytes;
+        enc.IV? currentIv;
+        final sink = outFile.openWrite();
+        const chunkSize = 1024 * 1024;
 
-      await for (final chunk in inputStream) {
-        buffer.add(chunk);
+        try {
+          await for (final chunk in inputStream) {
+            buffer.add(chunk);
 
-        if (initialIvBytes == null) {
-          if (buffer.length >= 16) {
-            final allBytes = buffer.takeBytes();
-            initialIvBytes = allBytes.sublist(0, 16);
-            currentIv = enc.IV(initialIvBytes);
-            buffer.add(allBytes.sublist(16));
-          } else {
-            continue;
+            if (initialIvBytes == null) {
+              if (buffer.length >= 16) {
+                final allBytes = buffer.takeBytes();
+                initialIvBytes = allBytes.sublist(0, 16);
+                currentIv = enc.IV(initialIvBytes);
+                buffer.add(allBytes.sublist(16));
+              } else {
+                continue;
+              }
+            }
+
+            while (buffer.length >= chunkSize + 16) {
+              final rawChunk = buffer.takeBytes();
+              final processLength = ((rawChunk.length - 16) ~/ 16) * 16;
+              if (processLength <= 0) {
+                buffer.add(rawChunk);
+                break;
+              }
+
+              final toDecrypt = rawChunk.sublist(0, processLength);
+              final remainder = rawChunk.sublist(processLength);
+
+              final decrypted = encrypterNoPadding.decryptBytes(
+                enc.Encrypted(toDecrypt),
+                iv: currentIv!,
+              );
+              sink.add(decrypted);
+
+              currentIv = enc.IV(toDecrypt.sublist(toDecrypt.length - 16));
+              buffer.add(remainder);
+            }
           }
-        }
 
-        while (buffer.length >= chunkSize + 16) {
-          final rawChunk = buffer.takeBytes();
-          final processLength = ((rawChunk.length - 16) ~/ 16) * 16;
-          if (processLength <= 0) {
-            buffer.add(rawChunk);
-            break;
+          if (initialIvBytes == null) {
+            throw const FormatException(
+              'Encrypted file payload is truncated or invalid',
+            );
           }
 
-          final toDecrypt = rawChunk.sublist(0, processLength);
-          final remainder = rawChunk.sublist(processLength);
+          final remaining = buffer.takeBytes();
+          if (remaining.isEmpty || remaining.length % 16 != 0) {
+            throw const FormatException(
+              'Encrypted ciphertext payload is corrupted or invalid block length',
+            );
+          }
 
-          final decrypted = encrypterNoPadding.decryptBytes(
-            enc.Encrypted(toDecrypt),
+          final finalDecrypted = encrypterStandard.decryptBytes(
+            enc.Encrypted(remaining),
             iv: currentIv!,
           );
-          sink.add(decrypted);
+          sink.add(finalDecrypted);
 
-          currentIv = enc.IV(toDecrypt.sublist(toDecrypt.length - 16));
-          buffer.add(remainder);
+          await sink.flush();
+        } finally {
+          await sink.close();
         }
+      } catch (_) {
+        // The output file was created or truncated above, so a failed decrypt
+        // must not leave partial plaintext behind (#70).
+        if (await outFile.exists()) {
+          await outFile.delete();
+        }
+        rethrow;
       }
-
-      if (initialIvBytes == null) {
-        sink.close();
-        throw const FormatException(
-          'Encrypted file payload is truncated or invalid',
-        );
-      }
-
-      final remaining = buffer.takeBytes();
-      if (remaining.isEmpty || remaining.length % 16 != 0) {
-        sink.close();
-        throw const FormatException(
-          'Encrypted ciphertext payload is corrupted or invalid block length',
-        );
-      }
-
-      final finalDecrypted = encrypterStandard.decryptBytes(
-        enc.Encrypted(remaining),
-        iv: currentIv!,
-      );
-      sink.add(finalDecrypted);
-
-      await sink.flush();
-      await sink.close();
     });
 
     return File(outputPath);

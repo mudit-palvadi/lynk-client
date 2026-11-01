@@ -3,16 +3,37 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ConfigService {
-  static const String _fallbackApiBase = 'https://api.lynkshare.app/api/v1/';
-
   /// REST base URL from env, always ending with a trailing slash.
-  /// Falls back to the production default when .env is unavailable.
+  ///
+  /// There is deliberately no production fallback: a missing value is a
+  /// configuration error, not a reason to contact someone else's deployment.
+  /// The error names the variable so a fresh checkout fails with a fix rather
+  /// than a mystery timeout against a service the contributor does not own.
   static String get apiBase {
-    String url;
+    String? raw;
     try {
-      url = dotenv.env['API_BASE_URL'] ?? _fallbackApiBase;
+      raw = dotenv.env['API_BASE_URL'];
     } catch (_) {
-      url = _fallbackApiBase; // DotEnv not initialized (e.g. unit tests)
+      raw = null; // DotEnv not initialized (e.g. unit tests without a .env).
+    }
+    return resolveApiBase(raw);
+  }
+
+  /// Validates and normalizes a configured API base.
+  ///
+  /// Kept separate from [apiBase] so tests can cover the missing-value and
+  /// trailing-slash rules without depending on process-wide dotenv state.
+  @visibleForTesting
+  static String resolveApiBase(String? raw) {
+    final url = raw?.trim() ?? '';
+    if (url.isEmpty) {
+      throw StateError(
+        'API_BASE_URL is not set. Create client/.env from .env.example and '
+        'point it at your own backend, for example '
+        'http://10.0.2.2:8000/api/v1/ on an Android emulator or '
+        'http://localhost:8000/api/v1/ on web and desktop. '
+        'See the README for local backend setup.',
+      );
     }
     return url.endsWith('/') ? url : '$url/';
   }

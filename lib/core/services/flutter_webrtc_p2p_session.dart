@@ -4,10 +4,10 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import 'config_service.dart';
 import 'p2p_delivery_sender.dart';
 import 'receive_budget.dart';
 import 'ice_ladder.dart';
@@ -121,9 +121,10 @@ class ReceiveWatchdog {
 /// must pass it: TURN credentials are the relay's bandwidth budget (#47).
 Future<({List<String> urls, String username, String credential})?>
 fetchTurnCredentials(String sessionId, {String? accessToken, Dio? dio}) async {
+  // Resolve configuration before the catch: a missing API_BASE_URL is a setup
+  // error, not an unreachable TURN server, and must not be silently swallowed.
+  final base = ConfigService.apiBase;
   try {
-    final base =
-        dotenv.env['API_BASE_URL'] ?? 'https://api.lynkshare.app/api/v1/';
     final client = dio ?? Dio();
     final resp = await client.getUri(
       Uri.parse(base).resolve('transfers/$sessionId/turn-credentials'),

@@ -3,10 +3,10 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import '../services/config_service.dart';
 import '../services/download_folder_service.dart';
 import '../services/download_service.dart';
 import '../services/flutter_webrtc_p2p_session.dart';
@@ -501,19 +501,6 @@ class DownloadNotifier extends _$DownloadNotifier {
     }
   }
 
-  static Uri _signalingUri(String sessionId) {
-    final base =
-        dotenv.env['API_BASE_URL'] ?? 'https://api.lynkshare.app/api/v1/';
-    final parsed = Uri.parse(base);
-    final scheme = parsed.scheme == 'https' ? 'wss' : 'ws';
-    return Uri(
-      scheme: scheme,
-      host: parsed.host,
-      port: parsed.port,
-      path: '/ws/signaling/$sessionId',
-    );
-  }
-
   /// Listens on the signaling room as the WebRTC receiver, decrypts each
   /// inbound encrypted file and returns `true` when the whole transfer
   /// arrived over the DataChannel.
@@ -572,7 +559,7 @@ class DownloadNotifier extends _$DownloadNotifier {
       unawaited(
         ref
             .read(p2pReceiverSessionFactoryProvider)(
-              signalingUrl: _signalingUri(transfer.id),
+              signalingUrl: ConfigService.signalingUri(transfer.id),
               role: PeerRole.receiver,
               sessionId: transfer.id,
               accessToken: accessToken,

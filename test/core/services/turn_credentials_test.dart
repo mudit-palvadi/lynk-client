@@ -11,7 +11,7 @@ void main() {
       // The function reads its base url from dotenv, which throws until a
       // source is loaded.
       dotenv.loadFromString(
-        envString: 'API_BASE_URL=https://api.lynkshare.app/api/v1/',
+        envString: 'API_BASE_URL=https://api.test.local/api/v1/',
       );
     });
 
@@ -45,6 +45,12 @@ void main() {
       expect(headers[tokenHeader], 'transfer-token');
     });
 
+    test('a missing API_BASE_URL is a configuration error', () async {
+      dotenv.clean();
+
+      await expectLater(fetchTurnCredentials('transfer-1'), throwsStateError);
+    });
+
     test('sends no token header when the caller has none', () async {
       final adapter = FakeHttpAdapter(
         (_) => jsonResponse(200, {'enabled': false}),
@@ -55,9 +61,7 @@ void main() {
 
       final headers = adapter.requests.single.headers;
       expect(
-        headers.keys.where(
-          (key) => key.toLowerCase() == 'x-lynk-access-token',
-        ),
+        headers.keys.where((key) => key.toLowerCase() == 'x-lynk-access-token'),
         isEmpty,
       );
     });

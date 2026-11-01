@@ -53,9 +53,11 @@ jobs:
         # every test run would die before it started. .env is gitignored and
         # it ships inside the APK, so it must only ever hold public
         # configuration - never a secret.
+        # The suite uses fake adapters, so point it at an unresolvable test
+        # host: a mistaken real request fails instead of reaching production.
         run: |
           cat > .env <<'EOF'
-          API_BASE_URL=https://api.lynkshare.app/api/v1/
+          API_BASE_URL=https://api.test.local/api/v1/
           PRIVACY_POLICY_URL=https://sites.google.com/view/lynk-privacy-policy/
           DEEP_LINK_BASE_URL=https://lynkshare.app
           ADMOB_APP_ID=ca-app-pub-3940256099942544~3347511713

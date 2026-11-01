@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+
+import '../services/config_service.dart';
 
 class ApiClient {
   final Dio _dio;
@@ -33,14 +34,7 @@ class ApiClient {
     }
   }
 
-  static String _getBaseUrl() {
-    String url =
-        dotenv.env['API_BASE_URL'] ?? 'https://api.lynkshare.app/api/v1/';
-    if (!url.endsWith('/')) {
-      url = '$url/';
-    }
-    return url;
-  }
+  static String _getBaseUrl() => ConfigService.apiBase;
 
   Dio get dio => _dio;
 }

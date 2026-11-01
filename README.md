@@ -122,35 +122,93 @@ no account or subscription is required to start sharing.
 Report suspected vulnerabilities privately using [SECURITY.md](SECURITY.md),
 not a public issue. No transfer tool can guarantee safety for untrusted files.
 
-## Building from source
+## Run it locally
 
 **Requirements**
 
 - Flutter **3.44.6** (the release pipeline's pinned version)
 - A Dart toolchain that satisfies `pubspec.yaml`
 - The Android SDK
+- Python **3.10+**, Redis, and a Cloudflare R2 bucket you create yourself
 
-Clone this repository, open its root (the directory containing `pubspec.yaml`),
-and create an ignored `.env` file:
+LynkShare needs a backend for signaling, receiver sessions and encrypted cloud
+storage. Run your own copy; do not point local builds at the project's
+production service or storage bucket. The backend lives at
+[mudit-palvadi/lynk-backend](https://github.com/mudit-palvadi/lynk-backend).
 
-```env
-API_BASE_URL=https://api.lynkshare.app/api/v1/
-PRIVACY_POLICY_URL=https://sites.google.com/view/lynk-privacy-policy/
-DEEP_LINK_BASE_URL=https://lynkshare.app
+### 1. Start the backend
+
+Start Redis locally on port `6379`, then set up the backend:
+
+```sh
+git clone https://github.com/mudit-palvadi/lynk-backend.git
+cd lynk-backend
+python -m venv .venv
+# Windows PowerShell: .venv\Scripts\Activate.ps1
+# macOS/Linux:       source .venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
 ```
 
-For a local backend on an Android emulator, use
-`http://10.0.2.2:8000/api/v1/` in a debug build. Never add storage credentials,
-publishing tokens or private signing keys to the app's bundled configuration.
-Debug/profile builds use test ad identifiers.
+Create `.env` in the backend repository root and fill in **your own**
+Cloudflare R2 credentials:
+
+```env
+ENVIRONMENT=development
+PORT=8000
+HOST=0.0.0.0
+REDIS_URL=redis://localhost:6379/0
+
+R2_ACCOUNT_ID=your-cloudflare-account-id
+R2_ACCESS_KEY_ID=your-access-key-id
+R2_SECRET_ACCESS_KEY=your-secret-access-key
+R2_BUCKET_NAME=your-bucket-name
+```
+
+Create that bucket in your own Cloudflare account and give the API token
+read/write access to it. The backend supports Cloudflare R2 only, and its
+`mock-*` defaults cannot store files; without your own bucket, cloud transfers
+fail.
+
+```sh
+uvicorn app.main:app --reload
+```
+
+The API is then at `http://localhost:8000`, with interactive docs at
+`http://localhost:8000/docs`.
+
+### 2. Configure the client
+
+Open this repository's root (the directory containing `pubspec.yaml`) and copy
+the example environment file:
+
+```sh
+cp .env.example .env
+```
+
+Set `API_BASE_URL` for the device you are running:
+
+| Target | `API_BASE_URL` |
+| --- | --- |
+| Android emulator | `http://10.0.2.2:8000/api/v1/` |
+| Web or desktop | `http://localhost:8000/api/v1/` |
+| Physical Android device | `http://localhost:8000/api/v1/` after `adb reverse tcp:8000 tcp:8000`, or `http://<computer-lan-ip>:8000/api/v1/` |
+
+`API_BASE_URL` is required. If it is missing, the app throws a configuration
+error naming the variable instead of falling back to a hosted service.
+
+`PRIVACY_POLICY_URL` and `DEEP_LINK_BASE_URL` are public product links. Never
+put storage credentials, publishing tokens or signing keys in the client's
+`.env`; that file is bundled into the app. Debug and profile builds use
+Google's test ad identifiers automatically.
 
 ```sh
 flutter pub get
 flutter run
 ```
 
-Development does not require publishing a Shorebird baseline. Keep the existing
-`shorebird.yaml` app identity unchanged; do not reinitialize it with `--force`.
+Do not commit `.env`. Development does not require publishing a Shorebird
+baseline. Keep the existing `shorebird.yaml` app identity unchanged; do not
+reinitialize it with `--force`.
 
 ## Contributing
 

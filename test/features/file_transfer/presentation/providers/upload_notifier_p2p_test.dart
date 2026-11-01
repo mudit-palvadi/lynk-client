@@ -17,6 +17,7 @@ import 'package:client/features/recent_transfers/domain/entities/recent_transfer
 import 'package:client/features/recent_transfers/presentation/providers/recent_transfers_notifier.dart';
 import 'package:client/features/onboarding/presentation/providers/onboarding_provider.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -202,6 +203,12 @@ class FakeSenderSession implements P2PSenderSession {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   SharedPreferences.setMockInitialValues({});
+
+  setUp(() {
+    dotenv.loadFromString(
+      envString: 'API_BASE_URL=https://api.test.local/api/v1/',
+    );
+  });
 
   late FakeSenderSession fakeSession;
   late FakeTransferRepository fakeTransferRepo;

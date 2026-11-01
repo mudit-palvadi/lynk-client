@@ -218,7 +218,7 @@ class RecentTransfersWidget extends ConsumerWidget {
       return;
     }
 
-    ref.read(uploadProvider.notifier).setFilesForTesting(validFiles);
+    ref.read(uploadProvider.notifier).replaceFiles(validFiles);
     if (context.mounted) {
       context.push('/upload');
     }

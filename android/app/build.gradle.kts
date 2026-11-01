@@ -48,11 +48,38 @@ fun requireReleaseAdMobAppId() {
         configuredAdMobAppId.startsWith("ca-app-pub-3940256099942544")) {
         throw GradleException("A release build needs a valid, non-sample AdMob application id.")
     }
-    val requiredSigning = listOf("keyAlias", "keyPassword", "storeFile", "storePassword")
-    if (!keystorePropertiesFile.exists() || requiredSigning.any {
-            keystoreProperties.getProperty(it).isNullOrBlank()
-        } || !file(keystoreProperties.getProperty("storeFile")).isFile) {
-        throw GradleException("A release build needs the registered upload keystore and all signing properties.")
+}
+
+val requiredSigningProperties = listOf("keyAlias", "keyPassword", "storeFile", "storePassword")
+
+/**
+ * A release build must fail closed when the upload keystore is missing or
+ * incomplete. There is deliberately no debug-signing fallback: a release that
+ * cannot be signed with the registered upload key is an error, not a build
+ * that silently ships a debug-signed artifact.
+ */
+fun requireReleaseSigning() {
+    if (!keystorePropertiesFile.exists()) {
+        throw GradleException(
+            "A release build needs android/key.properties with keyAlias, keyPassword, " +
+                "storeFile and storePassword. Refusing to fall back to the debug signing key.",
+        )
+    }
+    val missing = requiredSigningProperties.filter {
+        keystoreProperties.getProperty(it).isNullOrBlank()
+    }
+    if (missing.isNotEmpty()) {
+        throw GradleException(
+            "A release build needs non-empty signing properties; missing: " +
+                "${missing.joinToString(", ")}. Refusing to fall back to the debug signing key.",
+        )
+    }
+    val storeFile = file(keystoreProperties.getProperty("storeFile"))
+    if (!storeFile.isFile) {
+        throw GradleException(
+            "The release keystore configured by android/key.properties does not exist: " +
+                storeFile.path,
+        )
     }
 }
 
@@ -100,6 +127,9 @@ android {
 
     buildTypes {
         release {
+            // The release variant is signed only by the upload keystore.
+            // requireReleaseSigning() fails the build when key.properties is
+            // missing or incomplete, so this can never fall back to debug.
             signingConfig = signingConfigs.getByName("release")
             manifestPlaceholders["admobAppId"] = configuredAdMobAppId
             // Shrink and obfuscate the release build. Without this the APK
@@ -112,6 +142,9 @@ android {
             )
         }
         debug {
+            // Debug builds keep the standard debug keystore; the release
+            // validation above never applies to them.
+            signingConfig = signingConfigs.getByName("debug")
             // The public test AdMob id is fine here: debug builds show test ads.
             manifestPlaceholders["admobAppId"] = googleTestAdMobAppId
         }
@@ -121,12 +154,14 @@ android {
     }
 }
 
-// A release build must never ship the sample AdMob id. Every task in the
-// release graph is hooked, so the build fails on the first one to run -
-// `flutter build appbundle` drives `bundleRelease`, not `assembleRelease`,
-// and hooking only one of them would let the other slip through.
+// A release build must never ship the sample AdMob id or a debug-signed
+// artifact. Every task in the release graph is hooked, so the build fails on
+// the first one to run - `flutter build appbundle` drives `bundleRelease`, not
+// `assembleRelease`, and hooking only one of them would let the other slip
+// through.
 tasks.matching { it.name.contains("Release") }.configureEach {
     doFirst {
+        requireReleaseSigning()
         requireReleaseAdMobAppId()
     }
 }

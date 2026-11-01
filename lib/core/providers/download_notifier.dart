@@ -469,10 +469,11 @@ class DownloadNotifier extends _$DownloadNotifier {
     final external = await getExternalStorageDirectory();
     if (external == null) return localPath;
     final folder = Directory('${external.path}/Lynk');
-    await folder.create(recursive: true);
-    final delivered = File('${folder.path}/$fileName');
-    await File(localPath).copy(delivered.path);
-    await File(localPath).delete();
+    final delivered = await deliverFileToFolder(
+      folder: folder,
+      sourcePath: localPath,
+      fileName: fileName,
+    );
     return delivered.path;
   }
 
@@ -713,5 +714,45 @@ class DownloadNotifier extends _$DownloadNotifier {
   void cancelDownload() {
     _invalidateReception();
     state = state.copyWith(phase: DownloadPhase.cancelled);
+  }
+}
+
+/// Copies [sourcePath] into [folder] under a name no existing file uses.
+///
+/// The folder keeps every file that was ever received, so writing a second
+/// file with the same name would silently replace the first one. The name is
+/// made unique against what the folder already holds before anything is
+/// written, and the source is removed only once the copy has succeeded.
+@visibleForTesting
+Future<File> deliverFileToFolder({
+  required Directory folder,
+  required String sourcePath,
+  required String fileName,
+}) async {
+  await folder.create(recursive: true);
+  final name = FileNameSanitizer.uniqueFileName(
+    fileName,
+    await _existingFileNames(folder),
+  );
+  final delivered = File('${folder.path}/$name');
+  await File(sourcePath).copy(delivered.path);
+  await File(sourcePath).delete();
+  return delivered;
+}
+
+/// The names of the files directly inside [folder], or none when the folder
+/// cannot be read. A failed listing must not drop the file on the floor.
+Future<List<String>> _existingFileNames(Directory folder) async {
+  try {
+    final names = <String>[];
+    await for (final entry in folder.list(followLinks: false)) {
+      if (entry is! File) continue;
+      final path = entry.path;
+      final separator = path.lastIndexOf(RegExp(r'[\\/]'));
+      names.add(separator < 0 ? path : path.substring(separator + 1));
+    }
+    return names;
+  } on FileSystemException {
+    return const [];
   }
 }

@@ -21,6 +21,11 @@ class MainActivity : FlutterActivity() {
     private val pickRequestCode = 0x5949
     private var pendingPick: MethodChannel.Result? = null
 
+    private companion object {
+        /** The longest name most filesystems accept, in UTF-8 bytes. */
+        const val MAX_NAME_BYTES = 255
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
@@ -100,15 +105,17 @@ class MainActivity : FlutterActivity() {
         }
         try {
             val tree = Uri.parse(treeUri)
-            val parent = DocumentsContract.buildDocumentUriUsingTree(
-                tree,
-                DocumentsContract.getTreeDocumentId(tree),
-            )
+            val parentId = DocumentsContract.getTreeDocumentId(tree)
+            val parent = DocumentsContract.buildDocumentUriUsingTree(tree, parentId)
+            // A second file with the same name would replace the first one in
+            // folders whose provider does not rename it, so the name is made
+            // unique against the children the folder already has.
+            val uniqueName = uniqueChildName(tree, parentId, fileName)
             val document = DocumentsContract.createDocument(
                 contentResolver,
                 parent,
                 mimeType ?: "application/octet-stream",
-                fileName,
+                uniqueName,
             ) ?: throw IllegalStateException("The folder refused the file")
 
             contentResolver.openOutputStream(document, "w").use { output ->
@@ -119,6 +126,79 @@ class MainActivity : FlutterActivity() {
         } catch (e: Exception) {
             result.error("publish_failed", e.message, null)
         }
+    }
+
+    /**
+     * A name no child of [parentId] already uses.
+     *
+     * [desired] is returned unchanged when the folder has no such child and
+     * also when its children cannot be listed: a failed lookup must not cost
+     * the user the file. The counter goes before the extension, so
+     * `report.pdf` becomes `report (1).pdf`, and the stem is shortened to keep
+     * the 255-byte name limit.
+     */
+    private fun uniqueChildName(tree: Uri, parentId: String, desired: String): String {
+        val taken = existingChildNames(tree, parentId) ?: return desired
+        if (taken.none { it.equals(desired, ignoreCase = true) }) return desired
+
+        val dot = desired.lastIndexOf('.')
+        val hasExtension = dot > 0 && dot < desired.length - 1
+        val stem = if (hasExtension) desired.substring(0, dot) else desired
+        val extension = if (hasExtension) desired.substring(dot) else ""
+
+        var index = 1
+        while (true) {
+            val tail = " ($index)$extension"
+            val budget = MAX_NAME_BYTES - tail.toByteArray(Charsets.UTF_8).size
+            val candidate = fitUtf8(stem, budget.coerceAtLeast(0)) + tail
+            if (taken.none { it.equals(candidate, ignoreCase = true) }) return candidate
+            index++
+        }
+    }
+
+    /**
+     * The display names of the children of [parentId], or null when the
+     * provider cannot answer. Callers treat null as "do not rename".
+     */
+    private fun existingChildNames(tree: Uri, parentId: String): Set<String>? {
+        val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, parentId)
+        return try {
+            contentResolver.query(
+                children,
+                arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME),
+                null,
+                null,
+                null,
+            )?.use { cursor ->
+                val column = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+                if (column < 0) return null
+                val names = mutableSetOf<String>()
+                while (cursor.moveToNext()) {
+                    val name = cursor.getString(column)
+                    if (!name.isNullOrEmpty()) names.add(name)
+                }
+                names
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** The longest prefix of [value] that fits in [maxBytes] UTF-8 bytes. */
+    private fun fitUtf8(value: String, maxBytes: Int): String {
+        val result = StringBuilder()
+        var used = 0
+        var index = 0
+        while (index < value.length) {
+            val codePoint = value.codePointAt(index)
+            val piece = String(Character.toChars(codePoint))
+            val size = piece.toByteArray(Charsets.UTF_8).size
+            if (used + size > maxBytes) break
+            result.append(piece)
+            used += size
+            index += Character.charCount(codePoint)
+        }
+        return result.toString()
     }
 
     private fun openDocument(uri: String?, result: MethodChannel.Result) {

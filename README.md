@@ -56,8 +56,8 @@ transfer connects devices over WebRTC while both remain online.
 
 - Connect two devices over WebRTC for an encrypted transfer while both remain
   online.
-- A TURN relay may carry encrypted traffic when a direct network path is
-  unavailable. This is not a guarantee of server-free networking.
+- A relay may carry encrypted traffic when a direct network path is unavailable.
+  This is not a guarantee of server-free networking.
 
 ### 🔗 Pairing and files
 
@@ -93,7 +93,7 @@ for each file.
 | Website | 10 MB | 10 MB |
 
 Transfers support up to **10 files**, subject to the combined size limit. The
-backend ceiling is **50 MB per transfer**. Website transfers currently have no
+service ceiling is **50 MB per transfer**. Website transfers currently have no
 unlock flow. App unlocks and advertising availability follow the in-app policy;
 no account or subscription is required to start sharing.
 

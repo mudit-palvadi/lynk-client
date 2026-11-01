@@ -6,9 +6,9 @@
 
 **Encrypted file sharing for Android and the web, without an account**
 
-[![Stars](https://img.shields.io/github/stars/mudit-palvadi/lynk-client?style=flat-square&color=FFD700)](https://github.com/mudit-palvadi/lynk-client/stargazers)
-[![Forks](https://img.shields.io/github/forks/mudit-palvadi/lynk-client?style=flat-square)](https://github.com/mudit-palvadi/lynk-client/network/members)
-[![Issues](https://img.shields.io/github/issues/mudit-palvadi/lynk-client?style=flat-square)](https://github.com/mudit-palvadi/lynk-client/issues)
+[![Stars](https://img.shields.io/github/stars/mudit-palvadi/lynkshare-mobile?style=flat-square&color=FFD700)](https://github.com/mudit-palvadi/lynkshare-mobile/stargazers)
+[![Forks](https://img.shields.io/github/forks/mudit-palvadi/lynkshare-mobile?style=flat-square)](https://github.com/mudit-palvadi/lynkshare-mobile/network/members)
+[![Issues](https://img.shields.io/github/issues/mudit-palvadi/lynkshare-mobile?style=flat-square)](https://github.com/mudit-palvadi/lynkshare-mobile/issues)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square)](LICENSE)
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?style=flat-square&logo=flutter)](https://flutter.dev)
 
@@ -56,8 +56,8 @@ transfer connects devices over WebRTC while both remain online.
 
 - Connect two devices over WebRTC for an encrypted transfer while both remain
   online.
-- A TURN relay may carry encrypted traffic when a direct network path is
-  unavailable. This is not a guarantee of server-free networking.
+- A relay may carry encrypted traffic when a direct network path is unavailable.
+  This is not a guarantee of server-free networking.
 
 ### 🔗 Pairing and files
 
@@ -93,7 +93,7 @@ for each file.
 | Website | 10 MB | 10 MB |
 
 Transfers support up to **10 files**, subject to the combined size limit. The
-backend ceiling is **50 MB per transfer**. Website transfers currently have no
+service ceiling is **50 MB per transfer**. Website transfers currently have no
 unlock flow. App unlocks and advertising availability follow the in-app policy;
 no account or subscription is required to start sharing.
 
@@ -112,9 +112,9 @@ no account or subscription is required to start sharing.
 - Cloud session availability is separate from storage cleanup. Sessions normally
   last 10 minutes and can be extended to 30 minutes; encrypted objects may remain
   until the bucket's cleanup policy runs, rather than disappearing at expiry.
-- Direct connections can expose network addresses to the other peer and signaling
-  infrastructure. Relay services can observe connection metadata, not plaintext
-  file contents.
+- Direct connections can expose network addresses to the other peer and the
+  connection service. Relay services can observe connection metadata, not
+  plaintext file contents.
 - The Android app contains advertising and Google consent/privacy controls.
   Third-party SDK data practices are covered by the
   [privacy policy](https://sites.google.com/view/lynk-privacy-policy/).
@@ -129,54 +129,15 @@ not a public issue. No transfer tool can guarantee safety for untrusted files.
 - Flutter **3.44.6** (the release pipeline's pinned version)
 - A Dart toolchain that satisfies `pubspec.yaml`
 - The Android SDK
-- Python **3.10+**, Redis, and a Cloudflare R2 bucket you create yourself
+- A running LynkShare backend
 
-LynkShare needs a backend for signaling, receiver sessions and encrypted cloud
-storage. Run your own copy; do not point local builds at the project's
-production service or storage bucket. The backend lives at
-[mudit-palvadi/lynk-backend](https://github.com/mudit-palvadi/lynk-backend).
+LynkShare needs a backend for pairing and encrypted cloud storage. Set it up
+first by following the
+[lynkshare-backend README](https://github.com/mudit-palvadi/lynkshare-backend#quick-start).
+For the full stack, see the
+[LynkShare meta repository](https://github.com/mudit-palvadi/LynkShare#self-hosting).
 
-### 1. Start the backend
-
-Start Redis locally on port `6379`, then set up the backend:
-
-```sh
-git clone https://github.com/mudit-palvadi/lynk-backend.git
-cd lynk-backend
-python -m venv .venv
-# Windows PowerShell: .venv\Scripts\Activate.ps1
-# macOS/Linux:       source .venv/bin/activate
-pip install -r requirements.txt -r requirements-dev.txt
-```
-
-Create `.env` in the backend repository root and fill in **your own**
-Cloudflare R2 credentials:
-
-```env
-ENVIRONMENT=development
-PORT=8000
-HOST=0.0.0.0
-REDIS_URL=redis://localhost:6379/0
-
-R2_ACCOUNT_ID=your-cloudflare-account-id
-R2_ACCESS_KEY_ID=your-access-key-id
-R2_SECRET_ACCESS_KEY=your-secret-access-key
-R2_BUCKET_NAME=your-bucket-name
-```
-
-Create that bucket in your own Cloudflare account and give the API token
-read/write access to it. The backend supports Cloudflare R2 only, and its
-`mock-*` defaults cannot store files; without your own bucket, cloud transfers
-fail.
-
-```sh
-uvicorn app.main:app --reload
-```
-
-The API is then at `http://localhost:8000`, with interactive docs at
-`http://localhost:8000/docs`.
-
-### 2. Configure the client
+### Configure the app
 
 Open this repository's root (the directory containing `pubspec.yaml`) and copy
 the example environment file:
@@ -185,19 +146,20 @@ the example environment file:
 cp .env.example .env
 ```
 
-Set `API_BASE_URL` for the device you are running:
+Set `API_BASE_URL` to the API base of your backend. `.env.example` contains the
+correct value for the Android emulator; change only the host when you run on a
+physical device or the web build:
 
-| Target | `API_BASE_URL` |
-| --- | --- |
-| Android emulator | `http://10.0.2.2:8000/api/v1/` |
-| Web or desktop | `http://localhost:8000/api/v1/` |
-| Physical Android device | `http://localhost:8000/api/v1/` after `adb reverse tcp:8000 tcp:8000`, or `http://<computer-lan-ip>:8000/api/v1/` |
+- **Android emulator:** keep `10.0.2.2`.
+- **Web or desktop:** use `localhost`.
+- **Physical Android device:** run `adb reverse tcp:8000 tcp:8000` and use
+  `localhost`, or use your computer's LAN address.
 
 `API_BASE_URL` is required. If it is missing, the app throws a configuration
 error naming the variable instead of falling back to a hosted service.
 
 `PRIVACY_POLICY_URL` and `DEEP_LINK_BASE_URL` are public product links. Never
-put storage credentials, publishing tokens or signing keys in the client's
+put storage credentials, publishing tokens or signing keys in the app's
 `.env`; that file is bundled into the app. Debug and profile builds use
 Google's test ad identifiers automatically.
 
@@ -214,7 +176,7 @@ reinitialize it with `--force`.
 
 Contributions are welcome. Here is how to help:
 
-- **Bug reports and feature requests** → [open an issue](https://github.com/mudit-palvadi/lynk-client/issues).
+- **Bug reports and feature requests** → [open an issue](https://github.com/mudit-palvadi/lynkshare-mobile/issues).
 - **Code contributions** → fork the repository, create a focused branch, and open
   a pull request. Please open an issue first for large changes.
 - **Security reports** → follow [SECURITY.md](SECURITY.md); do not open a public
@@ -254,7 +216,7 @@ preview, explicit promotion/rollback and device checks. Nothing publishes on pus
 
 - ⭐ Star the repository to help others find LynkShare.
 - 💬 Leave a review on [Google Play](https://play.google.com/store/apps/details?id=app.xynix.lynk).
-- 🐛 [Report a bug or suggest a feature](https://github.com/mudit-palvadi/lynk-client/issues).
+- 🐛 [Report a bug or suggest a feature](https://github.com/mudit-palvadi/lynkshare-mobile/issues).
 
 ## License
 
